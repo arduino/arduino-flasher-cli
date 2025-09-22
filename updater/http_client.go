@@ -92,20 +92,20 @@ func (c *Client) GetInfoManifest() (Manifest, error) {
 }
 
 // FetchZip fetches the Debian image archive.
-func (c *Client) FetchZip(zipURL string) (io.ReadCloser, error) {
+func (c *Client) FetchZip(zipURL string) (io.ReadCloser, int64, error) {
 	req, err := http.NewRequest("GET", zipURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
 	}
 	c.addHeaders(req)
 	// #nosec G107 -- zipURL is constructed from trusted config and parameters
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to GET zip: %w", err)
+		return nil, 0, fmt.Errorf("failed to GET zip: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("bad http status from %s: %v", zipURL, resp.Status)
+		return nil, 0, fmt.Errorf("bad http status from %s: %v", zipURL, resp.Status)
 	}
-	return resp.Body, nil
+	return resp.Body, resp.ContentLength, nil
 }
