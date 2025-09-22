@@ -26,6 +26,36 @@ type Manifest struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
+// PassThru wraps an existing io.Reader.
+//
+// It simply forwards the Read() call, while displaying
+// the results from individual calls to it.
+type PassThru struct {
+	io.Reader
+	total      float64 // Total # of bytes transferred
+	length     int64   // Expected length
+	progress   float64
+	progressCB func(f float64)
+}
+
+// Read 'overrides' the underlying io.Reader's Read method.
+// This is the one that will be called by io.Copy(). We simply
+// use it to keep track of the progress and then forward the call.
+func (pt *PassThru) Read(p []byte) (int, error) {
+	n, err := pt.Reader.Read(p)
+	if err != nil {
+		return 0, err
+	}
+	pt.total += float64(n)
+	percentage := pt.total / float64(pt.length) * float64(100)
+	if percentage-pt.progress > 1 {
+		pt.progressCB(percentage)
+		pt.progress = percentage
+	}
+
+	return n, nil
+}
+
 func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (string, string, error) {
 	var err error
 
@@ -52,9 +82,10 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 
 	// Download the Debian image
 	var download io.ReadCloser
+	var size int64
 	if targetVersion == manifest.Latest.Version {
 		slog.Info("Downloading Debian image", "version", manifest.Latest.Version)
-		download, err = client.FetchZip(manifest.Latest.Url)
+		download, size, err = client.FetchZip(manifest.Latest.Url)
 		if err != nil {
 			return "", "", fmt.Errorf("could not fetch Debian image: %w", err)
 		}
@@ -82,8 +113,10 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	}
 	defer tmpZipFile.Close()
 
+	// Download and keep track of the progress
+	src := &PassThru{Reader: download, length: size, progressCB: func(f float64) { feedback.Printf("Download progress: %.2f %%", f) }}
 	md5 := md5.New()
-	if _, err := io.Copy(io.MultiWriter(md5, tmpZipFile), download); err != nil {
+	if _, err := io.Copy(io.MultiWriter(md5, tmpZipFile), src); err != nil {
 		return "", "", err
 	}
 	tmpZipFile.Close()
