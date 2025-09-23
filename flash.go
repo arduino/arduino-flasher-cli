@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	runas "github.com/arduino/go-windows-runas"
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
 	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 	"github.com/spf13/cobra"
@@ -24,6 +26,7 @@ func newFlashCmd() *cobra.Command {
 			" " + os.Args[0] + " flash 20250915-173\n",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			checkDriversInstalled()
 			runFlashCommand(cmd.Context(), args, forceYes)
 		},
 	}
@@ -31,6 +34,17 @@ func newFlashCmd() *cobra.Command {
 	// TODO: add --clean-install flag or something similar to distinguish between keeping and purging the /home directory
 
 	return appCmd
+}
+
+func checkDriversInstalled() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	cmd, _ := os.Executable()
+	pwd, _ := os.Getwd()
+	if _, err := runas.RunElevated(cmd, pwd, []string{"install-drivers"}, true); err != nil {
+		feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
+	}
 }
 
 func runFlashCommand(ctx context.Context, args []string, forceYes bool) {
