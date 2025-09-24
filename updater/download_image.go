@@ -56,13 +56,28 @@ func (pt *PassThru) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (string, string, error) {
+func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, error) {
+	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes)
+	if err != nil {
+		return nil, fmt.Errorf("error downloading the image: %v", err)
+	}
+
+	err = ExtractImage(tmpZip, tmpZip.Parent())
+	if err != nil {
+		return nil, fmt.Errorf("error extracting the image: %v", err)
+	}
+
+	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + version)
+	return imagePath, nil
+}
+
+func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
 	var err error
 
 	slog.Info("Checking for Debian image releases")
 	manifest, err := client.GetInfoManifest()
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
 	if targetVersion == "latest" {
@@ -72,11 +87,11 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	if !forceYes {
 		res, err := upgradeConfirmCb(targetVersion)
 		if err != nil {
-			return "", "", err
+			return nil, "", err
 		}
 		if !res {
 			slog.Info("Download not confirmed by user, exiting")
-			return "", "", nil
+			return nil, "", nil
 		}
 	}
 
@@ -87,29 +102,24 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 		slog.Info("Downloading Debian image", "version", manifest.Latest.Version)
 		download, size, err = client.FetchZip(manifest.Latest.Url)
 		if err != nil {
-			return "", "", fmt.Errorf("could not fetch Debian image: %w", err)
+			return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
 		}
 	} else {
 		// TODO: check the json for the specific version and download it
-		return "", "", nil
+		return nil, "", nil
 	}
 	defer download.Close()
 
 	// Download the zip
 	temp, err := paths.MkTempDir("", "flasher-updater-")
 	if err != nil {
-		return "", "", fmt.Errorf("could not create temporary download directory: %w", err)
+		return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
 	}
-	tmpZip := temp.Join("update.tar.xz")
-	defer func() {
-		if err := tmpZip.Remove(); err != nil {
-			slog.Warn("Could not remove temp zip", "zip", tmpZip.String(), "error", err)
-		}
-	}()
 
+	tmpZip := temp.Join("update.tar.zst")
 	tmpZipFile, err := tmpZip.Create()
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 	defer tmpZipFile.Close()
 
@@ -117,22 +127,27 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	src := &PassThru{Reader: download, length: size, progressCB: func(f float64) { feedback.Printf("Download progress: %.2f %%", f) }}
 	md5 := md5.New()
 	if _, err := io.Copy(io.MultiWriter(md5, tmpZipFile), src); err != nil {
-		return "", "", err
+		return nil, "", err
 	}
-	tmpZipFile.Close()
 
 	// Check the hash
 	if md5Byte, err := hex.DecodeString(manifest.Latest.Md5sum); err != nil {
-		return "", "", fmt.Errorf("could not convert md5 from hex to bytes: %w", err)
+		return nil, "", fmt.Errorf("could not convert md5 from hex to bytes: %w", err)
 	} else if s := md5.Sum(nil); !bytes.Equal(s, md5Byte) {
-		return "", "", fmt.Errorf("bad hash: %x (expected %x)", s, md5Byte)
+		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, md5Byte)
 	}
 
+	slog.Info("Download of Debian image completed", "path", temp)
+
+	return tmpZip, targetVersion, nil
+}
+
+func ExtractImage(archive, temp *paths.Path) error {
 	// Unzip the Debian image
 	slog.Info("Unzipping Debian image", "tmpDir", temp)
-	tmpZipFile, err = tmpZip.Open()
+	tmpZipFile, err := archive.Open()
 	if err != nil {
-		return "", "", fmt.Errorf("could not open archive for unzip: %w", err)
+		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer tmpZipFile.Close()
 
@@ -140,10 +155,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 		feedback.Print(s)
 		return s
 	}); err != nil {
-		return "", "", fmt.Errorf("extracting archive: %w", err)
+		return fmt.Errorf("could not extract archive: %w", err)
 	}
-
-	slog.Info("Download of Debian image completed", "path", temp)
-
-	return temp.String(), targetVersion, nil
+	return nil
 }
