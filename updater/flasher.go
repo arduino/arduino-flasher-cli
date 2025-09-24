@@ -15,16 +15,23 @@ import (
 //go:embed assets
 var assets embed.FS
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, updatedVersion string) error {
+func FlashBoard(ctx context.Context, downloadedImagePath string) error {
 	qdl, err := getQdlBytes()
 	if err != nil {
 		return err
 	}
 
-	flashDir := paths.New(downloadedImagePath, "arduino-unoq-debian-image-"+updatedVersion, "flash_UnoQ")
-	qdlPath := flashDir.Join("qdl")
+	flashDir := paths.New(downloadedImagePath, "flash_UnoQ")
+
+	qdlDir, err := paths.MkTempDir("", "qdl-")
+	if err != nil {
+		return err
+	}
+	defer qdlDir.RemoveAll()
+
+	qdlPath := qdlDir.Join("qdl")
 	if runtime.GOOS == "windows" {
-		qdlPath = flashDir.Join("qdl.exe")
+		qdlPath = qdlDir.Join("qdl.exe")
 	}
 
 	err = qdlPath.WriteFile(qdl)
