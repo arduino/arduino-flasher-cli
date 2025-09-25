@@ -43,9 +43,6 @@ type PassThru struct {
 // use it to keep track of the progress and then forward the call.
 func (pt *PassThru) Read(p []byte) (int, error) {
 	n, err := pt.Reader.Read(p)
-	if err != nil {
-		return 0, err
-	}
 	pt.total += float64(n)
 	percentage := pt.total / float64(pt.length) * float64(100)
 	if percentage-pt.progress > 1 {
@@ -53,7 +50,7 @@ func (pt *PassThru) Read(p []byte) (int, error) {
 		pt.progress = percentage
 	}
 
-	return n, nil
+	return n, err
 }
 
 func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, error) {

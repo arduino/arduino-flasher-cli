@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"os"
 	"runtime"
+	"strings"
 
 	"embed"
 
@@ -14,6 +17,77 @@ import (
 
 //go:embed assets
 var assets embed.FS
+
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
+	if !imagePath.Exist() {
+		updateURL := os.Getenv("UPDATE_URL")
+		if updateURL == "" {
+			// TODO: change to prod
+			updateURL = "https://downloads.arduino.cc"
+		}
+
+		parsedURL, err := url.Parse(updateURL)
+		if err != nil {
+			return fmt.Errorf("invalid UPDATE_URL: %v", err)
+		}
+
+		headers := map[string]string{}
+		clientID := os.Getenv("CF_ACCESS_CLIENT_ID")
+		clientSecret := os.Getenv("CF_ACCESS_CLIENT_SECRET")
+		if clientID != "" && clientSecret != "" {
+			headers["CF-Access-Client-Id"] = clientID
+			headers["CF-Access-Client-Secret"] = clientSecret
+		}
+
+		var client *Client
+		if len(headers) == 2 {
+			client = NewClient(parsedURL, "debian-im/Stable", WithHeaders(headers))
+		} else {
+			client = NewClient(parsedURL, "debian-im/Stable")
+		}
+
+		tempImagePath, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
+			feedback.Printf("Found Debian image version: %s", target)
+			feedback.Printf("Do you want to download it and flash it on the board? (yes/no)")
+
+			var yesInput string
+			_, err := fmt.Scanf("%s\n", &yesInput)
+			if err != nil {
+				return false, err
+			}
+			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+			return yes, nil
+		}, forceYes)
+
+		if err != nil {
+			return fmt.Errorf("could not download and extract the image: %v", err)
+		}
+
+		defer tempImagePath.Parent().RemoveAll()
+
+		imagePath = tempImagePath
+	} else if !imagePath.IsDir() {
+		temp, err := paths.MkTempDir("", "debian-image-")
+		if err != nil {
+			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
+		}
+		defer temp.RemoveAll()
+
+		err = ExtractImage(imagePath, temp)
+		if err != nil {
+			return fmt.Errorf("error extracting the archive: %v", err)
+		}
+
+		tempContent, err := temp.ReadDir(paths.AndFilter(paths.FilterDirectories(), paths.FilterPrefixes("arduino-unoq-debian-image-")))
+		if err != nil {
+			return fmt.Errorf("could not find Debian image directory: %v", err)
+		}
+
+		imagePath = tempContent[0]
+	}
+
+	return FlashBoard(ctx, imagePath.String())
+}
 
 func FlashBoard(ctx context.Context, downloadedImagePath string) error {
 	qdl, err := getQdlBytes()
