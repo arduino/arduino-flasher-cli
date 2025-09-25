@@ -1,7 +1,7 @@
 package updater
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -83,10 +83,10 @@ func (c *Client) GetInfoManifest() (Manifest, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return Manifest{}, fmt.Errorf("invalid manifest JSON: %w", err)
 	}
-	if md5Byte, err := hex.DecodeString(res.Latest.Md5sum); err != nil {
-		return Manifest{}, fmt.Errorf("could not convert md5 from hex to bytes: %w", err)
-	} else if len(md5Byte) != md5.Size {
-		return Manifest{}, fmt.Errorf("bad md5sum in manifest: got %d bytes", len(md5Byte))
+	if sha256Byte, err := hex.DecodeString(res.Latest.Sha256); err != nil {
+		return Manifest{}, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
+	} else if len(sha256Byte) != sha256.Size {
+		return Manifest{}, fmt.Errorf("bad sha256sum in manifest: got %d bytes", len(sha256Byte))
 	}
 	return res, nil
 }

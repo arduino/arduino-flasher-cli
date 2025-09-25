@@ -3,7 +3,7 @@ package updater
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -19,7 +19,7 @@ type Manifest struct {
 	Latest struct {
 		Version string `json:"version"`
 		Url     string `json:"url"`
-		Md5sum  string `json:"md5sum"`
+		Sha256  string `json:"sha256"`
 	} `json:"latest"`
 }
 
@@ -122,16 +122,16 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 
 	// Download and keep track of the progress
 	src := &PassThru{Reader: download, length: size, progressCB: func(f float64) { feedback.Printf("Download progress: %.2f %%", f) }}
-	md5 := md5.New()
-	if _, err := io.Copy(io.MultiWriter(md5, tmpZipFile), src); err != nil {
+	checksum := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(checksum, tmpZipFile), src); err != nil {
 		return nil, "", err
 	}
 
 	// Check the hash
-	if md5Byte, err := hex.DecodeString(manifest.Latest.Md5sum); err != nil {
-		return nil, "", fmt.Errorf("could not convert md5 from hex to bytes: %w", err)
-	} else if s := md5.Sum(nil); !bytes.Equal(s, md5Byte) {
-		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, md5Byte)
+	if sha256Byte, err := hex.DecodeString(manifest.Latest.Sha256); err != nil {
+		return nil, "", fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
+	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
+		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 
 	slog.Info("Download of Debian image completed", "path", temp)
