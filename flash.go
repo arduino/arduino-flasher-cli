@@ -18,9 +18,35 @@ func newFlashCmd() *cobra.Command {
 	appCmd := &cobra.Command{
 		Use:   "flash",
 		Short: "Flash a Debian image on the board",
-		Long:  "Dowload the specified Debian image version and flash it on the board",
+		Long: `Flash a Debian image on the board.
+
+WARNING: This operation will completely replace the current system on the board.
+Make sure to backup any important data before proceeding.
+
+This command accepts either:
+  - A local file path to a compressed Debian image file (e.g., .tar.zst, .tar.xz) or a decompressed Debian image folder
+  - A version tag to download from the remote repository
+
+When providing a local file path:
+  - The path can be relative or absolute
+  - The file is extracted in a temp folder (if needed)
+  - The image is flashed into the board
+
+When providing a version tag:
+  - Use 'latest' to download the most recent stable image
+  - Use a specific version tag (e.g., '20250915-173') to download that exact version
+  - The image will be automatically downloaded (in a temp folder), the sha is verified, and flashed
+
+
+NOTE: On Windows, required drivers are automatically installed with elevated privileges.
+`,
 		Example: " " + os.Args[0] + " flash latest\n" +
-			" " + os.Args[0] + " flash 20250915-173\n",
+			" " + os.Args[0] + " flash 20250915-173\n" +
+			" " + os.Args[0] + " flash ./my-image.tar.zst\n" +
+			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
+			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
+			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n",
+
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
