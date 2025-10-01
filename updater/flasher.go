@@ -77,7 +77,16 @@ func FlashBoard(ctx context.Context, downloadedImagePath string) error {
 		return err
 	}
 
-	flashDir := paths.New(downloadedImagePath, "flash_UnoQ")
+	var flashDir *paths.Path
+	for _, entry := range []string{"flash", "flash_UnoQ"} {
+		if p := paths.New(downloadedImagePath, entry); p.Exist() {
+			flashDir = p
+			break
+		}
+	}
+	if flashDir == nil {
+		return fmt.Errorf("could not find the `flash` directory")
+	}
 
 	qdlDir, err := paths.MkTempDir("", "qdl-")
 	if err != nil {
@@ -105,7 +114,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string) error {
 	}
 	// TODO: add logic to preserve the user partition
 	slog.Info("Flashing with qdl")
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", "rawprogram0.xml", "patch0.xml")
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", "rawprogram0.xml", "patch0.xml")
 	if err != nil {
 		return err
 	}
