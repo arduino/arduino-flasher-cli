@@ -69,6 +69,7 @@ func (c *Client) GetInfoManifest() (Manifest, error) {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
 	}
 	c.addHeaders(req)
+	req.SetBasicAuth("arduino", "changeme")
 	// #nosec G107 -- manifestURL is constructed from trusted config and parameters
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -98,6 +99,7 @@ func (c *Client) FetchZip(zipURL string) (io.ReadCloser, int64, error) {
 		return nil, 0, fmt.Errorf("failed to create request: %w", err)
 	}
 	c.addHeaders(req)
+	req.SetBasicAuth("arduino", "changeme")
 	// #nosec G107 -- zipURL is constructed from trusted config and parameters
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"runtime"
 	"strings"
 
@@ -20,31 +19,14 @@ var assets embed.FS
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
 	if !imagePath.Exist() {
-		updateURL := os.Getenv("UPDATE_URL")
-		if updateURL == "" {
-			// TODO: change to prod
-			updateURL = "https://downloads.oniudra.cc"
-		}
+		updateURL := "https://downloads.arduino.cc"
 
 		parsedURL, err := url.Parse(updateURL)
 		if err != nil {
 			return fmt.Errorf("invalid UPDATE_URL: %v", err)
 		}
 
-		headers := map[string]string{}
-		clientID := os.Getenv("CF_ACCESS_CLIENT_ID")
-		clientSecret := os.Getenv("CF_ACCESS_CLIENT_SECRET")
-		if clientID != "" && clientSecret != "" {
-			headers["CF-Access-Client-Id"] = clientID
-			headers["CF-Access-Client-Secret"] = clientSecret
-		}
-
-		var client *Client
-		if len(headers) == 2 {
-			client = NewClient(parsedURL, "debian-im/Stable", WithHeaders(headers))
-		} else {
-			client = NewClient(parsedURL, "debian-im/Stable")
-		}
+		client := NewClient(parsedURL, "debian-im/Stable")
 
 		tempImagePath, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)
