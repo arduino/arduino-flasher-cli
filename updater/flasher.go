@@ -3,7 +3,6 @@ package updater
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"runtime"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
+	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 )
 
 //go:embed assets
@@ -43,6 +43,11 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
+		}
+
+		// Download not confirmed
+		if tempImagePath == nil {
+			return nil
 		}
 
 		defer tempImagePath.Parent().RemoveAll()
@@ -113,7 +118,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string) error {
 		return err
 	}
 	// TODO: add logic to preserve the user partition
-	slog.Info("Flashing with qdl")
+	feedback.Print(i18n.Tr("Flashing with qdl"))
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", "rawprogram0.xml", "patch0.xml")
 	if err != nil {
 		return err

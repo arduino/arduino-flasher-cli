@@ -7,20 +7,22 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
+	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 	"github.com/codeclysm/extract/v4"
 )
 
-// TODO: add more fields to download other image versions
 type Manifest struct {
-	Latest struct {
-		Version string `json:"version"`
-		Url     string `json:"url"`
-		Sha256  string `json:"sha256"`
-	} `json:"latest"`
+	Latest   Release   `json:"latest"`
+	Releases []Release `json:"releases"`
+}
+
+type Release struct {
+	Version string `json:"version"`
+	Url     string `json:"url"`
+	Sha256  string `json:"sha256"`
 }
 
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
@@ -59,6 +61,11 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 		return nil, fmt.Errorf("error downloading the image: %v", err)
 	}
 
+	// Download not confirmed
+	if tmpZip == nil {
+		return nil, nil
+	}
+
 	err = ExtractImage(tmpZip, tmpZip.Parent())
 	if err != nil {
 		return nil, fmt.Errorf("error extracting the image: %v", err)
@@ -71,39 +78,43 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
 	var err error
 
-	slog.Info("Checking for Debian image releases")
+	feedback.Print(i18n.Tr("Checking for Debian image releases"))
 	manifest, err := client.GetInfoManifest()
 	if err != nil {
 		return nil, "", err
 	}
 
-	if targetVersion == "latest" {
-		targetVersion = manifest.Latest.Version
+	var rel *Release
+	if targetVersion == "latest" || targetVersion == manifest.Latest.Version {
+		rel = &manifest.Latest
+	} else {
+		for _, r := range manifest.Releases {
+			if targetVersion == r.Version {
+				rel = &r
+				break
+			}
+		}
+	}
+
+	if rel == nil {
+		return nil, "", fmt.Errorf("could not find Debian image %s", targetVersion)
 	}
 
 	if !forceYes {
-		res, err := upgradeConfirmCb(targetVersion)
+		res, err := upgradeConfirmCb(rel.Version)
 		if err != nil {
 			return nil, "", err
 		}
 		if !res {
-			slog.Info("Download not confirmed by user, exiting")
+			feedback.Print(i18n.Tr("Download not confirmed by user, exiting"))
 			return nil, "", nil
 		}
 	}
 
-	// Download the Debian image
-	var download io.ReadCloser
-	var size int64
-	if targetVersion == manifest.Latest.Version {
-		slog.Info("Downloading Debian image", "version", manifest.Latest.Version)
-		download, size, err = client.FetchZip(manifest.Latest.Url)
-		if err != nil {
-			return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
-		}
-	} else {
-		// TODO: check the json for the specific version and download it
-		return nil, "", nil
+	feedback.Print(i18n.Tr("Downloading Debian image version %s", rel.Version))
+	download, size, err := client.FetchZip(rel.Url)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
 	}
 	defer download.Close()
 
@@ -128,20 +139,20 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	}
 
 	// Check the hash
-	if sha256Byte, err := hex.DecodeString(manifest.Latest.Sha256); err != nil {
+	if sha256Byte, err := hex.DecodeString(rel.Sha256); err != nil {
 		return nil, "", fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
 	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
 		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 
-	slog.Info("Download of Debian image completed", "path", temp)
+	feedback.Print(i18n.Tr("Download of Debian image completed"))
 
-	return tmpZip, targetVersion, nil
+	return tmpZip, rel.Version, nil
 }
 
 func ExtractImage(archive, temp *paths.Path) error {
 	// Unzip the Debian image
-	slog.Info("Unzipping Debian image", "tmpDir", temp)
+	feedback.Print(i18n.Tr("Unzipping Debian image"))
 	tmpZipFile, err := archive.Open()
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
