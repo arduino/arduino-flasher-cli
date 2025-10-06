@@ -30,7 +30,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 
 		tempImagePath, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)
-			feedback.Printf("Do you want to download it and flash it on the board? (yes/no)")
+			feedback.Printf("Do you want to download it? (yes/no)")
 
 			var yesInput string
 			_, err := fmt.Scanf("%s\n", &yesInput)
@@ -73,10 +73,32 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String())
+	return FlashBoard(ctx, imagePath.String(), func(target string) (bool, error) {
+		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
+		feedback.Printf("Do you want to procede and flash %s on the board? (yes/no)", target)
+
+		var yesInput string
+		_, err := fmt.Scanf("%s\n", &yesInput)
+		if err != nil {
+			return false, err
+		}
+		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+		return yes, nil
+	}, forceYes)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string) error {
+func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) error {
+	if !forceYes {
+		res, err := upgradeConfirmCb(downloadedImagePath)
+		if err != nil {
+			return err
+		}
+		if !res {
+			feedback.Print(i18n.Tr("Flashing not confirmed by user, exiting"))
+			return nil
+		}
+	}
+
 	qdl, err := getQdlBytes()
 	if err != nil {
 		return err
