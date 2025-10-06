@@ -7,15 +7,12 @@ import (
 	"runtime"
 	"strings"
 
-	"embed"
-
 	"github.com/arduino/go-paths-helper"
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
 	"github.com/bcmi-labs/orchestrator/cmd/i18n"
-)
 
-//go:embed assets
-var assets embed.FS
+	"arduino-flasher-cli/updater/artifacts"
+)
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
 	if !imagePath.Exist() {
@@ -99,11 +96,6 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmC
 		}
 	}
 
-	qdl, err := getQdlBytes()
-	if err != nil {
-		return err
-	}
-
 	var flashDir *paths.Path
 	for _, entry := range []string{"flash", "flash_UnoQ"} {
 		if p := paths.New(downloadedImagePath, entry); p.Exist() {
@@ -126,7 +118,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmC
 		qdlPath = qdlDir.Join("qdl.exe")
 	}
 
-	err = qdlPath.WriteFile(qdl)
+	err = qdlPath.WriteFile(artifacts.QdlBinary)
 	if err != nil {
 		return err
 	}
@@ -154,19 +146,4 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmC
 	}
 
 	return nil
-}
-
-func getQdlBytes() ([]byte, error) {
-	var filename string
-	switch runtime.GOOS {
-	case "linux":
-		filename = "assets/qdl_Linux"
-	case "darwin":
-		filename = "assets/qdl_Darwin"
-	case "windows":
-		filename = "assets/qdl_Windows.exe"
-	default:
-		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
-	return assets.ReadFile(filename)
 }

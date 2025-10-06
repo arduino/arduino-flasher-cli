@@ -1,4 +1,4 @@
-module arduino-flasher
+module arduino-flasher-cli
 
 go 1.25.1
 
