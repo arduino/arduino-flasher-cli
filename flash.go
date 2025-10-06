@@ -1,7 +1,6 @@
 package main
 
 import (
-	"arduino-flasher/updater"
 	"context"
 	"os"
 	"runtime"
@@ -11,6 +10,8 @@ import (
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
 	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 	"github.com/spf13/cobra"
+
+	"arduino-flasher-cli/updater"
 )
 
 func newFlashCmd() *cobra.Command {
