@@ -12,6 +12,7 @@ import (
 	"github.com/bcmi-labs/orchestrator/cmd/feedback"
 	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 	"github.com/codeclysm/extract/v4"
+	"github.com/schollz/progressbar/v3"
 )
 
 type Manifest struct {
@@ -27,33 +28,6 @@ type Release struct {
 
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
-
-// PassThru wraps an existing io.Reader.
-//
-// It simply forwards the Read() call, while displaying
-// the results from individual calls to it.
-type PassThru struct {
-	io.Reader
-	total      float64 // Total # of bytes transferred
-	length     int64   // Expected length
-	progress   float64
-	progressCB func(f float64)
-}
-
-// Read 'overrides' the underlying io.Reader's Read method.
-// This is the one that will be called by io.Copy(). We simply
-// use it to keep track of the progress and then forward the call.
-func (pt *PassThru) Read(p []byte) (int, error) {
-	n, err := pt.Reader.Read(p)
-	pt.total += float64(n)
-	percentage := pt.total / float64(pt.length) * float64(100)
-	if percentage-pt.progress > 1 {
-		pt.progressCB(percentage)
-		pt.progress = percentage
-	}
-
-	return n, err
-}
 
 func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, error) {
 	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes)
@@ -111,7 +85,6 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 		}
 	}
 
-	feedback.Print(i18n.Tr("Downloading Debian image version %s", rel.Version))
 	download, size, err := client.FetchZip(rel.Url)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
@@ -132,9 +105,12 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	defer tmpZipFile.Close()
 
 	// Download and keep track of the progress
-	src := &PassThru{Reader: download, length: size, progressCB: func(f float64) { feedback.Printf("Download progress: %.2f %%", f) }}
+	bar := progressbar.DefaultBytes(
+		size,
+		i18n.Tr("Downloading Debian image version %s", rel.Version),
+	)
 	checksum := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(checksum, tmpZipFile), src); err != nil {
+	if _, err := io.Copy(io.MultiWriter(checksum, tmpZipFile, bar), download); err != nil {
 		return nil, "", err
 	}
 
