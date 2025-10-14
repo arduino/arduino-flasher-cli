@@ -9,16 +9,15 @@ tasks:
     deps:
       - arduino-flasher-cli:artifacts
     desc: "Build the arduino-flasher-cli locally"
-    dir: arduino-flasher-cli
     vars:
       VERSION: "{{.VERSION }}"
     cmds:
-      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ../build/arduino-flasher-cli .
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli .
         platforms: [linux, darwin]
-      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ../build/arduino-flasher-cli.exe .
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli.exe .
         platforms: [windows]
 
   arduino-flasher-cli:artifacts:
     desc: Prepare the arduino-flasher-cli artifacts
     internal: true
-    cmd: sh ./arduino-flasher-cli/updater/artifacts/download_resources.sh
+    cmd: sh ./updater/artifacts/download_resources.sh
