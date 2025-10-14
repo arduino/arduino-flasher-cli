@@ -1,0 +1,24 @@
+version: "3"
+
+vars:
+  VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
+    sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
+
+tasks:
+  arduino-flasher-cli:build:
+    deps:
+      - arduino-flasher-cli:artifacts
+    desc: "Build the arduino-flasher-cli locally"
+    dir: arduino-flasher-cli
+    vars:
+      VERSION: "{{.VERSION }}"
+    cmds:
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ../build/arduino-flasher-cli .
+        platforms: [linux, darwin]
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ../build/arduino-flasher-cli.exe .
+        platforms: [windows]
+
+  arduino-flasher-cli:artifacts:
+    desc: Prepare the arduino-flasher-cli artifacts
+    internal: true
+    cmd: sh ./arduino-flasher-cli/updater/artifacts/download_resources.sh
