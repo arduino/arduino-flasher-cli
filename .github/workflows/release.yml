@@ -72,11 +72,12 @@ jobs:
 
       - name: Prepare Build Artifacts (!windows)
         working-directory: ./${{ env.DIST_DIR }}
-        run: tar -czf ${{ env.RELEASE_NAME }}.tar.gz arduino-flasher-cli -C ../arduino-flasher-cli LICENSE
+        run: tar -czf ${{ env.RELEASE_NAME }}.tar.gz arduino-flasher-cli -C ../ LICENSE
         if: matrix.os != 'windows'
+
       - name: Prepare Build Artifacts (windows)
         working-directory: ./${{ env.DIST_DIR }}
-        run: 7z a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe ../arduino-flasher-cli/LICENSE
+        run: 7z a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe ../LICENSE
         if: matrix.os == 'windows'
 
       - name: Upload artifacts
@@ -158,8 +159,7 @@ jobs:
     steps:
       - name: Set environment variables
         run: |
-          TAG_NAME="${GITHUB_REF##*/}"
-          VERSION="${TAG_NAME#flasher-}"
+          VERSION="${GITHUB_REF##*/}"
           echo "PACKAGE_FILENAME=${{ env.PROJECT_NAME }}-${VERSION}-${{ matrix.build }}.tar.gz" >>$GITHUB_ENV
 
       - name: Checkout repository
