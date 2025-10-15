@@ -19,6 +19,5 @@ import (
 	_ "embed"
 )
 
-//nolint:staticcheck
 //go:embed resources_windows_amd64/qdl.exe
 var QdlBinary []byte

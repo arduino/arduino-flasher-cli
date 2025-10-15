@@ -19,6 +19,5 @@ import (
 	_ "embed"
 )
 
-//nolint:staticcheck
 //go:embed resources_darwin_amd64/qdl
 var QdlBinary []byte
