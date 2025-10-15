@@ -164,13 +164,15 @@ func ExtractImage(archive, temp *paths.Path) error {
 // GetTempDir returns a temporary directory inside the user's cache directory.
 // The caller is responsible for removing the directory when no longer needed.
 func GetTempDir(prefix string) (*paths.Path, error) {
-	cacheDir, err := os.UserCacheDir()
+	userCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("could not get user's cache directory: %w", err)
 	}
 
-	_ = paths.New(cacheDir, "arduino-flasher-cli").MkdirAll()
-	temp, err := paths.MkTempDir(cacheDir, prefix)
+	cacheDir := paths.New(userCacheDir, "arduino-flasher-cli")
+	_ = cacheDir.MkdirAll()
+
+	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
 	if err != nil {
 		return nil, fmt.Errorf("could not create .cache directory: %w", err)
 	}
