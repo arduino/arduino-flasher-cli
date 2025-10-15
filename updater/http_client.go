@@ -27,12 +27,12 @@ import (
 	"go.bug.st/f"
 )
 
-var updateURL = f.Must(url.Parse("https://downloads.arduino.cc"))
+var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
+
+const pathRelease = "debian-im/Stable"
 
 // Client holds the base URL, command name, allows custom HTTP client, and optional headers.
 type Client struct {
-	BaseURL    *url.URL
-	CmdName    string
 	HTTPClient HTTPDoer
 	Headers    map[string]string // Optional headers to add to each request
 }
@@ -60,10 +60,8 @@ func WithHTTPClient(client HTTPDoer) Option {
 }
 
 // NewClient creates a new Client with optional configuration.
-func NewClient(cmdName string, opts ...Option) *Client {
+func NewClient(opts ...Option) *Client {
 	c := &Client{
-		BaseURL:    updateURL,
-		CmdName:    cmdName,
 		HTTPClient: http.DefaultClient,
 		Headers:    nil,
 	}
@@ -82,7 +80,7 @@ func (c *Client) addHeaders(req *http.Request) {
 
 // GetInfoManifest fetches and decodes the Debian images info.json.
 func (c *Client) GetInfoManifest() (Manifest, error) {
-	manifestURL := c.BaseURL.JoinPath(c.CmdName, "info.json").String()
+	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
 	req, err := http.NewRequest("GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)

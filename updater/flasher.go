@@ -30,7 +30,7 @@ import (
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
 	if !imagePath.Exist() {
-		client := NewClient("debian-im/Stable")
+		client := NewClient()
 
 		tempImagePath, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)

@@ -38,7 +38,7 @@ func newListCmd() *cobra.Command {
 }
 
 func runListCommand() {
-	client := updater.NewClient("debian-im/Stable")
+	client := updater.NewClient()
 
 	manifest, err := client.GetInfoManifest()
 	if err != nil {
