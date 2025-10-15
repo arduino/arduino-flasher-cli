@@ -1,4 +1,4 @@
-name: Release Arduino Flasher CLI
+name: Release
 
 on:
   push:
