@@ -60,7 +60,7 @@ jobs:
 
       - name: Build Binary
         run: |
-          task arduino-flasher-cli:build
+          task build
         env:
           GOARCH: ${{ matrix.arch }}
           GOOS: ${{ matrix.os }}
