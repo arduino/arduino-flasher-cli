@@ -13,24 +13,30 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package i18n
 
-import (
-	"github.com/spf13/cobra"
+import "fmt"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-)
+type Locale interface {
+	Get(msg string, args ...interface{}) string
+}
 
-func newInstallDriversCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:    "install-drivers",
-		Hidden: true,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := installDrivers(); err != nil {
-				feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
-			}
-		},
-	}
-	return cmd
+type nullLocale struct{}
+
+func (n nullLocale) Parse([]byte) {}
+
+func (n nullLocale) Get(msg string, args ...interface{}) string {
+	return fmt.Sprintf(msg, args...)
+}
+
+var locale Locale = &nullLocale{}
+
+func SetLocale(l Locale) {
+	locale = l
+}
+
+// Tr returns msg translated to the selected locale
+// the msg argument must be a literal string
+func Tr(msg string, args ...interface{}) string {
+	return locale.Get(msg, args...)
 }

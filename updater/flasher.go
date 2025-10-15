@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/bcmi-labs/orchestrator/cmd/feedback"
-	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 
-	"arduino-flasher-cli/updater/artifacts"
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
+	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
 )
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
