@@ -5,7 +5,7 @@ vars:
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
 tasks:
-  arduino-flasher-cli:build:
+  build:
     deps:
       - arduino-flasher-cli:artifacts
     desc: "Build the arduino-flasher-cli locally"
