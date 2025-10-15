@@ -31,6 +31,8 @@ jobs:
 
       - name: build
         run: task build # needed to download the embedded resources
+        env:
+          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
 
       - uses: dprint/check@v2.2
         with:
