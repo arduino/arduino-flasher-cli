@@ -30,6 +30,8 @@ tasks:
 
   test:
     desc: Run all go tests
+    deps:
+      - build:artifacts
     cmds:
       - go test ./... -v -race {{ .CLI_ARGS }}
 
@@ -71,6 +73,12 @@ tasks:
   build:artifacts:
     desc: Prepare the arduino-flasher-cli artifacts
     internal: true
+    status:
+      - test -f ./updater/artifacts/resources_darwin_amd64/qdl
+      - test -f ./updater/artifacts/resources_darwin_arm64/qdl
+      - test -f ./updater/artifacts/resources_linux_amd64/qdl
+      - test -f ./updater/artifacts/resources_linux_arm64/qdl
+      - test -f ./updater/artifacts/resources_windows_amd64/qdl.exe
     cmd: sh ./updater/artifacts/download_resources.sh
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
