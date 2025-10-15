@@ -7,7 +7,7 @@ vars:
 tasks:
   build:
     deps:
-      - arduino-flasher-cli:artifacts
+      - artifacts
     desc: "Build the arduino-flasher-cli locally"
     vars:
       VERSION: "{{.VERSION }}"
