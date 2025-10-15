@@ -23,7 +23,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"go.bug.st/f"
 )
+
+var updateURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
 // Client holds the base URL, command name, allows custom HTTP client, and optional headers.
 type Client struct {
@@ -56,9 +60,9 @@ func WithHTTPClient(client HTTPDoer) Option {
 }
 
 // NewClient creates a new Client with optional configuration.
-func NewClient(baseURL *url.URL, cmdName string, opts ...Option) *Client {
+func NewClient(cmdName string, opts ...Option) *Client {
 	c := &Client{
-		BaseURL:    baseURL,
+		BaseURL:    updateURL,
 		CmdName:    cmdName,
 		HTTPClient: http.DefaultClient,
 		Headers:    nil,
