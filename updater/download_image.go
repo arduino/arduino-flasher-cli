@@ -23,11 +23,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
+
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 )
 
 type Manifest struct {

@@ -22,10 +22,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
 )
 

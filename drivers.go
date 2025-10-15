@@ -16,9 +16,10 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/arduino/arduino-flasher-cli/feedback"
 	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/spf13/cobra"
 )
 
 func newInstallDriversCmd() *cobra.Command {

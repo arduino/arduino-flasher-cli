@@ -20,12 +20,12 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/arduino-flasher-cli/updater"
 )
 
