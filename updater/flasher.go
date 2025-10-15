@@ -58,7 +58,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 
 		imagePath = tempImagePath
 	} else if !imagePath.IsDir() {
-		temp, err := paths.MkTempDir("", "debian-image-")
+		temp, err := GetTempDir("extract-")
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}

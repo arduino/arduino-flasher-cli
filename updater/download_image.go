@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
@@ -108,7 +109,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	defer download.Close()
 
 	// Download the zip
-	temp, err := paths.MkTempDir("", "flasher-updater-")
+	temp, err := GetTempDir("download-")
 	if err != nil {
 		return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
 	}
@@ -158,4 +159,22 @@ func ExtractImage(archive, temp *paths.Path) error {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
 	return nil
+}
+
+// GetTempDir returns a temporary directory inside the user's cache directory.
+// The caller is responsible for removing the directory when no longer needed.
+func GetTempDir(prefix string) (*paths.Path, error) {
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("could not get user's cache directory: %w", err)
+	}
+
+	cacheDir := paths.New(userCacheDir, "arduino-flasher-cli")
+	_ = cacheDir.MkdirAll()
+
+	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
+	if err != nil {
+		return nil, fmt.Errorf("could not create .cache directory: %w", err)
+	}
+	return temp, nil
 }
