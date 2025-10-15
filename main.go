@@ -20,10 +20,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
+	
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 )
 
 // Version will be set a build time with -ldflags
