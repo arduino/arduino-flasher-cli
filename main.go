@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/bcmi-labs/orchestrator/cmd/feedback"
-	"github.com/bcmi-labs/orchestrator/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 )

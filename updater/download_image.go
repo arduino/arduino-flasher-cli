@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/arduino/arduino-flasher-cli/feedback"
+	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/go-paths-helper"
-	"github.com/bcmi-labs/orchestrator/cmd/feedback"
-	"github.com/bcmi-labs/orchestrator/cmd/i18n"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
 )
