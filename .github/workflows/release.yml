@@ -8,8 +8,6 @@ on:
 env:
   GO_VERSION: "1.25.1"
   PROJECT_NAME: "arduino-flasher-cli"
-  GITHUB_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
-  GITHUB_USERNAME: ArduinoBot
   DIST_DIR: build
 
 jobs:
@@ -59,10 +57,6 @@ jobs:
         with:
           version: "3.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git for private repo cloning
-        run: |
-          git config --global url."https://${{ env.GITHUB_USERNAME }}:${{ env.GITHUB_TOKEN }}@github.com".insteadOf "https://github.com"
 
       - name: Build Binary
         run: |
