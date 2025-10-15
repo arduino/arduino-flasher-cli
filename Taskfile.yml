@@ -17,7 +17,7 @@ tasks:
       - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli.exe .
         platforms: [windows]
 
-  arduino-flasher-cli:artifacts:
+  artifacts:
     desc: Prepare the arduino-flasher-cli artifacts
     internal: true
     cmd: sh ./updater/artifacts/download_resources.sh
