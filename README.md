@@ -2,9 +2,13 @@
 
 A tool to download and flash Debian images on the board.
 
+## Docs
+
+For a full guide on how to use it, see the [User documentation](https://docs.arduino.cc/tutorials/uno-q/update-image/).
+
 ## Build and test it locally
 
-Build it with `task arduino-flasher-cli:build` and run:
+Build it with `task build` and run:
 
 ```sh
 # Flash the latest release of the Debian image
