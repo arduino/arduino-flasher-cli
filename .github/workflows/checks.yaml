@@ -23,14 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: build
-        run: task build # needed to download the embedded resources
+        run: go tool task build # needed to download the embedded resources
         env:
           GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
 
