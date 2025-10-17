@@ -1,13 +1,66 @@
 version: "3"
 
 vars:
+  GOLANGCI_LINT_VERSION: v2.5.0
+  GOIMPORTS_VERSION: v0.38.0
+  DPRINT_VERSION: 0.50.2
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release
     sh: echo "${VERSION:-0.0.0-$(git rev-parse --short HEAD)}"
 
 tasks:
+  init:
+    desc: Setup local env
+    deps:
+      - install:linter
+      - install:goimports
+      - install:dprint
+
+  install:linter:
+    cmds:
+      - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b .bin/ {{ .GOLANGCI_LINT_VERSION }}
+
+  install:goimports:
+    cmds:
+      - go install golang.org/x/tools/cmd/goimports@{{ .GOIMPORTS_VERSION }}
+
+  install:dprint:
+    cmds:
+      - curl -fsSL https://dprint.dev/install.sh | sh -s {{ .DPRINT_VERSION }}
+      - mkdir -p .bin && cp $HOME/.dprint/bin/dprint .bin/dprint # workaround for local install
+
+  test:
+    desc: Run all go tests
+    deps:
+      - build:artifacts
+    cmds:
+      - go test ./... -v -race {{ .CLI_ARGS }}
+
+  test:cover:
+    desc: Run all tests and open cover html report
+    cmds:
+      - task test -- -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
+      - go tool cover -html=coverage.out
+
+  lint:
+    desc: Run the linters
+    cmds:
+      - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
+
+  fmt:
+    desc: Run format
+    cmds:
+      - goimports -l -w .
+      - ${PWD}/.bin/dprint fmt
+
+  fmt-check:
+    desc: Check format
+    cmds:
+      - ${PWD}/.bin/dprint check
+
   build:
     deps:
-      - artifacts
+      - build:artifacts
     desc: "Build the arduino-flasher-cli locally"
     vars:
       VERSION: "{{.VERSION }}"
@@ -17,7 +70,48 @@ tasks:
       - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli.exe .
         platforms: [windows]
 
-  artifacts:
+  build:artifacts:
     desc: Prepare the arduino-flasher-cli artifacts
     internal: true
+    status:
+      - test -f ./updater/artifacts/resources_darwin_amd64/qdl
+      - test -f ./updater/artifacts/resources_darwin_arm64/qdl
+      - test -f ./updater/artifacts/resources_linux_amd64/qdl
+      - test -f ./updater/artifacts/resources_linux_arm64/qdl
+      - test -f ./updater/artifacts/resources_windows_amd64/qdl.exe
     cmd: sh ./updater/artifacts/download_resources.sh
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
+  general:cache-dep-licenses:
+    desc: Cache dependency license metadata
+    deps:
+      - task: general:prepare-deps
+    cmds:
+      - |
+          if
+            ! which licensed \
+            &>/dev/null
+          then
+            if [[ {{OS}} == "windows" ]]; then
+              echo "Licensed does not have Windows support."
+              echo "Please use Linux/macOS or download the dependencies cache from the GitHub Actions workflow artifact."
+            else
+              echo "licensed not found or not in PATH."
+              echo "Please install: https://github.com/licensee/licensed#installation"
+            fi
+            exit 1
+          fi
+      - licensed cache
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
+  general:check-dep-licenses:
+    desc: Check for unapproved dependency licenses
+    deps:
+      - task: general:cache-dep-licenses
+    cmds:
+      - licensed status
+
+  # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-go-dependencies-task/Taskfile.yml
+  general:prepare-deps:
+    desc: Prepare project dependencies for license check
+    # No preparation is needed for Go module-based projects.
