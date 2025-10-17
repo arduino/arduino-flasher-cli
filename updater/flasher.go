@@ -54,7 +54,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return nil
 		}
 
-		defer tempImagePath.Parent().RemoveAll()
+		defer func() { _ = tempImagePath.Parent().RemoveAll() }()
 
 		version = v
 		imagePath = tempImagePath
@@ -63,7 +63,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}
-		defer temp.RemoveAll()
+		defer func() { _ = temp.RemoveAll() }()
 
 		err = ExtractImage(imagePath, temp)
 		if err != nil {
@@ -80,7 +80,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 
 	return FlashBoard(ctx, imagePath.String(), version, func(target string) (bool, error) {
 		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
-		feedback.Printf("Do you want to procede and flash %s on the board? (yes/no)", target)
+		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string
 		_, err := fmt.Scanf("%s\n", &yesInput)
@@ -119,7 +119,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	if err != nil {
 		return err
 	}
-	defer qdlDir.RemoveAll()
+	defer func() { _ = qdlDir.RemoveAll() }()
 
 	qdlPath := qdlDir.Join("qdl")
 	if runtime.GOOS == "windows" {

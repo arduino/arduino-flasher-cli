@@ -1,0 +1,57 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - dogsled
+    - goconst
+    - gocritic
+    - goprintffuncname
+    - gosec
+    - importas
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - gochecknoinits
+  settings:
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: indent-error-flow
+          disabled: true
+    goconst:
+      ignore-string-values:
+        - ".exe"
+        - "windows"
+        - "linux"
+        - "darwin"
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/arduino/arduino-flasher-cli
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
