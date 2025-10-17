@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
@@ -34,7 +35,9 @@ var format string
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "arduino-flasher-cli",
-		Short: "A CLI to update and flash the Debian image",
+		Short: "A CLI to update your Arduino UNO Q board, by downloading and flashing the latest Arduino Linux image",
+		Example: " " + os.Args[0] + " flash latest\n" +
+			" " + os.Args[0] + " list\n",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			format, ok := feedback.ParseOutputFormat(format)
 			if !ok {
