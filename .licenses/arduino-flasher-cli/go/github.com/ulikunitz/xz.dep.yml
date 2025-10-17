@@ -4,7 +4,7 @@ version: v0.5.12
 type: go
 summary: Package xz supports the compression and decompression of xz files.
 homepage: https://pkg.go.dev/github.com/ulikunitz/xz
-license: other
+license: bsd-3-clause
 licenses:
 - sources: LICENSE
   text: |

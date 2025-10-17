@@ -4,7 +4,7 @@ version: v0.5.12
 type: go
 summary: Package hash provides rolling hashes.
 homepage: https://pkg.go.dev/github.com/ulikunitz/xz/internal/hash
-license: other
+license: bsd-3-clause
 licenses:
 - sources: xz@v0.5.12/LICENSE
   text: |
