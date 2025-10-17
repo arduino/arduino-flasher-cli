@@ -46,24 +46,27 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, error) {
+func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
 	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes)
 	if err != nil {
-		return nil, fmt.Errorf("error downloading the image: %v", err)
+		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
 
 	// Download not confirmed
 	if tmpZip == nil {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	err = ExtractImage(tmpZip, tmpZip.Parent())
 	if err != nil {
-		return nil, fmt.Errorf("error extracting the image: %v", err)
+		return nil, "", fmt.Errorf("error extracting the image: %v", err)
 	}
 
 	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + version)
-	return imagePath, nil
+	if targetVersion == "latest" {
+		version += "(latest)"
+	}
+	return imagePath, version, nil
 }
 
 func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
