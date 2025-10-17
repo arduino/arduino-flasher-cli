@@ -32,7 +32,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 	if !imagePath.Exist() {
 		client := NewClient()
 
-		tempImagePath, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
+		tempImagePath, v, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)
 			feedback.Printf("Do you want to download it? (yes/no)")
 
@@ -56,6 +56,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 
 		defer tempImagePath.Parent().RemoveAll()
 
+		version = v
 		imagePath = tempImagePath
 	} else if !imagePath.IsDir() {
 		temp, err := GetTempDir("extract-")
@@ -77,7 +78,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String(), func(target string) (bool, error) {
+	return FlashBoard(ctx, imagePath.String(), version, func(target string) (bool, error) {
 		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
 		feedback.Printf("Do you want to procede and flash %s on the board? (yes/no)", target)
 
@@ -91,9 +92,9 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 	}, forceYes)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) error {
+func FlashBoard(ctx context.Context, downloadedImagePath string, version string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) error {
 	if !forceYes {
-		res, err := upgradeConfirmCb(downloadedImagePath)
+		res, err := upgradeConfirmCb(version)
 		if err != nil {
 			return err
 		}
@@ -151,6 +152,8 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, upgradeConfirmC
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
+
+	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 
 	return nil
 }
