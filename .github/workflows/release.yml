@@ -51,8 +51,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install Taskfile
+        uses: arduino/setup-task@v2
+        with:
+          version: "3.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Binary
-        run: go tool task build
+        run: task build
         env:
           GOARCH: ${{ matrix.arch }}
           GOOS: ${{ matrix.os }}
