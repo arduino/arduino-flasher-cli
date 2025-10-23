@@ -8,6 +8,9 @@ on:
 env:
   PROJECT_NAME: "arduino-flasher-cli"
   DIST_DIR: build
+  # The project's folder on Arduino's download server for uploading builds
+  AWS_PLUGIN_TARGET: /arduino-flasher-cli/
+  AWS_REGION: "us-east-1"
 
 jobs:
   build:
@@ -276,10 +279,31 @@ jobs:
           merge-multiple: true
           path: ${{ env.DIST_DIR }}
 
+      - name: Identify Prerelease
+        # This is a workaround while waiting for create-release action
+        # to implement auto pre-release based on tag
+        id: prerelease
+        run: |
+          wget \
+            -q \
+            -P /tmp https://github.com/fsaintjacques/semver-tool/archive/3.2.0.zip
+
+          unzip \
+            -p /tmp/3.2.0.zip semver-tool-3.2.0/src/semver \
+          >/tmp/semver
+
+          chmod \
+            +x \
+            /tmp/semver
+
+          if [[ "$(/tmp/semver get prerel "${GITHUB_REF/refs\/tags\//}")" ]]; then
+            echo "IS_PRE=true" >>$GITHUB_OUTPUT
+          fi
+
       - name: Upload artifacts index
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
-          prerelease: true
+          prerelease: ${{ steps.prerelease.outputs.IS_PRE }}
           artifacts: ${{ env.DIST_DIR }}/*
