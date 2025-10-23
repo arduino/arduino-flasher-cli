@@ -267,6 +267,10 @@ jobs:
   create-release:
     runs-on: ubuntu-24.04
     needs: [build, sign-windows-executable, notarize-macos]
+    environment: production
+    permissions:
+      contents: write
+      id-token: write # This is required for requesting the JWT
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -307,3 +311,18 @@ jobs:
           draft: false
           prerelease: ${{ steps.prerelease.outputs.IS_PRE }}
           artifacts: ${{ env.DIST_DIR }}/*
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE }}
+          role-session-name: "github_${{ env.PROJECT_NAME }}"
+          aws-region: ${{ env.AWS_REGION }}
+        if: ${{ steps.prerelease.outputs.IS_PRE != 'true' }}
+
+      - name: Upload release files on Arduino downloads servers
+        run: |
+          aws s3 sync \
+            ${{ env.DIST_DIR }} \
+            s3://${{ secrets.DOWNLOADS_BUCKET }}${{ env.AWS_PLUGIN_TARGET }}
+        if: ${{ steps.prerelease.outputs.IS_PRE != 'true' }}
