@@ -27,10 +27,14 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
+	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-flasher-cli/feedback"
 	"github.com/arduino/arduino-flasher-cli/i18n"
 )
+
+const GB = uint64(1024 * 1024 * 1024)
+const NeededDiskSpace = uint64(15)
 
 type Manifest struct {
 	Latest   Release   `json:"latest"`
@@ -183,5 +187,15 @@ func GetTempDir(prefix string, tempDir string) (*paths.Path, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create .cache directory: %w", err)
 	}
+
+	// Check if there is enough free disk space before downloading/extracting an image
+	d, err := disk.Usage(temp.String())
+	if err != nil {
+		return nil, err
+	}
+	if d.Free/GB < NeededDiskSpace {
+		return nil, fmt.Errorf("aborting: download and extraction requires up to 15Gb of free space")
+	}
+
 	return temp, nil
 }
