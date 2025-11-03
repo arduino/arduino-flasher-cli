@@ -28,7 +28,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
 )
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, tempDir string) error {
 	if !imagePath.Exist() {
 		client := NewClient()
 
@@ -43,7 +43,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			}
 			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
 			return yes, nil
-		}, forceYes)
+		}, forceYes, tempDir)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
@@ -59,7 +59,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		version = v
 		imagePath = tempImagePath
 	} else if !imagePath.IsDir() {
-		temp, err := GetTempDir("extract-")
+		temp, err := GetTempDir("extract-", tempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}

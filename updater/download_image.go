@@ -46,8 +46,8 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes)
+func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string) (*paths.Path, string, error) {
+	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, tempDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -69,7 +69,7 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 	return imagePath, version, nil
 }
 
-func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
+func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string) (*paths.Path, string, error) {
 	var err error
 
 	feedback.Print(i18n.Tr("Checking for Debian image releases"))
@@ -112,7 +112,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	defer download.Close()
 
 	// Download the zip
-	temp, err := GetTempDir("download-")
+	temp, err := GetTempDir("download-", tempDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
 	}
@@ -166,14 +166,18 @@ func ExtractImage(archive, temp *paths.Path) error {
 
 // GetTempDir returns a temporary directory inside the user's cache directory.
 // The caller is responsible for removing the directory when no longer needed.
-func GetTempDir(prefix string) (*paths.Path, error) {
-	userCacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not get user's cache directory: %w", err)
-	}
+func GetTempDir(prefix string, tempDir string) (*paths.Path, error) {
+	cacheDir := paths.New(tempDir)
 
-	cacheDir := paths.New(userCacheDir, "arduino-flasher-cli")
-	_ = cacheDir.MkdirAll()
+	if cacheDir == nil {
+		userCacheDir, err := os.UserCacheDir()
+		if err != nil {
+			return nil, fmt.Errorf("could not get user's cache directory: %w", err)
+		}
+
+		cacheDir = paths.New(userCacheDir, "arduino-flasher-cli")
+		_ = cacheDir.MkdirAll()
+	}
 
 	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
 	if err != nil {
