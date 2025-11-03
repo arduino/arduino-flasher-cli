@@ -55,6 +55,7 @@ func main() {
 		newFlashCmd(),
 		newInstallDriversCmd(),
 		newListCmd(),
+		newDownloadCmd(),
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print the version number of Arduino Flasher CLI",
