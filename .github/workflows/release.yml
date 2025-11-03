@@ -65,7 +65,6 @@ jobs:
         env:
           GOARCH: ${{ matrix.arch }}
           GOOS: ${{ matrix.os }}
-          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
 
       - name: Prepare Build Artifacts (!windows)
         working-directory: ./${{ env.DIST_DIR }}

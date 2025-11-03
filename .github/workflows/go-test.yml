@@ -20,5 +20,3 @@ jobs:
 
       - name: Run tests
         run: go tool task test
-        env:
-          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
