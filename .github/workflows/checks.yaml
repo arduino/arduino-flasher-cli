@@ -26,7 +26,7 @@ jobs:
       - name: build
         run: go tool task build # needed to download the embedded resources
         env:
-          GH_TOKEN: ${{ secrets.ARDUINOBOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: dprint/check@v2.2
         with:
