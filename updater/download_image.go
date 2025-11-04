@@ -51,7 +51,7 @@ type Release struct {
 type DownloadConfirmCB func(target string) (bool, error)
 
 func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, tempDir)
+	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, tempDir, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -73,7 +73,7 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 	return imagePath, version, nil
 }
 
-func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string) (*paths.Path, string, error) {
+func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string, downloadPath *paths.Path) (*paths.Path, string, error) {
 	var err error
 
 	feedback.Print(i18n.Tr("Checking for Debian image releases"))
@@ -116,12 +116,14 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	defer download.Close()
 
 	// Download the zip
-	temp, err := GetTempDir("download-", tempDir)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
+	if downloadPath == nil {
+		downloadPath, err = GetTempDir("download-", tempDir)
+		if err != nil {
+			return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
+		}
 	}
 
-	tmpZip := temp.Join("update.tar.zst")
+	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 	tmpZipFile, err := tmpZip.Create()
 	if err != nil {
 		return nil, "", err
