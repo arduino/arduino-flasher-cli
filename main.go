@@ -60,7 +60,11 @@ func main() {
 			Use:   "version",
 			Short: "Print the version number of Arduino Flasher CLI",
 			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Arduino Flasher CLI v" + Version)
+				fmt.Println("Arduino Flasher CLI " + Version)
+				err := checkForUpdates()
+				if err != nil {
+					feedback.Warning("failed to check for updates: " + err.Error())
+				}
 			},
 		})
 

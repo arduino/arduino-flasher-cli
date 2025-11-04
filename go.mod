@@ -6,6 +6,7 @@ require (
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/arduino/go-windows-runas v1.0.1
 	github.com/codeclysm/extract/v4 v4.0.0
+	github.com/fatih/color v1.18.0
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/leonelquinteros/gotext v1.7.2
 	github.com/schollz/progressbar/v3 v3.18.0
@@ -14,6 +15,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.bug.st/cleanup v1.0.0
 	go.bug.st/f v0.4.0
+	go.bug.st/relaxed-semver v0.15.0
 )
 
 require (
@@ -31,7 +33,6 @@ require (
 	github.com/dominikbraun/graph v0.23.0 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
