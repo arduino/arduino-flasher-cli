@@ -71,7 +71,7 @@ func checkForUpdates() error {
 		color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
 		color.CyanString(currentVersion.String()),
 		color.CyanString(latestVersion.String()),
-		color.YellowString("https://github.com/arduino/arduino-flasher-cli/releases/latest"))
+		color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
 	feedback.Print(msg)
 
 	return nil
