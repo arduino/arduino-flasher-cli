@@ -196,7 +196,7 @@ func GetTempDir(prefix string, tempDir string) (*paths.Path, error) {
 		return nil, err
 	}
 	if d.Free/GB < NeededDiskSpace {
-		return nil, fmt.Errorf("aborting: download and extraction requires up to %d GB of free space", NeededDiskSpace)
+		return nil, fmt.Errorf("aborting: download and extraction requires up to %d GiB of free space", NeededDiskSpace)
 	}
 
 	return temp, nil
