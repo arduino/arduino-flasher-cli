@@ -33,7 +33,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/i18n"
 )
 
-const GB = uint64(1024 * 1024 * 1024)
+const GiB = uint64(1024 * 1024 * 1024)
 const NeededDiskSpace = uint64(15)
 
 type Manifest struct {
