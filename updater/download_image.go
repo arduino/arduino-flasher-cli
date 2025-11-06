@@ -117,7 +117,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 
 	// Download the zip
 	if downloadPath == nil {
-		downloadPath, err = GetTempDir("download-", tempDir)
+		downloadPath, err = SetTempDir("download-", tempDir)
 		if err != nil {
 			return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
 		}
@@ -170,9 +170,10 @@ func ExtractImage(archive, temp *paths.Path) error {
 	return nil
 }
 
-// GetTempDir returns a temporary directory inside the user's cache directory.
+// SetTempDir returns a temporary directory inside the user's cache directory (default).
+// The tempDir parameter is used to change the download/extraction directory.
 // The caller is responsible for removing the directory when no longer needed.
-func GetTempDir(prefix string, tempDir string) (*paths.Path, error) {
+func SetTempDir(prefix string, tempDir string) (*paths.Path, error) {
 	cacheDir := paths.New(tempDir)
 
 	if cacheDir == nil {

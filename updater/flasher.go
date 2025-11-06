@@ -59,7 +59,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		version = v
 		imagePath = tempImagePath
 	} else if !imagePath.IsDir() {
-		temp, err := GetTempDir("extract-", tempDir)
+		temp, err := SetTempDir("extract-", tempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}
