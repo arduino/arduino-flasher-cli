@@ -55,4 +55,9 @@ func runDownloadCommand(args []string, destDir string) {
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
+
+	err = checkForUpdates()
+	if err != nil {
+		feedback.Warning("\n\nfailed to check for updates: " + err.Error())
+	}
 }

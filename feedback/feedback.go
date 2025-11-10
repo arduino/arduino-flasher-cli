@@ -22,8 +22,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/arduino/arduino-flasher-cli/i18n"
 )
 
@@ -156,12 +154,7 @@ func Print(v string) {
 
 // Warning outputs a warning message.
 func Warning(msg string) {
-	if format == Text {
-		fmt.Fprintln(feedbackErr, msg)
-	} else {
-		bufferWarnings = append(bufferWarnings, msg)
-	}
-	logrus.Warning(msg)
+	fmt.Fprintln(feedbackErr, msg)
 }
 
 // FatalError outputs the error and exits with status exitCode.

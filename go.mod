@@ -10,7 +10,6 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/leonelquinteros/gotext v1.7.2
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	go.bug.st/cleanup v1.0.0
