@@ -24,47 +24,45 @@ import (
 	"github.com/fatih/color"
 	semver "go.bug.st/relaxed-semver"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
 	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/arduino-flasher-cli/updater"
 )
 
-type FlasherRelease struct {
-	TagName string `json:"tag_name"`
-}
-
-func checkForUpdates() error {
+func checkForUpdates() (string, error) {
 	currentVersion, err := semver.Parse(Version)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	c := updater.NewClient()
 	req, err := http.NewRequest("GET", "https://api.github.com/repos/arduino/arduino-flasher-cli/releases/latest", nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	var release FlasherRelease
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+
 	err = json.NewDecoder(resp.Body).Decode(&release)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	release.TagName = strings.TrimPrefix(release.TagName, "v")
 	latestVersion, err := semver.Parse(release.TagName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Do nothing if the Arduino Flasher CLI is up to date
 	if currentVersion.GreaterThanOrEqual(latestVersion) {
-		return nil
+		return "", nil
 	}
 
 	msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
@@ -72,7 +70,6 @@ func checkForUpdates() error {
 		color.CyanString(currentVersion.String()),
 		color.CyanString(latestVersion.String()),
 		color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
-	feedback.Print(msg)
 
-	return nil
+	return msg, nil
 }

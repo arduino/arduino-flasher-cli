@@ -46,9 +46,12 @@ func runListCommand() {
 	}
 
 	feedback.PrintResult(listResult{Latest: manifest.Latest, Releases: manifest.Releases})
-	err = checkForUpdates()
+	msg, err := checkForUpdates()
 	if err != nil {
 		feedback.Warning("\n\nfailed to check for updates: " + err.Error())
+	}
+	if msg != "" {
+		feedback.Print(msg)
 	}
 }
 
