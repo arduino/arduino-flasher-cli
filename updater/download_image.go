@@ -27,14 +27,10 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
-	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-flasher-cli/feedback"
 	"github.com/arduino/arduino-flasher-cli/i18n"
 )
-
-const GiB = uint64(1024 * 1024 * 1024)
-const NeededDiskSpace = uint64(15)
 
 type Manifest struct {
 	Latest   Release   `json:"latest"`
@@ -50,8 +46,8 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, tempDir, nil)
+func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, temp *paths.Path) (*paths.Path, string, error) {
+	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, temp)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -73,7 +69,7 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 	return imagePath, version, nil
 }
 
-func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, tempDir string, downloadPath *paths.Path) (*paths.Path, string, error) {
+func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, downloadPath *paths.Path) (*paths.Path, string, error) {
 	var err error
 
 	feedback.Print(i18n.Tr("Checking for Debian image releases"))
@@ -114,14 +110,6 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 		return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
 	}
 	defer download.Close()
-
-	// Download the zip
-	if downloadPath == nil {
-		downloadPath, err = SetTempDir("download-", tempDir)
-		if err != nil {
-			return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
-		}
-	}
 
 	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 	tmpZipFile, err := tmpZip.Create()
@@ -189,15 +177,6 @@ func SetTempDir(prefix string, tempDir string) (*paths.Path, error) {
 	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
 	if err != nil {
 		return nil, fmt.Errorf("could not create .cache directory: %w", err)
-	}
-
-	// Check if there is enough free disk space before downloading/extracting an image
-	d, err := disk.Usage(temp.String())
-	if err != nil {
-		return nil, err
-	}
-	if d.Free/GiB < NeededDiskSpace {
-		return nil, fmt.Errorf("aborting: download and extraction requires up to %d GiB of free space", NeededDiskSpace)
 	}
 
 	return temp, nil

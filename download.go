@@ -51,7 +51,7 @@ func runDownloadCommand(args []string, destDir string) {
 	}
 
 	client := updater.NewClient()
-	_, _, err := updater.DownloadImage(client, targetVersion, nil, true, "", downloadPath)
+	_, _, err := updater.DownloadImage(client, targetVersion, nil, true, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
