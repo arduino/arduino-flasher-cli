@@ -17,14 +17,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/fatih/color"
 	semver "go.bug.st/relaxed-semver"
 
-	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/arduino-flasher-cli/updater"
 )
 
@@ -65,11 +62,5 @@ func checkForUpdates() (string, error) {
 		return "", nil
 	}
 
-	msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
-		color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
-		color.CyanString(currentVersion.String()),
-		color.CyanString(latestVersion.String()),
-		color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
-
-	return msg, nil
+	return latestVersion.String(), nil
 }

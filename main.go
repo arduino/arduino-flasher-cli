@@ -17,9 +17,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 
@@ -60,11 +62,16 @@ func main() {
 			Short: "Print the version number of Arduino Flasher CLI",
 			Run: func(cmd *cobra.Command, args []string) {
 				feedback.Print("Arduino Flasher CLI " + Version)
-				msg, err := checkForUpdates()
+				latest, err := checkForUpdates()
 				if err != nil {
 					feedback.Warning("\n\nfailed to check for updates: " + err.Error())
 				}
-				if msg != "" {
+				if latest != "" {
+					msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
+						color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
+						color.CyanString(Version),
+						color.CyanString(latest),
+						color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
 					feedback.Print(msg)
 				}
 			},
