@@ -45,7 +45,6 @@ func checkForUpdates() (string, error) {
 	var release struct {
 		TagName string `json:"tag_name"`
 	}
-
 	err = json.NewDecoder(resp.Body).Decode(&release)
 	if err != nil {
 		return "", err
