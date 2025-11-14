@@ -31,12 +31,12 @@ func checkForUpdates() (string, error) {
 		return "", err
 	}
 
-	c := updater.NewClient()
-	req, err := http.NewRequest("GET", "https://api.github.com/repos/arduino/arduino-flasher-cli/releases/latest", nil)
+    client := http.Client{Timeout: maxTime}
+	resp, err := client.Get("https://api.github.com/repos/arduino/arduino-flasher-cli/releases/latest")
 	if err != nil {
 		return "", err
 	}
-	resp, err := c.HTTPClient.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return "", err
 	}
