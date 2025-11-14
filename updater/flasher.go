@@ -28,7 +28,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
 )
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool) error {
 	if !imagePath.Exist() {
 		client := NewClient()
 
@@ -89,10 +89,10 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		}
 		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
 		return yes, nil
-	}, forceYes)
+	}, forceYes, preserveUser)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, version string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) error {
+func FlashBoard(ctx context.Context, downloadedImagePath string, version string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, preserveUser bool) error {
 	if !forceYes {
 		res, err := upgradeConfirmCb(version)
 		if err != nil {
@@ -139,9 +139,14 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	if err != nil {
 		return err
 	}
-	// TODO: add logic to preserve the user partition
+
+	rawProgram := "rawprogram0.xml"
+	if preserveUser {
+		rawProgram = "rawprogram0.nouser.xml"
+	}
+
 	feedback.Print(i18n.Tr("Flashing with qdl"))
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", "rawprogram0.xml", "patch0.xml")
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml")
 	if err != nil {
 		return err
 	}
