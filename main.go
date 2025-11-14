@@ -61,18 +61,22 @@ func main() {
 			Use:   "version",
 			Short: "Print the version number of Arduino Flasher CLI",
 			Run: func(cmd *cobra.Command, args []string) {
-				feedback.Print("Arduino Flasher CLI " + Version)
-				latest, err := checkForUpdates()
+				feedback.PrintResult(versionResult{
+					Name:    "Arduino Flasher CLI",
+					Version: Version,
+				})
+				
+				latest, err := checkForUpdates(1 * time.Second)
 				if err != nil {
-					feedback.Warning("\n\nfailed to check for updates: " + err.Error())
+					feedback.Warning(color.YellowString("Failed to check for updates: "+err.Error()) + "\n")
 				}
 				if latest != "" {
-					msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
+					msg := fmt.Sprintf("%s %s → %s\n%s",
 						color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
 						color.CyanString(Version),
 						color.CyanString(latest),
 						color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
-					feedback.Print(msg)
+					feedback.Warning(msg + "\n")
 				}
 			},
 		})
