@@ -17,6 +17,7 @@ package updater
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"runtime"
 	"strings"
@@ -93,7 +94,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 }
 
 func FlashBoard(ctx context.Context, downloadedImagePath string, version string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, preserveUser bool) error {
-	if !forceYes {
+	if !forceYes && !preserveUser {
 		res, err := upgradeConfirmCb(version)
 		if err != nil {
 			return err
@@ -142,7 +143,30 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
-		rawProgram = "rawprogram0.nouser.xml"
+		if ok, errT := checkBoardGPTTable(ctx, qdlPath, flashDir); ok && errT == nil {
+			rawProgram = "rawprogram0.nouser.xml"
+		} else {
+			res, err := func(target string) (bool, error) {
+				feedback.Printf("\nWARNING: %v.\nFlashing a new Linux image on the board will erase any existing data you have on it.", errT)
+				feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
+
+				var yesInput string
+				_, err := fmt.Scanf("%s\n", &yesInput)
+				if err != nil {
+					return false, err
+				}
+				yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+				return yes, nil
+			}(version)
+			if err != nil {
+				return err
+			}
+			if !res {
+				feedback.Print(i18n.Tr("Flashing not confirmed by user, exiting"))
+				return nil
+			}
+		}
+
 	}
 
 	feedback.Print(i18n.Tr("Flashing with qdl"))
@@ -161,4 +185,36 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 
 	return nil
+}
+
+func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (bool, error) {
+	dumpBinPath := qdlPath.Parent().Join("dump.bin")
+	readXMLPath := qdlPath.Parent().Join("read.xml")
+	err := readXMLPath.WriteFile(artifacts.ReadXML)
+	if err != nil {
+		return false, err
+	}
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", flashDir.Join("prog_firehose_ddr.elf").String(), readXMLPath.String())
+	if err != nil {
+		return false, err
+	}
+	cmd.SetDir(qdlPath.Parent().String())
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return false, err
+	}
+	if !dumpBinPath.Exist() {
+		return false, fmt.Errorf("it was not possible to access the current Debian image GPT table")
+	}
+	dump, err := dumpBinPath.ReadFile()
+	if err != nil {
+		return false, err
+	}
+	strDump := hex.Dump(dump)
+
+	if strings.Contains(strDump, "00000250  4c 00 00 00") {
+		fmt.Println("R0")
+		return false, fmt.Errorf("the current Debian image (R0) does not support user partition preservation")
+	}
+
+	return true, nil
 }
