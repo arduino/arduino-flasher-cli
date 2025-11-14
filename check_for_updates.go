@@ -17,13 +17,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	semver "go.bug.st/relaxed-semver"
-
-	"github.com/arduino/arduino-flasher-cli/updater"
 )
+
+const maxTime time.Duration = 1 * time.Second
 
 func checkForUpdates() (string, error) {
 	currentVersion, err := semver.Parse(Version)
@@ -31,7 +33,7 @@ func checkForUpdates() (string, error) {
 		return "", err
 	}
 
-    client := http.Client{Timeout: maxTime}
+	client := http.Client{Timeout: maxTime}
 	resp, err := client.Get("https://api.github.com/repos/arduino/arduino-flasher-cli/releases/latest")
 	if err != nil {
 		return "", err
