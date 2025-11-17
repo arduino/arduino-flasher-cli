@@ -154,7 +154,11 @@ func Print(v string) {
 
 // Warning outputs a warning message.
 func Warning(msg string) {
-	fmt.Fprintln(feedbackErr, msg)
+	if format == Text {
+		fmt.Fprintln(feedbackErr, msg)
+	} else {
+		bufferWarnings = append(bufferWarnings, msg)
+	}
 }
 
 // FatalError outputs the error and exits with status exitCode.
