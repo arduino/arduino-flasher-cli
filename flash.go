@@ -31,6 +31,7 @@ import (
 
 func newFlashCmd() *cobra.Command {
 	var forceYes bool
+	var tempDir string
 	appCmd := &cobra.Command{
 		Use:   "flash",
 		Short: "Flash a Debian image on the board",
@@ -61,15 +62,17 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			" " + os.Args[0] + " flash ./my-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
-			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n",
+			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
+			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n",
 
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
-			runFlashCommand(cmd.Context(), args, forceYes)
+			runFlashCommand(cmd.Context(), args, forceYes, tempDir)
 		},
 	}
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
+	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	// TODO: add --clean-install flag or something similar to distinguish between keeping and purging the /home directory
 
 	return appCmd
@@ -86,13 +89,13 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, forceYes bool) {
+func runFlashCommand(ctx context.Context, args []string, forceYes bool, tempDir string) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes)
+	err = updater.Flash(ctx, imagePath, args[0], forceYes, tempDir)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
