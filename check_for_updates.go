@@ -39,10 +39,6 @@ func checkForUpdates() (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to fetch latest release: status code %d", resp.StatusCode)
 	}
