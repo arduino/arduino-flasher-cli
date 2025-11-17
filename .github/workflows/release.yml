@@ -34,6 +34,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF##*/}
           VERSION=${VERSION#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "RELEASE_NAME=${{ env.PROJECT_NAME }}-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}" >> $GITHUB_ENV
         env:
           GITHUB_REF: ${{ github.ref }}
