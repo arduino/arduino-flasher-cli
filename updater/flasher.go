@@ -143,12 +143,16 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
-		if ok, errT := checkBoardGPTTable(ctx, qdlPath, flashDir); ok && errT == nil {
+		if errT := checkBoardGPTTable(ctx, qdlPath, flashDir); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
 			rawProgram = "rawprogram0.nouser.xml"
 		} else {
 			res, err := func(target string) (bool, error) {
-				feedback.Printf("\nWARNING: %v.\nFlashing a new Linux image on the board will erase any existing data you have on it.", errT)
-				feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
+				warnStr := "Linux image " + target + " does not support user partition preservation"
+				if errT != nil {
+					warnStr = errT.Error()
+				}
+				feedback.Printf("\nWARNING: %s.", warnStr)
+				feedback.Printf("Do you want to proceed and flash %s on the board, erasing any existing data you have on it.? (yes/no)", target)
 
 				var yesInput string
 				_, err := fmt.Scanf("%s\n", &yesInput)
@@ -187,34 +191,33 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	return nil
 }
 
-func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (bool, error) {
+func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) error {
 	dumpBinPath := qdlPath.Parent().Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
-		return false, err
+		return err
 	}
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", flashDir.Join("prog_firehose_ddr.elf").String(), readXMLPath.String())
 	if err != nil {
-		return false, err
+		return err
 	}
 	cmd.SetDir(qdlPath.Parent().String())
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return false, err
+		return err
 	}
 	if !dumpBinPath.Exist() {
-		return false, fmt.Errorf("it was not possible to access the current Debian image GPT table")
+		return fmt.Errorf("it was not possible to access the current Debian image GPT table")
 	}
 	dump, err := dumpBinPath.ReadFile()
 	if err != nil {
-		return false, err
+		return err
 	}
 	strDump := hex.Dump(dump)
 
 	if strings.Contains(strDump, "00000250  4c 00 00 00") {
-		fmt.Println("R0")
-		return false, fmt.Errorf("the current Debian image (R0) does not support user partition preservation")
+		return fmt.Errorf("the current Debian image (R0) does not support user partition preservation")
 	}
 
-	return true, nil
+	return nil
 }
