@@ -22,15 +22,35 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-flasher-cli/feedback"
 	"github.com/arduino/arduino-flasher-cli/i18n"
 	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
 )
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool) error {
+const GiB = uint64(1024 * 1024 * 1024)
+const DownloadDiskSpace = uint64(12)
+const ExtractDiskSpace = uint64(10)
+
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, tempDir string) error {
 	if !imagePath.Exist() {
 		client := NewClient()
+
+		temp, err := SetTempDir("download-", tempDir)
+		if err != nil {
+			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
+		}
+		defer func() { _ = temp.RemoveAll() }()
+
+		// Check if there is enough free disk space before downloading and extracting an image
+		d, err := disk.Usage(temp.String())
+		if err != nil {
+			return err
+		}
+		if d.Free/GiB < DownloadDiskSpace {
+			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
+		}
 
 		tempImagePath, v, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)
@@ -43,7 +63,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			}
 			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
 			return yes, nil
-		}, forceYes)
+		}, forceYes, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
@@ -59,11 +79,20 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		version = v
 		imagePath = tempImagePath
 	} else if !imagePath.IsDir() {
-		temp, err := GetTempDir("extract-")
+		temp, err := SetTempDir("extract-", tempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}
 		defer func() { _ = temp.RemoveAll() }()
+
+		// Check if there is enough free disk space before extracting an image
+		d, err := disk.Usage(temp.String())
+		if err != nil {
+			return err
+		}
+		if d.Free/GiB < ExtractDiskSpace {
+			return fmt.Errorf("extraction requires up to %d GiB of free space", ExtractDiskSpace)
+		}
 
 		err = ExtractImage(imagePath, temp)
 		if err != nil {

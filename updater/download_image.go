@@ -46,8 +46,8 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, nil)
+func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, temp *paths.Path) (*paths.Path, string, error) {
+	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, temp)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -111,14 +111,6 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	}
 	defer download.Close()
 
-	// Download the zip
-	if downloadPath == nil {
-		downloadPath, err = GetTempDir("download-")
-		if err != nil {
-			return nil, "", fmt.Errorf("could not create temporary download directory: %w", err)
-		}
-	}
-
 	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 	tmpZipFile, err := tmpZip.Create()
 	if err != nil {
@@ -166,20 +158,26 @@ func ExtractImage(archive, temp *paths.Path) error {
 	return nil
 }
 
-// GetTempDir returns a temporary directory inside the user's cache directory.
+// SetTempDir returns a temporary directory inside the user's cache directory (default).
+// The tempDir parameter is used to change the download/extraction directory.
 // The caller is responsible for removing the directory when no longer needed.
-func GetTempDir(prefix string) (*paths.Path, error) {
-	userCacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not get user's cache directory: %w", err)
-	}
+func SetTempDir(prefix string, tempDir string) (*paths.Path, error) {
+	cacheDir := paths.New(tempDir)
 
-	cacheDir := paths.New(userCacheDir, "arduino-flasher-cli")
-	_ = cacheDir.MkdirAll()
+	if cacheDir == nil {
+		userCacheDir, err := os.UserCacheDir()
+		if err != nil {
+			return nil, fmt.Errorf("could not get user's cache directory: %w", err)
+		}
+
+		cacheDir = paths.New(userCacheDir, "arduino-flasher-cli")
+		_ = cacheDir.MkdirAll()
+	}
 
 	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
 	if err != nil {
 		return nil, fmt.Errorf("could not create .cache directory: %w", err)
 	}
+
 	return temp, nil
 }
