@@ -33,7 +33,7 @@ jobs:
       - name: Tag version
         run: |
           VERSION=${GITHUB_REF##*/}
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          VERSION=${VERSION#v}
           echo "RELEASE_NAME=${{ env.PROJECT_NAME }}-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}" >> $GITHUB_ENV
         env:
           GITHUB_REF: ${{ github.ref }}
@@ -157,6 +157,7 @@ jobs:
       - name: Set environment variables
         run: |
           VERSION="${GITHUB_REF##*/}"
+          VERSION="${VERSION#v}"
           echo "PACKAGE_FILENAME=${{ env.PROJECT_NAME }}-${VERSION}-${{ matrix.build }}.tar.gz" >>$GITHUB_ENV
 
       - name: Checkout repository
