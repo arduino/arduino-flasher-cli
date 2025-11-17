@@ -68,7 +68,7 @@ func main() {
 
 				latest, err := checkForUpdates()
 				if err != nil {
-					feedback.Warning(color.YellowString("Failed to check for updates: "+err.Error()) + "\n")
+					feedback.Warning(color.YellowString("\n\nFailed to check for updates: "+err.Error()) + "\n")
 				}
 				if latest != "" {
 					msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
