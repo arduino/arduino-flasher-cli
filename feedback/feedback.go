@@ -22,8 +22,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/arduino/arduino-flasher-cli/i18n"
 )
 
@@ -161,7 +159,6 @@ func Warning(msg string) {
 	} else {
 		bufferWarnings = append(bufferWarnings, msg)
 	}
-	logrus.Warning(msg)
 }
 
 // FatalError outputs the error and exits with status exitCode.

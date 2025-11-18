@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 
@@ -60,7 +61,23 @@ func main() {
 			Use:   "version",
 			Short: "Print the version number of Arduino Flasher CLI",
 			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Arduino Flasher CLI v" + Version)
+				feedback.PrintResult(versionResult{
+					Name:    "Arduino Flasher CLI",
+					Version: Version,
+				})
+
+				latest, err := checkForUpdates()
+				if err != nil {
+					feedback.Warning(color.YellowString("\n\nFailed to check for updates: "+err.Error()) + "\n")
+				}
+				if latest != "" {
+					msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
+						color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
+						color.CyanString(Version),
+						color.CyanString(latest),
+						color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
+					feedback.Warning(msg)
+				}
 			},
 		})
 
@@ -69,4 +86,18 @@ func main() {
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		slog.Error(err.Error())
 	}
+}
+
+type versionResult struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+func (r versionResult) String() string {
+	resultMessage := fmt.Sprintf("Arduino Flasher CLI version %s", r.Version)
+	return resultMessage
+}
+
+func (r versionResult) Data() interface{} {
+	return r
 }
