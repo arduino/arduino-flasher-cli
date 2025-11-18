@@ -33,6 +33,7 @@ import (
 const GiB = uint64(1024 * 1024 * 1024)
 const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
+const yesPrompt = "yes"
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string) error {
 	if !imagePath.Exist() {
@@ -62,7 +63,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			if err != nil {
 				return false, err
 			}
-			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+			yes := strings.ToLower(yesInput) == yesPrompt || strings.ToLower(yesInput) == "y"
 			return yes, nil
 		}, forceYes, temp)
 
@@ -117,7 +118,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		if err != nil {
 			return false, err
 		}
-		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+		yes := strings.ToLower(yesInput) == yesPrompt || strings.ToLower(yesInput) == "y"
 		return yes, nil
 	}, forceYes, preserveUser)
 }
@@ -188,7 +189,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 				if err != nil {
 					return false, err
 				}
-				yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+				yes := strings.ToLower(yesInput) == yesPrompt || strings.ToLower(yesInput) == "y"
 				return yes, nil
 			}(version)
 			if err != nil {
