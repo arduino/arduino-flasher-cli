@@ -16,6 +16,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
@@ -31,16 +33,16 @@ func newListCmd() *cobra.Command {
 		Short: "List the available Linux images",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			runListCommand()
+			runListCommand(cmd.Context())
 		},
 	}
 	return cmd
 }
 
-func runListCommand() {
+func runListCommand(ctx context.Context) {
 	client := updater.NewClient()
 
-	manifest, err := client.GetInfoManifest()
+	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}

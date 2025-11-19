@@ -73,7 +73,7 @@ func DownloadImage(ctx context.Context, client *Client, targetVersion string, up
 	var err error
 
 	feedback.Print(i18n.Tr("Checking for Debian image releases"))
-	manifest, err := client.GetInfoManifest()
+	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		return nil, "", err
 	}
