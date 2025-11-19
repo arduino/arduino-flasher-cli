@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/arduino/go-paths-helper"
@@ -35,7 +36,7 @@ func newDownloadCmd() *cobra.Command {
 		Example: " " + os.Args[0] + " download latest\n" +
 			" " + os.Args[0] + " download latest --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(args, destDir)
+			runDownloadCommand(cmd.Context(), args, destDir)
 		},
 	}
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
@@ -43,7 +44,7 @@ func newDownloadCmd() *cobra.Command {
 	return cmd
 }
 
-func runDownloadCommand(args []string, destDir string) {
+func runDownloadCommand(ctx context.Context, args []string, destDir string) {
 	targetVersion := args[0]
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
@@ -51,7 +52,7 @@ func runDownloadCommand(args []string, destDir string) {
 	}
 
 	client := updater.NewClient()
-	_, _, err := updater.DownloadImage(client, targetVersion, nil, true, downloadPath)
+	_, _, err := updater.DownloadImage(ctx, client, targetVersion, nil, true, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}

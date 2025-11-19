@@ -46,8 +46,8 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, temp *paths.Path) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(client, targetVersion, upgradeConfirmCb, forceYes, temp)
+func DownloadAndExtract(ctx context.Context, client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, temp *paths.Path) (*paths.Path, string, error) {
+	tmpZip, version, err := DownloadImage(ctx, client, targetVersion, upgradeConfirmCb, forceYes, temp)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -57,7 +57,7 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 		return nil, "", nil
 	}
 
-	err = ExtractImage(tmpZip, tmpZip.Parent())
+	err = ExtractImage(ctx, tmpZip, tmpZip.Parent())
 	if err != nil {
 		return nil, "", fmt.Errorf("error extracting the image: %v", err)
 	}
@@ -69,11 +69,11 @@ func DownloadAndExtract(client *Client, targetVersion string, upgradeConfirmCb D
 	return imagePath, version, nil
 }
 
-func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, downloadPath *paths.Path) (*paths.Path, string, error) {
+func DownloadImage(ctx context.Context, client *Client, targetVersion string, upgradeConfirmCb DownloadConfirmCB, forceYes bool, downloadPath *paths.Path) (*paths.Path, string, error) {
 	var err error
 
 	feedback.Print(i18n.Tr("Checking for Debian image releases"))
-	manifest, err := client.GetInfoManifest()
+	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -105,7 +105,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 		}
 	}
 
-	download, size, err := client.FetchZip(rel.Url)
+	download, size, err := client.FetchZip(ctx, rel.Url)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
 	}
@@ -140,7 +140,7 @@ func DownloadImage(client *Client, targetVersion string, upgradeConfirmCb Downlo
 	return tmpZip, rel.Version, nil
 }
 
-func ExtractImage(archive, temp *paths.Path) error {
+func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {
 	// Unzip the Debian image
 	feedback.Print(i18n.Tr("Unzipping Debian image"))
 	tmpZipFile, err := archive.Open()
@@ -149,7 +149,7 @@ func ExtractImage(archive, temp *paths.Path) error {
 	}
 	defer tmpZipFile.Close()
 
-	if err := extract.Archive(context.Background(), tmpZipFile, temp.String(), func(s string) string {
+	if err := extract.Archive(ctx, tmpZipFile, temp.String(), func(s string) string {
 		feedback.Print(s)
 		return s
 	}); err != nil {

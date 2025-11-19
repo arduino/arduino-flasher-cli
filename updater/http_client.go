@@ -16,6 +16,7 @@
 package updater
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -79,9 +80,9 @@ func (c *Client) addHeaders(req *http.Request) {
 }
 
 // GetInfoManifest fetches and decodes the Debian images info.json.
-func (c *Client) GetInfoManifest() (Manifest, error) {
+func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
 	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
-	req, err := http.NewRequest("GET", manifestURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -109,8 +110,8 @@ func (c *Client) GetInfoManifest() (Manifest, error) {
 }
 
 // FetchZip fetches the Debian image archive.
-func (c *Client) FetchZip(zipURL string) (io.ReadCloser, int64, error) {
-	req, err := http.NewRequest("GET", zipURL, nil)
+func (c *Client) FetchZip(ctx context.Context, zipURL string) (io.ReadCloser, int64, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", zipURL, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create request: %w", err)
 	}
