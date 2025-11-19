@@ -52,7 +52,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		tempImagePath, v, err := DownloadAndExtract(client, version, func(target string) (bool, error) {
+		tempImagePath, v, err := DownloadAndExtract(ctx, client, version, func(target string) (bool, error) {
 			feedback.Printf("Found Debian image version: %s", target)
 			feedback.Printf("Do you want to download it? (yes/no)")
 
@@ -94,7 +94,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("extraction requires up to %d GiB of free space", ExtractDiskSpace)
 		}
 
-		err = ExtractImage(imagePath, temp)
+		err = ExtractImage(ctx, imagePath, temp)
 		if err != nil {
 			return fmt.Errorf("error extracting the archive: %v", err)
 		}
