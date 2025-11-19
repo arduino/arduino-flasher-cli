@@ -47,7 +47,7 @@ func runDownloadCommand(args []string, destDir string) {
 	targetVersion := args[0]
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
-		feedback.Fatal(i18n.Tr("error: %s is not a directory", destDir), feedback.ErrBadArgument)
+		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
 	client := updater.NewClient()
