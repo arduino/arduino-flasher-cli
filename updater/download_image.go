@@ -46,15 +46,10 @@ type Release struct {
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, client *Client, targetVersion string, temp *paths.Path) (*paths.Path, string, error) {
-	tmpZip, version, err := DownloadImage(ctx, client, targetVersion, temp)
+func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.Path) (*paths.Path, string, error) {
+	tmpZip, version, err := DownloadImage(ctx, targetVersion, temp)
 	if err != nil {
 		return nil, "", fmt.Errorf("error downloading the image: %v", err)
-	}
-
-	// Download not confirmed
-	if tmpZip == nil {
-		return nil, "", nil
 	}
 
 	err = ExtractImage(ctx, tmpZip, tmpZip.Parent())
@@ -69,10 +64,10 @@ func DownloadAndExtract(ctx context.Context, client *Client, targetVersion strin
 	return imagePath, version, nil
 }
 
-func DownloadImage(ctx context.Context, client *Client, targetVersion string, downloadPath *paths.Path) (*paths.Path, string, error) {
+func DownloadImage(ctx context.Context, targetVersion string, downloadPath *paths.Path) (*paths.Path, string, error) {
 	var err error
 
-	feedback.Print(i18n.Tr("Checking for Debian image releases"))
+	client := NewClient()
 	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		return nil, "", err

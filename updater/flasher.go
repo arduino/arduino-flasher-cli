@@ -35,8 +35,6 @@ const ExtractDiskSpace = uint64(10)
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, tempDir string) error {
 	if !imagePath.Exist() {
-		client := NewClient()
-
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
@@ -52,18 +50,11 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		tempImagePath, v, err := DownloadAndExtract(ctx, client, version, temp)
+		tempImagePath, v, err := DownloadAndExtract(ctx, version, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
 		}
-
-		// Download not confirmed
-		if tempImagePath == nil {
-			return nil
-		}
-
-		defer func() { _ = tempImagePath.Parent().RemoveAll() }()
 
 		version = v
 		imagePath = tempImagePath
