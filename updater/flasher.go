@@ -52,18 +52,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		tempImagePath, v, err := DownloadAndExtract(ctx, client, version, func(target string) (bool, error) {
-			feedback.Printf("Found Debian image version: %s", target)
-			feedback.Printf("Do you want to download it? (yes/no)")
-
-			var yesInput string
-			_, err := fmt.Scanf("%s\n", &yesInput)
-			if err != nil {
-				return false, err
-			}
-			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
-			return yes, nil
-		}, forceYes, temp)
+		tempImagePath, v, err := DownloadAndExtract(ctx, client, version, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
