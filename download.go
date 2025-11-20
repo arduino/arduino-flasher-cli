@@ -34,6 +34,7 @@ func newDownloadCmd() *cobra.Command {
 		Short: "Download a Linux image to the specified path",
 		Args:  cobra.ExactArgs(1),
 		Example: " " + os.Args[0] + " download latest\n" +
+			" " + os.Args[0] + " download 20251024-412\n" +
 			" " + os.Args[0] + " download latest --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			runDownloadCommand(cmd.Context(), args, destDir)
@@ -52,8 +53,10 @@ func runDownloadCommand(ctx context.Context, args []string, destDir string) {
 	}
 
 	client := updater.NewClient()
-	_, _, err := updater.DownloadImage(ctx, client, targetVersion, nil, true, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, client, targetVersion, nil, true, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
+	pathAbs, _ := downloadPath.Abs()
+	feedback.Print(i18n.Tr("\nDebian image successfully downloaded: %s", pathAbs.String()))
 }
