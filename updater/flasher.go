@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -245,7 +246,25 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 	strDump := hex.Dump(dump)
 
-	if strings.Contains(strDump, "00000250  4c 00 00 00") {
+	strDumpSlice := strings.Split(strDump, "\n")
+	// the max number of partitions is stored at entry 0x50
+	maxPartitions, err := strconv.ParseInt(strings.Split(strDumpSlice[5], " ")[2], 16, 16)
+	if err != nil {
+		return err
+	}
+
+	numPartitions := 0
+	// starting from entry 0x200, there is a new partition every 0x80 bytes
+	// TODO: check if the size of each partition is 80h or just assume it?
+	for i := 32; numPartitions < int(maxPartitions); i += 8 {
+		// partitions are made of non-zero bytes, if all 0s then there are no more entries
+		if strings.Contains(strDumpSlice[i], "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00") {
+			break
+		}
+		numPartitions++
+	}
+
+	if numPartitions == 73 && maxPartitions == 76 {
 		return fmt.Errorf("the current Debian image (R0) does not support user partition preservation")
 	}
 
