@@ -135,8 +135,6 @@ func DownloadImage(ctx context.Context, client *Client, targetVersion string, up
 		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 
-	feedback.Print(i18n.Tr("Download of Debian image completed"))
-
 	return tmpZip, rel.Version, nil
 }
 
