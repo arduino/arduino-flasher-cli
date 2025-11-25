@@ -17,8 +17,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
@@ -95,8 +97,25 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, tempDir 
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
 	}
 
+	if !forceYes {
+		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
+		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", args[0])
+
+		var yesInput string
+		_, err := fmt.Scanf("%s\n", &yesInput)
+		if err != nil {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
+		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
+
+		if !yes {
+			return
+		}
+	}
+
 	err = updater.Flash(ctx, imagePath, args[0], forceYes, tempDir)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
+	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 }
