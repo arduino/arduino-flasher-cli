@@ -15,7 +15,7 @@
 
 //go:build !windows
 
-package main
+package drivers
 
 // installDrivers is a no-op on non-Windows platforms
 func installDrivers() error {

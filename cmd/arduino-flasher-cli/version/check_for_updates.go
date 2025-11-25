@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package version
 
 import (
 	"encoding/json"
@@ -27,8 +27,8 @@ import (
 
 const maxTime time.Duration = 1 * time.Second
 
-func checkForUpdates() (string, error) {
-	currentVersion, err := semver.Parse(Version)
+func checkForUpdates(version string) (string, error) {
+	currentVersion, err := semver.Parse(version)
 	if err != nil {
 		return "", err
 	}

@@ -23,9 +23,9 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/shirou/gopsutil/v4/disk"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
 const GiB = uint64(1024 * 1024 * 1024)

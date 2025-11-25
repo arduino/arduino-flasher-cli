@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package flash
 
 import (
 	"context"
@@ -26,12 +26,12 @@ import (
 	runas "github.com/arduino/go-windows-runas"
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/updater"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-func newFlashCmd() *cobra.Command {
+func NewFlashCmd() *cobra.Command {
 	var forceYes bool
 	var tempDir string
 	appCmd := &cobra.Command{

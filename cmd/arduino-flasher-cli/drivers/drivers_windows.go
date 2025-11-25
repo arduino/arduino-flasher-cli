@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package drivers
 
 import (
 	"embed"
@@ -23,7 +23,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 )
 
-//go:embed drivers
+//go:embed src
 var drivers embed.FS
 
 // installDrivers installs the Windows driver using dpinst.exe. This requires

@@ -28,8 +28,8 @@ import (
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
 type Manifest struct {

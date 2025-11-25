@@ -20,7 +20,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/arduino/arduino-flasher-cli/i18n"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
 // DirectStreams returns the underlying io.Writer to directly stream to
