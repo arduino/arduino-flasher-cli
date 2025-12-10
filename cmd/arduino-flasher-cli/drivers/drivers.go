@@ -13,16 +13,16 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package drivers
 
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
-func newInstallDriversCmd() *cobra.Command {
+func NewInstallDriversCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "install-drivers",
 		Hidden: true,

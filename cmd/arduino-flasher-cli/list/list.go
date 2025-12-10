@@ -13,34 +13,36 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package list
 
 import (
+	"context"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/tablestyle"
-	"github.com/arduino/arduino-flasher-cli/updater"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/tablestyle"
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-func newListCmd() *cobra.Command {
+func NewListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the available Linux images",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			runListCommand()
+			runListCommand(cmd.Context())
 		},
 	}
 	return cmd
 }
 
-func runListCommand() {
+func runListCommand(ctx context.Context) {
 	client := updater.NewClient()
 
-	manifest, err := client.GetInfoManifest()
+	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}

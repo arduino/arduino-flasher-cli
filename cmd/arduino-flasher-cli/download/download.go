@@ -13,29 +13,31 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package download
 
 import (
+	"context"
 	"os"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/updater"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-func newDownloadCmd() *cobra.Command {
+func NewDownloadCmd() *cobra.Command {
 	var destDir string
 	cmd := &cobra.Command{
 		Use:   "download",
 		Short: "Download a Linux image to the specified path",
 		Args:  cobra.ExactArgs(1),
 		Example: " " + os.Args[0] + " download latest\n" +
+			" " + os.Args[0] + " download 20251024-412\n" +
 			" " + os.Args[0] + " download latest --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(args, destDir)
+			runDownloadCommand(cmd.Context(), args, destDir)
 		},
 	}
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
@@ -43,16 +45,17 @@ func newDownloadCmd() *cobra.Command {
 	return cmd
 }
 
-func runDownloadCommand(args []string, destDir string) {
+func runDownloadCommand(ctx context.Context, args []string, destDir string) {
 	targetVersion := args[0]
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
-		feedback.Fatal(i18n.Tr("error: %s is not a directory", destDir), feedback.ErrBadArgument)
+		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	client := updater.NewClient()
-	_, _, err := updater.DownloadImage(client, targetVersion, nil, true, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, targetVersion, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
+	pathAbs, _ := downloadPath.Abs()
+	feedback.Print(i18n.Tr("\nDebian image successfully downloaded: %s", pathAbs.String()))
 }
