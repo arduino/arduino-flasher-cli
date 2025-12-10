@@ -31,7 +31,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/version"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/commands"
+	"github.com/arduino/arduino-flasher-cli/service"
 )
 
 // Version will be set a build time with -ldflags
@@ -39,7 +39,7 @@ var Version string = "0.0.0-dev"
 var format string
 
 func main() {
-	srv := commands.NewFlasherServer()
+	srv := service.NewFlasherServer()
 
 	rootCmd := &cobra.Command{
 		Use:   "arduino-flasher-cli",

@@ -17,9 +17,9 @@ syntax = "proto3";
 
 package cc.arduino.flasher.v1;
 
-option go_package = "github.com/arduino/arduino-flasher-cli/grpc/cc/arduino/flasher/v1;flasher";
+option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
 
-service FlasherService {
+service Flasher {
     rpc List(ListRequest) returns (ListResponse) {};
 }
 

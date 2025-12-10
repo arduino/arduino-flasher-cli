@@ -13,14 +13,31 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package commands
+package service
 
-import rpc "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/cli/commands/v1"
+import (
+	"context"
 
-type flasherServerImpl struct {
-	rpc.UnsafeFlasherServiceServer // Force compile error for unimplemented methods
-}
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
+	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
+)
 
-func NewFlasherServer() rpc.FlasherServiceServer {
-	return &flasherServerImpl{}
+func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
+	client := updater.NewClient()
+
+	manifest, err := client.GetInfoManifest(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &flasher.ListResponse{}
+	for i := len(manifest.Releases) - 1; i >= 0; i-- {
+		latest := false
+		if manifest.Releases[i].Version == manifest.Latest.Version {
+			latest = true
+		}
+		resp.Releases = append(resp.Releases, &flasher.Release{BuildId: manifest.Releases[i].Version, Latest: latest})
+	}
+
+	return resp, nil
 }

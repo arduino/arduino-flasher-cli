@@ -17,7 +17,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: cc/arduino/flasher/cli/commands/v1/commands.proto
+// source: cc/arduino/flasher/v1/commands.proto
 
 package flasher
 
@@ -34,103 +34,103 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	FlasherService_List_FullMethodName = "/cc.arduino.flasher.v1.FlasherService/List"
+	Flasher_List_FullMethodName = "/cc.arduino.flasher.v1.Flasher/List"
 )
 
-// FlasherServiceClient is the client API for FlasherService service.
+// FlasherClient is the client API for Flasher service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type FlasherServiceClient interface {
+type FlasherClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
-type flasherServiceClient struct {
+type flasherClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewFlasherServiceClient(cc grpc.ClientConnInterface) FlasherServiceClient {
-	return &flasherServiceClient{cc}
+func NewFlasherClient(cc grpc.ClientConnInterface) FlasherClient {
+	return &flasherClient{cc}
 }
 
-func (c *flasherServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+func (c *flasherClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListResponse)
-	err := c.cc.Invoke(ctx, FlasherService_List_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Flasher_List_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// FlasherServiceServer is the server API for FlasherService service.
-// All implementations must embed UnimplementedFlasherServiceServer
+// FlasherServer is the server API for Flasher service.
+// All implementations must embed UnimplementedFlasherServer
 // for forward compatibility.
-type FlasherServiceServer interface {
+type FlasherServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
-	mustEmbedUnimplementedFlasherServiceServer()
+	mustEmbedUnimplementedFlasherServer()
 }
 
-// UnimplementedFlasherServiceServer must be embedded to have
+// UnimplementedFlasherServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedFlasherServiceServer struct{}
+type UnimplementedFlasherServer struct{}
 
-func (UnimplementedFlasherServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
+func (UnimplementedFlasherServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
-func (UnimplementedFlasherServiceServer) mustEmbedUnimplementedFlasherServiceServer() {}
-func (UnimplementedFlasherServiceServer) testEmbeddedByValue()                        {}
+func (UnimplementedFlasherServer) mustEmbedUnimplementedFlasherServer() {}
+func (UnimplementedFlasherServer) testEmbeddedByValue()                 {}
 
-// UnsafeFlasherServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to FlasherServiceServer will
+// UnsafeFlasherServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to FlasherServer will
 // result in compilation errors.
-type UnsafeFlasherServiceServer interface {
-	mustEmbedUnimplementedFlasherServiceServer()
+type UnsafeFlasherServer interface {
+	mustEmbedUnimplementedFlasherServer()
 }
 
-func RegisterFlasherServiceServer(s grpc.ServiceRegistrar, srv FlasherServiceServer) {
-	// If the following call pancis, it indicates UnimplementedFlasherServiceServer was
+func RegisterFlasherServer(s grpc.ServiceRegistrar, srv FlasherServer) {
+	// If the following call pancis, it indicates UnimplementedFlasherServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&FlasherService_ServiceDesc, srv)
+	s.RegisterService(&Flasher_ServiceDesc, srv)
 }
 
-func _FlasherService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Flasher_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(FlasherServiceServer).List(ctx, in)
+		return srv.(FlasherServer).List(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: FlasherService_List_FullMethodName,
+		FullMethod: Flasher_List_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FlasherServiceServer).List(ctx, req.(*ListRequest))
+		return srv.(FlasherServer).List(ctx, req.(*ListRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// FlasherService_ServiceDesc is the grpc.ServiceDesc for FlasherService service.
+// Flasher_ServiceDesc is the grpc.ServiceDesc for Flasher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var FlasherService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cc.arduino.flasher.v1.FlasherService",
-	HandlerType: (*FlasherServiceServer)(nil),
+var Flasher_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "cc.arduino.flasher.v1.Flasher",
+	HandlerType: (*FlasherServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "List",
-			Handler:    _FlasherService_List_Handler,
+			Handler:    _Flasher_List_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "cc/arduino/flasher/cli/commands/v1/commands.proto",
+	Metadata: "cc/arduino/flasher/v1/commands.proto",
 }
