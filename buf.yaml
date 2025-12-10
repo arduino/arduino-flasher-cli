@@ -1,0 +1,15 @@
+version: v2
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - STANDARD
+    - COMMENT_ENUM
+    - COMMENT_ENUM_VALUE
+    - COMMENT_FIELD
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+modules:
+  - path: rpc
+    name: buf.build/arduino/arduino-flasher-cli
