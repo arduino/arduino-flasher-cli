@@ -46,7 +46,7 @@ func NewDaemonCommand(srv rpc.ArduinoCoreServiceServer) *cobra.Command {
 	}
 
 	daemonCommand.Flags().StringVar(&daemonPort,
-		"port", "50051",
+		"port", "50052",
 		i18n.Tr("The TCP port the daemon will listen to"))
 
 	daemonCommand.Flags().IntVar(&maxGRPCRecvMsgSize,
