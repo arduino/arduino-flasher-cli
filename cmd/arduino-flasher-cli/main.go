@@ -39,7 +39,7 @@ var Version string = "0.0.0-dev"
 var format string
 
 func main() {
-	srv := commands.NewArduinoCoreServer()
+	srv := commands.NewFlasherServer()
 
 	rootCmd := &cobra.Command{
 		Use:   "arduino-flasher-cli",

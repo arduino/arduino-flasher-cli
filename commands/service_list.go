@@ -22,7 +22,7 @@ import (
 	rpc "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/cli/commands/v1"
 )
 
-func (s *arduinoCoreServerImpl) List(ctx context.Context, req *rpc.ListRequest) (*rpc.ListResponse, error) {
+func (s *flasherServerImpl) List(ctx context.Context, req *rpc.ListRequest) (*rpc.ListResponse, error) {
 	client := updater.NewClient()
 
 	manifest, err := client.GetInfoManifest(ctx)

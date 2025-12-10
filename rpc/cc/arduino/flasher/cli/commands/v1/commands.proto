@@ -15,11 +15,11 @@
 
 syntax = "proto3";
 
-package cc.arduino.flasher.cli.commands.v1;
+package cc.arduino.flasher.v1;
 
-option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/cli/commands/v1;commands";
+option go_package = "github.com/arduino/arduino-flasher-cli/grpc/cc/arduino/flasher/v1;flasher";
 
-service ArduinoCoreService {
+service FlasherService {
     rpc List(ListRequest) returns (ListResponse) {};
 }
 

@@ -32,7 +32,7 @@ import (
 	rpc "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/cli/commands/v1"
 )
 
-func NewDaemonCommand(srv rpc.ArduinoCoreServiceServer) *cobra.Command {
+func NewDaemonCommand(srv rpc.FlasherServiceServer) *cobra.Command {
 	var daemonPort string
 	var maxGRPCRecvMsgSize int
 	daemonCommand := &cobra.Command{
@@ -56,13 +56,13 @@ func NewDaemonCommand(srv rpc.ArduinoCoreServiceServer) *cobra.Command {
 	return daemonCommand
 }
 
-func runDaemonCommand(srv rpc.ArduinoCoreServiceServer, daemonPort string, maxGRPCRecvMsgSize int) {
+func runDaemonCommand(srv rpc.FlasherServiceServer, daemonPort string, maxGRPCRecvMsgSize int) {
 	gRPCOptions := []grpc.ServerOption{}
 	gRPCOptions = append(gRPCOptions, grpc.MaxRecvMsgSize(maxGRPCRecvMsgSize))
 	s := grpc.NewServer(gRPCOptions...)
 
 	// register the commands service
-	rpc.RegisterArduinoCoreServiceServer(s, srv)
+	rpc.RegisterFlasherServiceServer(s, srv)
 
 	daemonIP := "127.0.0.1"
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", daemonIP, daemonPort))

@@ -19,7 +19,7 @@
 // - protoc             (unknown)
 // source: cc/arduino/flasher/cli/commands/v1/commands.proto
 
-package commands
+package flasher
 
 import (
 	context "context"
@@ -34,101 +34,101 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ArduinoCoreService_List_FullMethodName = "/cc.arduino.flasher.cli.commands.v1.ArduinoCoreService/List"
+	FlasherService_List_FullMethodName = "/cc.arduino.flasher.v1.FlasherService/List"
 )
 
-// ArduinoCoreServiceClient is the client API for ArduinoCoreService service.
+// FlasherServiceClient is the client API for FlasherService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ArduinoCoreServiceClient interface {
+type FlasherServiceClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
-type arduinoCoreServiceClient struct {
+type flasherServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewArduinoCoreServiceClient(cc grpc.ClientConnInterface) ArduinoCoreServiceClient {
-	return &arduinoCoreServiceClient{cc}
+func NewFlasherServiceClient(cc grpc.ClientConnInterface) FlasherServiceClient {
+	return &flasherServiceClient{cc}
 }
 
-func (c *arduinoCoreServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+func (c *flasherServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListResponse)
-	err := c.cc.Invoke(ctx, ArduinoCoreService_List_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, FlasherService_List_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ArduinoCoreServiceServer is the server API for ArduinoCoreService service.
-// All implementations must embed UnimplementedArduinoCoreServiceServer
+// FlasherServiceServer is the server API for FlasherService service.
+// All implementations must embed UnimplementedFlasherServiceServer
 // for forward compatibility.
-type ArduinoCoreServiceServer interface {
+type FlasherServiceServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
-	mustEmbedUnimplementedArduinoCoreServiceServer()
+	mustEmbedUnimplementedFlasherServiceServer()
 }
 
-// UnimplementedArduinoCoreServiceServer must be embedded to have
+// UnimplementedFlasherServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedArduinoCoreServiceServer struct{}
+type UnimplementedFlasherServiceServer struct{}
 
-func (UnimplementedArduinoCoreServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
+func (UnimplementedFlasherServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
-func (UnimplementedArduinoCoreServiceServer) mustEmbedUnimplementedArduinoCoreServiceServer() {}
-func (UnimplementedArduinoCoreServiceServer) testEmbeddedByValue()                            {}
+func (UnimplementedFlasherServiceServer) mustEmbedUnimplementedFlasherServiceServer() {}
+func (UnimplementedFlasherServiceServer) testEmbeddedByValue()                        {}
 
-// UnsafeArduinoCoreServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ArduinoCoreServiceServer will
+// UnsafeFlasherServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to FlasherServiceServer will
 // result in compilation errors.
-type UnsafeArduinoCoreServiceServer interface {
-	mustEmbedUnimplementedArduinoCoreServiceServer()
+type UnsafeFlasherServiceServer interface {
+	mustEmbedUnimplementedFlasherServiceServer()
 }
 
-func RegisterArduinoCoreServiceServer(s grpc.ServiceRegistrar, srv ArduinoCoreServiceServer) {
-	// If the following call pancis, it indicates UnimplementedArduinoCoreServiceServer was
+func RegisterFlasherServiceServer(s grpc.ServiceRegistrar, srv FlasherServiceServer) {
+	// If the following call pancis, it indicates UnimplementedFlasherServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&ArduinoCoreService_ServiceDesc, srv)
+	s.RegisterService(&FlasherService_ServiceDesc, srv)
 }
 
-func _ArduinoCoreService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _FlasherService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ArduinoCoreServiceServer).List(ctx, in)
+		return srv.(FlasherServiceServer).List(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ArduinoCoreService_List_FullMethodName,
+		FullMethod: FlasherService_List_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ArduinoCoreServiceServer).List(ctx, req.(*ListRequest))
+		return srv.(FlasherServiceServer).List(ctx, req.(*ListRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// ArduinoCoreService_ServiceDesc is the grpc.ServiceDesc for ArduinoCoreService service.
+// FlasherService_ServiceDesc is the grpc.ServiceDesc for FlasherService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var ArduinoCoreService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cc.arduino.flasher.cli.commands.v1.ArduinoCoreService",
-	HandlerType: (*ArduinoCoreServiceServer)(nil),
+var FlasherService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "cc.arduino.flasher.v1.FlasherService",
+	HandlerType: (*FlasherServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "List",
-			Handler:    _ArduinoCoreService_List_Handler,
+			Handler:    _FlasherService_List_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

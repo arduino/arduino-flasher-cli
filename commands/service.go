@@ -17,10 +17,10 @@ package commands
 
 import rpc "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/cli/commands/v1"
 
-type arduinoCoreServerImpl struct {
-	rpc.UnsafeArduinoCoreServiceServer // Force compile error for unimplemented methods
+type flasherServerImpl struct {
+	rpc.UnsafeFlasherServiceServer // Force compile error for unimplemented methods
 }
 
-func NewArduinoCoreServer() rpc.ArduinoCoreServiceServer {
-	return &arduinoCoreServerImpl{}
+func NewFlasherServer() rpc.FlasherServiceServer {
+	return &flasherServerImpl{}
 }
