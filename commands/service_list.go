@@ -31,9 +31,12 @@ func (s *arduinoCoreServerImpl) List(ctx context.Context, req *rpc.ListRequest) 
 	}
 
 	resp := &rpc.ListResponse{}
-	resp.Latest = manifest.Latest.Version
-	for _, r := range manifest.Releases {
-		resp.Releases = append(resp.Releases, &rpc.Release{BuildId: r.Version})
+	for i := len(manifest.Releases) - 1; i >= 0; i-- {
+		latest := false
+		if manifest.Releases[i].Version == manifest.Latest.Version {
+			latest = true
+		}
+		resp.Releases = append(resp.Releases, &rpc.Release{BuildId: manifest.Releases[i].Version, Latest: latest})
 	}
 
 	return resp, nil

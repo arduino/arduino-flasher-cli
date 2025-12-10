@@ -26,10 +26,10 @@ service ArduinoCoreService {
 message ListRequest {}
 
 message ListResponse {
-    string latest = 1;
-    repeated Release releases = 2;
+    repeated Release releases = 1;
 }
 
 message Release {
     string build_id = 1;
+    bool latest = 2;
 }
