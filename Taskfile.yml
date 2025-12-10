@@ -65,21 +65,21 @@ tasks:
     vars:
       VERSION: "{{.VERSION }}"
     cmds:
-      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli .
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli ./cmd/arduino-flasher-cli/
         platforms: [linux, darwin]
-      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli.exe .
+      - cmd: go build -ldflags "-X main.Version={{.VERSION}}" -v -o ./build/arduino-flasher-cli.exe ./cmd/arduino-flasher-cli/
         platforms: [windows]
 
   build:artifacts:
     desc: Prepare the arduino-flasher-cli artifacts
     internal: true
     status:
-      - test -f ./updater/artifacts/resources_darwin_amd64/qdl
-      - test -f ./updater/artifacts/resources_darwin_arm64/qdl
-      - test -f ./updater/artifacts/resources_linux_amd64/qdl
-      - test -f ./updater/artifacts/resources_linux_arm64/qdl
-      - test -f ./updater/artifacts/resources_windows_amd64/qdl.exe
-    cmd: sh ./updater/artifacts/download_resources.sh
+      - test -f ./internal/updater/artifacts/resources_darwin_amd64/qdl
+      - test -f ./internal/updater/artifacts/resources_darwin_arm64/qdl
+      - test -f ./internal/updater/artifacts/resources_linux_amd64/qdl
+      - test -f ./internal/updater/artifacts/resources_linux_arm64/qdl
+      - test -f ./internal/updater/artifacts/resources_windows_amd64/qdl.exe
+    cmd: sh ./internal/updater/artifacts/download_resources.sh
 
   release:
     desc: Create a tag on the current commit and push it to the remote to create the release

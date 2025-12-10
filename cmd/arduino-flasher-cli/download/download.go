@@ -13,7 +13,7 @@
 // Arduino software without disclosing the source code of your own applications.
 // To purchase a commercial license, send an email to license@arduino.cc.
 
-package main
+package download
 
 import (
 	"context"
@@ -22,12 +22,12 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/updater"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-func newDownloadCmd() *cobra.Command {
+func NewDownloadCmd() *cobra.Command {
 	var destDir string
 	cmd := &cobra.Command{
 		Use:   "download",
@@ -52,8 +52,7 @@ func runDownloadCommand(ctx context.Context, args []string, destDir string) {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	client := updater.NewClient()
-	downloadPath, _, err := updater.DownloadImage(ctx, client, targetVersion, nil, true, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, targetVersion, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}

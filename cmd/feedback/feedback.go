@@ -22,7 +22,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/arduino/arduino-flasher-cli/i18n"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
 // OutputFormat is an output format

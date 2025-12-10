@@ -19,14 +19,13 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/shirou/gopsutil/v4/disk"
 
-	"github.com/arduino/arduino-flasher-cli/feedback"
-	"github.com/arduino/arduino-flasher-cli/i18n"
-	"github.com/arduino/arduino-flasher-cli/updater/artifacts"
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
 const GiB = uint64(1024 * 1024 * 1024)
@@ -35,8 +34,6 @@ const ExtractDiskSpace = uint64(10)
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, tempDir string) error {
 	if !imagePath.Exist() {
-		client := NewClient()
-
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
@@ -52,29 +49,11 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		tempImagePath, v, err := DownloadAndExtract(ctx, client, version, func(target string) (bool, error) {
-			feedback.Printf("Found Debian image version: %s", target)
-			feedback.Printf("Do you want to download it? (yes/no)")
-
-			var yesInput string
-			_, err := fmt.Scanf("%s\n", &yesInput)
-			if err != nil {
-				return false, err
-			}
-			yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
-			return yes, nil
-		}, forceYes, temp)
+		tempImagePath, v, err := DownloadAndExtract(ctx, version, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
 		}
-
-		// Download not confirmed
-		if tempImagePath == nil {
-			return nil
-		}
-
-		defer func() { _ = tempImagePath.Parent().RemoveAll() }()
 
 		version = v
 		imagePath = tempImagePath
@@ -107,32 +86,10 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String(), version, func(target string) (bool, error) {
-		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
-		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
-
-		var yesInput string
-		_, err := fmt.Scanf("%s\n", &yesInput)
-		if err != nil {
-			return false, err
-		}
-		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
-		return yes, nil
-	}, forceYes)
+	return FlashBoard(ctx, imagePath.String(), version)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, version string, upgradeConfirmCb DownloadConfirmCB, forceYes bool) error {
-	if !forceYes {
-		res, err := upgradeConfirmCb(version)
-		if err != nil {
-			return err
-		}
-		if !res {
-			feedback.Print(i18n.Tr("Flashing not confirmed by user, exiting"))
-			return nil
-		}
-	}
-
+func FlashBoard(ctx context.Context, downloadedImagePath string, version string) error {
 	var flashDir *paths.Path
 	for _, entry := range []string{"flash", "flash_UnoQ"} {
 		if p := paths.New(downloadedImagePath, entry); p.Exist() {
@@ -181,8 +138,6 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
-
-	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 
 	return nil
 }
