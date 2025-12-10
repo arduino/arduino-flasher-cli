@@ -24,10 +24,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
-	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
