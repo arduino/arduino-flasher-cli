@@ -155,8 +155,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 				return err
 			}
 			if !res {
-				feedback.Print(i18n.Tr("Flashing not confirmed by user, exiting"))
-				return nil
+				return fmt.Errorf("flashing not confirmed by user, exiting")
 			}
 		}
 
