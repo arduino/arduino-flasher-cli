@@ -65,7 +65,7 @@ func main() {
 		list.NewListCmd(),
 		download.NewDownloadCmd(),
 		version.NewVersionCmd(Version),
-		daemon.NewDaemonCommand(srv),
+		daemon.NewDaemonCommand(service.NewFlasherServer()),
 	)
 
 	ctx := context.Background()
