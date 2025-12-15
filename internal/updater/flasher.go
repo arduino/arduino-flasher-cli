@@ -177,6 +177,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	return nil
 }
 
+// Checks the board GPT table and counts the number of partitions, this tells if the board supports preserving or not user's data.
 func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) error {
 	dumpBinPath := qdlPath.Parent().Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
