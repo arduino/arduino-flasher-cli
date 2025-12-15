@@ -32,11 +32,10 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 
 	resp := &flasher.ListResponse{}
 	for i := len(manifest.Releases) - 1; i >= 0; i-- {
-		latest := false
-		if manifest.Releases[i].Version == manifest.Latest.Version {
-			latest = true
-		}
-		resp.Releases = append(resp.Releases, &flasher.Release{BuildId: manifest.Releases[i].Version, Latest: latest})
+		resp.Releases = append(resp.Releases, &flasher.Release{
+		    BuildId: manifest.Releases[i].Version,
+		    Latest: manifest.Releases[i].Version == manifest.Latest.Version
+		})
 	}
 
 	return resp, nil
