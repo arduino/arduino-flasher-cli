@@ -33,8 +33,8 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	resp := &flasher.ListResponse{}
 	for i := len(manifest.Releases) - 1; i >= 0; i-- {
 		resp.Releases = append(resp.Releases, &flasher.Release{
-		    BuildId: manifest.Releases[i].Version,
-		    Latest: manifest.Releases[i].Version == manifest.Latest.Version
+			BuildId: manifest.Releases[i].Version,
+			Latest:  manifest.Releases[i].Version == manifest.Latest.Version,
 		})
 	}
 
