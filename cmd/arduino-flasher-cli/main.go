@@ -39,8 +39,6 @@ var Version string = "0.0.0-dev"
 var format string
 
 func main() {
-	srv := service.NewFlasherServer()
-
 	rootCmd := &cobra.Command{
 		Use:   "arduino-flasher-cli",
 		Short: "A CLI to update your Arduino UNO Q board, by downloading and flashing the latest Arduino Linux image",
