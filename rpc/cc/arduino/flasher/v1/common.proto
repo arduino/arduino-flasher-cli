@@ -17,41 +17,37 @@ syntax = "proto3";
 
 package cc.arduino.flasher.v1;
 
-import "cc/arduino/flasher/v1/common.proto";
-
 option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
 
-service Flasher {
-    rpc List(ListRequest) returns (ListResponse) {};
-    rpc Download(DownloadRequest) returns (stream DownloadResponse);
-}
-
-message ListRequest {}
-
-message ListResponse {
-    repeated Release releases = 1;
-}
-
-message Release {
-    string build_id = 1;
-    bool latest = 2;
-}
-
-message DownloadRequest {
-  // The version of the Debian image to download.
-  string version = 1;
-  // The path in which the image will be downloaded.
-  string download_path = 2;
-}
-
-message DownloadResponse {
-  message Result {
-    // Empty message, reserved for future expansion.
-  }
+message DownloadProgress {
   oneof message {
-    // Progress of the download.
-    DownloadProgress progress = 1;
-    // Download result.
-    Result result = 2;
+    // Sent when a download is started.
+    DownloadProgressStart start = 1;
+    // Progress updates for a download.
+    DownloadProgressUpdate update = 2;
+    // Sent when a download is finished or failed.
+    DownloadProgressEnd end = 3;
   }
+}
+
+message DownloadProgressStart {
+  // URL of the download.
+  string url = 1;
+  // The label to display on the progress bar.
+  string label = 2;
+}
+
+message DownloadProgressUpdate {
+  // Size of the downloaded portion of the file.
+  int64 downloaded = 1;
+  // Total size of the file being downloaded.
+  int64 total_size = 2;
+}
+
+message DownloadProgressEnd {
+  // True if the download is successful.
+  bool success = 1;
+  // Info or error message, depending on the value of 'success'. Some examples:
+  // "File xxx already downloaded" or "Connection timeout".
+  string message = 2;
 }
