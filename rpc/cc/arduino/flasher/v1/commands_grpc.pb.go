@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Flasher_List_FullMethodName     = "/cc.arduino.flasher.v1.Flasher/List"
 	Flasher_Download_FullMethodName = "/cc.arduino.flasher.v1.Flasher/Download"
+	Flasher_Flash_FullMethodName    = "/cc.arduino.flasher.v1.Flasher/Flash"
 )
 
 // FlasherClient is the client API for Flasher service.
@@ -44,6 +45,7 @@ const (
 type FlasherClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	Download(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DownloadResponse], error)
+	Flash(ctx context.Context, in *FlashRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlashResponse], error)
 }
 
 type flasherClient struct {
@@ -83,12 +85,32 @@ func (c *flasherClient) Download(ctx context.Context, in *DownloadRequest, opts 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Flasher_DownloadClient = grpc.ServerStreamingClient[DownloadResponse]
 
+func (c *flasherClient) Flash(ctx context.Context, in *FlashRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlashResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Flasher_ServiceDesc.Streams[1], Flasher_Flash_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FlashRequest, FlashResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Flasher_FlashClient = grpc.ServerStreamingClient[FlashResponse]
+
 // FlasherServer is the server API for Flasher service.
 // All implementations must embed UnimplementedFlasherServer
 // for forward compatibility.
 type FlasherServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Download(*DownloadRequest, grpc.ServerStreamingServer[DownloadResponse]) error
+	Flash(*FlashRequest, grpc.ServerStreamingServer[FlashResponse]) error
 	mustEmbedUnimplementedFlasherServer()
 }
 
@@ -104,6 +126,9 @@ func (UnimplementedFlasherServer) List(context.Context, *ListRequest) (*ListResp
 }
 func (UnimplementedFlasherServer) Download(*DownloadRequest, grpc.ServerStreamingServer[DownloadResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Download not implemented")
+}
+func (UnimplementedFlasherServer) Flash(*FlashRequest, grpc.ServerStreamingServer[FlashResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method Flash not implemented")
 }
 func (UnimplementedFlasherServer) mustEmbedUnimplementedFlasherServer() {}
 func (UnimplementedFlasherServer) testEmbeddedByValue()                 {}
@@ -155,6 +180,17 @@ func _Flasher_Download_Handler(srv interface{}, stream grpc.ServerStream) error 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Flasher_DownloadServer = grpc.ServerStreamingServer[DownloadResponse]
 
+func _Flasher_Flash_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FlashRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(FlasherServer).Flash(m, &grpc.GenericServerStream[FlashRequest, FlashResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Flasher_FlashServer = grpc.ServerStreamingServer[FlashResponse]
+
 // Flasher_ServiceDesc is the grpc.ServiceDesc for Flasher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -171,6 +207,11 @@ var Flasher_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Download",
 			Handler:       _Flasher_Download_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Flash",
+			Handler:       _Flasher_Flash_Handler,
 			ServerStreams: true,
 		},
 	},

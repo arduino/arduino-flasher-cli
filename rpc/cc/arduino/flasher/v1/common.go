@@ -53,3 +53,6 @@ func (d DownloadProgressCB) End(success bool, message string) {
 		},
 	})
 }
+
+// TaskProgressCB is a callback to receive progress messages
+type TaskProgressCB func(msg *TaskProgress)

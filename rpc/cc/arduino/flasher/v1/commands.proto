@@ -24,6 +24,7 @@ option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flash
 service Flasher {
     rpc List(ListRequest) returns (ListResponse) {};
     rpc Download(DownloadRequest) returns (stream DownloadResponse);
+    rpc Flash(FlashRequest) returns (stream FlashResponse);
 }
 
 message ListRequest {}
@@ -53,5 +54,30 @@ message DownloadResponse {
     DownloadProgress progress = 1;
     // Download result.
     Result result = 2;
+  }
+}
+
+message FlashRequest {
+  // The version of the Debian image to download.
+  string version = 1;
+  // The path in which the image will be downloaded and extracted.
+  string temp_path = 2;
+  // Preserve user partition if possible.
+  bool preserve_user = 3;
+}
+
+message FlashResponse {
+  message Result {
+    // Empty message, reserved for future expansion.
+  }
+  oneof message {
+    // Progress of the download.
+    DownloadProgress download_progress = 1;
+    // Progress of the extraction.
+    TaskProgress extraction_progress = 2;
+    // Progress of qdl flashing.
+    TaskProgress flash_progress = 3;
+    // Download result.
+    Result result = 4;
   }
 }
