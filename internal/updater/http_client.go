@@ -26,11 +26,12 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/downloader/v2"
 	"go.bug.st/f"
+
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))

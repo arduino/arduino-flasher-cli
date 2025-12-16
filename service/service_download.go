@@ -18,10 +18,11 @@ package service
 import (
 	"fmt"
 
-	"github.com/arduino/arduino-flasher-cli/internal/updater"
-	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 	"github.com/arduino/go-paths-helper"
 	"go.bug.st/downloader/v2"
+
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
+	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 func (s *flasherServerImpl) Download(req *flasher.DownloadRequest, stream flasher.Flasher_DownloadServer) error {
