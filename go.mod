@@ -14,6 +14,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.11.1
 	go.bug.st/cleanup v1.0.0
+	go.bug.st/downloader/v2 v2.2.0
 	go.bug.st/f v0.4.0
 	go.bug.st/relaxed-semver v0.15.0
 	google.golang.org/grpc v1.77.0

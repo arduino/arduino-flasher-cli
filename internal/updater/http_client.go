@@ -24,7 +24,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
+	"github.com/arduino/go-paths-helper"
+	"go.bug.st/downloader/v2"
 	"go.bug.st/f"
 )
 
@@ -126,4 +131,38 @@ func (c *Client) FetchZip(ctx context.Context, zipURL string) (io.ReadCloser, in
 		return nil, 0, fmt.Errorf("bad http status from %s: %v", zipURL, resp.Status)
 	}
 	return resp.Body, resp.ContentLength, nil
+}
+
+// DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
+// A DownloadProgressCB callback function must be passed to monitor download progress.
+// If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
+func DownloadFile(ctx context.Context, path *paths.Path, URL string, label string, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
+	downloadCB.Start(URL, label)
+	defer func() {
+		if returnedError == nil {
+			downloadCB.End(true, "")
+		} else {
+			downloadCB.End(false, returnedError.Error())
+		}
+	}()
+
+	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), URL, config, options...)
+	if err != nil {
+		return err
+	}
+
+	err = d.RunAndPoll(func(downloaded int64) {
+		downloadCB.Update(downloaded, d.Size())
+	}, 250*time.Millisecond)
+	if err != nil {
+		return err
+	}
+
+	// The URL is not reachable for some reason
+	if d.Resp.StatusCode >= 400 && d.Resp.StatusCode <= 599 {
+		msg := i18n.Tr("Server responded with: %s", d.Resp.Status)
+		return fmt.Errorf("%s", msg)
+	}
+
+	return nil
 }
