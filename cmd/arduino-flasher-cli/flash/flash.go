@@ -24,6 +24,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -113,9 +114,20 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, tempDir 
 		}
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes, tempDir)
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
+	var num = 1
+	bar := progressbar.Default(-1, fmt.Sprintf("[%d/%d] flashing", num, 0))
+	for event, err := range updater.Flash(ctx, imagePath, args[0], forceYes, tempDir) {
+		if err != nil {
+			feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
+		}
+
+		switch event.Type {
+		case updater.TypeProgress:
+			bar.Close()
+			num++
+			bar = progressbar.Default(-1, fmt.Sprintf("[%d/%d]flashing", num, event.Progress.NumPartitions))
+		}
 	}
+
 	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 }
