@@ -1,0 +1,72 @@
+package updater
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestParseQdlLogLine(t *testing.T) {
+	tests := []struct {
+		line    string
+		want    QDLLogLine
+		wantErr bool
+	}{
+		{
+			line: "Waiting for EDL device...",
+			want: QDLLogLine{
+				Op:  Waiting,
+				Log: "Waiting for EDL device...",
+			},
+		},
+		{
+			line: "waiting for programmer...",
+			want: QDLLogLine{
+				Op:  Waiting,
+				Log: "waiting for programmer...",
+			},
+		},
+		{
+			line: `flashed "xbl_a" successfully`,
+			want: QDLLogLine{
+				Op:  Flashed,
+				Log: `flashed "xbl_a" successfully`,
+			},
+		},
+		{
+			line: `flashed "rootfs" successfully at 65058kB/s`,
+			want: QDLLogLine{
+				Op:  Flashed,
+				Log: `flashed "rootfs" successfully at 65058kB/s`,
+			},
+		},
+		{
+
+			line: "13 patches applied",
+			want: QDLLogLine{
+				Op:  Unknown,
+				Log: "13 patches applied",
+			},
+		},
+		{
+			line: "partition 0 is now bootable",
+			want: QDLLogLine{
+				Op:  Unknown,
+				Log: "partition 0 is now bootable",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			result, err := parseQdlLogLine(tt.line)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, result)
+			}
+
+		})
+	}
+}

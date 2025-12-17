@@ -16,11 +16,9 @@
 package updater
 
 import (
-	"bufio"
 	"context"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"runtime"
 	"strconv"
 	"strings"
@@ -97,18 +95,18 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 	return FlashBoard(ctx, imagePath.String(), version, preserveUser, nil)
 }
 
-type TypeEvent int
+type EventType int
 
 const (
-	EventWaiting TypeEvent = 3
-	EventFlashed TypeEvent = 4
+	EventLog EventType = iota
+	EventProgress
 )
 
 type FlashEvent struct {
-	Type        TypeEvent
-	Progress    int
-	MaxProgress int
-	Log         string
+	Type     EventType
+	Log      string
+	Progress int
+	Total    int
 }
 
 type FlahsCallback func(FlashEvent)
@@ -198,25 +196,21 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	if callback != nil {
 		progress := 0
 		w = helper.NewCallbackWriter(func(line string) {
-			parsedLine, err := parseQdlLogLine(line)
-			if err != nil {
-				slog.Warn("could not parse qdl log line", "error", err, "line", line)
-				return
-			}
+			parsedLine := parseQdlLogLine(line)
 
 			switch parsedLine.Op {
-			case Waiting:
-				callback(FlashEvent{
-					Type: EventWaiting,
-					Log:  line,
-				})
-			case Flasherd:
+			case Flashed:
 				progress++
 				callback(FlashEvent{
-					Type:        EventFlashed,
-					Log:         line,
-					Progress:    progress,
-					MaxProgress: totalPartitions,
+					Type:     EventProgress,
+					Log:      line,
+					Progress: progress,
+					Total:    totalPartitions,
+				})
+			default:
+				callback(FlashEvent{
+					Type: EventLog,
+					Log:  line,
 				})
 			}
 		})
@@ -278,53 +272,4 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 
 	return nil
-}
-
-type Op int
-
-const (
-	Waiting  Op = 1
-	Flasherd Op = 2
-)
-
-type QDLLogLine struct {
-	Op  Op
-	Log string
-}
-
-func parseQdlLogLine(line string) (QDLLogLine, error) {
-	line = strings.ToLower(line)
-	if strings.HasPrefix(line, "waiting for") {
-		return QDLLogLine{
-			Op:  Waiting,
-			Log: line,
-		}, nil
-	}
-
-	if strings.HasPrefix(line, "flashed") {
-		return QDLLogLine{
-			Op:  Flasherd,
-			Log: line,
-		}, nil
-	}
-
-	return QDLLogLine{}, fmt.Errorf("line %q does not match known operations", line)
-}
-
-func getTotalPartition(path *paths.Path) (int, error) {
-	f, err := path.Open()
-	if err != nil {
-		return 0, err
-	}
-
-	r := bufio.NewScanner(f)
-	var total int
-	for r.Scan() {
-		c := strings.Count(r.Text(), "<program")
-		total += c
-	}
-	if err := r.Err(); err != nil {
-		return 0, err
-	}
-	return total, nil
 }
