@@ -101,11 +101,11 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 
 	tmpZip := paths.New(req.GetTempPath(), "arduino-unoq-debian-image-"+rel.Version+".tar.zst")
+	defer tmpZip.RemoveAll()
 
 	if err := updater.DownloadFile(ctx, tmpZip, rel.Url, rel.Version, downloadCB, downloader.Config{}); err != nil {
 		return err
 	}
-	defer tmpZip.RemoveAll()
 
 	tmpZipFile, err := tmpZip.Open()
 	if err != nil {
