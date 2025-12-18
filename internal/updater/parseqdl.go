@@ -1,7 +1,7 @@
 package updater
 
 import (
-	"bufio"
+	"encoding/xml"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -43,19 +43,40 @@ func parseQdlLogLine(line string) QDLLogLine {
 }
 
 func getTotalPartition(path *paths.Path) (int, error) {
-	f, err := path.Open()
+	rawProgramFile, err := parseRawProgramFile(path)
 	if err != nil {
 		return 0, err
 	}
 
-	r := bufio.NewScanner(f)
 	var total int
-	for r.Scan() {
-		c := strings.Count(r.Text(), "<program")
-		total += c
+	for _, program := range rawProgramFile.Programs {
+		if program.Filename != "" {
+			total++
+		}
 	}
-	if err := r.Err(); err != nil {
-		return 0, err
-	}
+
 	return total, nil
+}
+
+type RawProgramFile struct {
+	Programs []Program `xml:"program"`
+}
+
+type Program struct {
+	Filename string `xml:"filename,attr"`
+}
+
+func parseRawProgramFile(path *paths.Path) (RawProgramFile, error) {
+	f, err := path.Open()
+	if err != nil {
+		return RawProgramFile{}, err
+	}
+	defer f.Close()
+
+	var data RawProgramFile
+	if err := xml.NewDecoder(f).Decode(&data); err != nil {
+		return RawProgramFile{}, err
+	}
+
+	return data, nil
 }
