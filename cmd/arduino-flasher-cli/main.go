@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/daemon"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/download"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/drivers"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/flash"
@@ -30,6 +31,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/version"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/service"
 )
 
 // Version will be set a build time with -ldflags
@@ -61,6 +63,7 @@ func main() {
 		list.NewListCmd(),
 		download.NewDownloadCmd(),
 		version.NewVersionCmd(Version),
+		daemon.NewDaemonCommand(service.NewFlasherServer()),
 	)
 
 	ctx := context.Background()

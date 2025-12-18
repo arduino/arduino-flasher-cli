@@ -126,3 +126,19 @@ tasks:
   general:prepare-deps:
     desc: Prepare project dependencies for license check
     # No preparation is needed for Go module-based projects.
+
+  protoc:compile:
+    desc: Compile protobuf definitions
+    cmds:
+      - buf dep update
+      - buf generate
+
+  protoc:check:
+    desc: Perform linting of the protobuf definitions
+    cmds:
+      - buf lint
+
+  protoc:format:
+    desc: Perform formatting of the protobuf definitions
+    cmds:
+      - buf format --write
