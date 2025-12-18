@@ -20,9 +20,10 @@ import (
 	"context"
 	"slices"
 
+	"go.bug.st/f"
+
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
-	"go.bug.st/f"
 )
 
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
