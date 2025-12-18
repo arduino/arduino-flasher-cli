@@ -137,8 +137,8 @@ func (c *Client) FetchZip(ctx context.Context, zipURL string) (io.ReadCloser, in
 // DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
-func DownloadFile(ctx context.Context, path *paths.Path, URL string, label string, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
-	downloadCB.Start(URL, label)
+func DownloadFile(ctx context.Context, path *paths.Path, url string, label string, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
+	downloadCB.Start(url, label)
 	defer func() {
 		if returnedError == nil {
 			downloadCB.End(true, "")
@@ -147,7 +147,7 @@ func DownloadFile(ctx context.Context, path *paths.Path, URL string, label strin
 		}
 	}()
 
-	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), URL, config, options...)
+	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), url, config, options...)
 	if err != nil {
 		return err
 	}

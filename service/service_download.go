@@ -29,7 +29,7 @@ func (s *flasherServerImpl) Download(req *flasher.DownloadRequest, stream flashe
 	syncSend := NewSynchronizedSend(stream.Send)
 	ctx := stream.Context()
 	downloadCB := func(p *flasher.DownloadProgress) {
-		syncSend.Send(&flasher.DownloadResponse{
+		_ = syncSend.Send(&flasher.DownloadResponse{
 			Message: &flasher.DownloadResponse_Progress{Progress: p},
 		})
 	}

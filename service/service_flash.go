@@ -38,7 +38,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 	ctx := stream.Context()
 	downloadCB := func(msg *flasher.DownloadProgress) {
-		responseCallback(&flasher.FlashResponse{
+		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_DownloadProgress{
 				DownloadProgress: &flasher.DownloadProgress{
 					Message: msg.GetMessage(),
@@ -47,7 +47,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		})
 	}
 	extractCB := func(msg *flasher.TaskProgress) {
-		responseCallback(&flasher.FlashResponse{
+		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_ExtractionProgress{
 				ExtractionProgress: &flasher.TaskProgress{
 					Name:      msg.GetName(),
@@ -58,7 +58,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		})
 	}
 	flashCB := func(msg *flasher.TaskProgress) {
-		responseCallback(&flasher.FlashResponse{
+		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_FlashProgress{
 				FlashProgress: &flasher.TaskProgress{
 					Name:      msg.GetName(),
@@ -101,7 +101,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 
 	tmpZip := paths.New(req.GetTempPath(), "arduino-unoq-debian-image-"+rel.Version+".tar.zst")
-	defer tmpZip.RemoveAll()
+	defer func() { _ = tmpZip.RemoveAll() }()
 
 	if err := updater.DownloadFile(ctx, tmpZip, rel.Url, rel.Version, downloadCB, downloader.Config{}); err != nil {
 		return err
@@ -123,7 +123,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: "extract", Completed: true})
 
 	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + rel.Version)
-	defer imagePath.RemoveAll()
+	defer func() { _ = imagePath.RemoveAll() }()
 
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Starting"})
 	if err := updater.FlashBoard(ctx, imagePath.String(), rel.Version, req.GetPreserveUser()); err != nil {
