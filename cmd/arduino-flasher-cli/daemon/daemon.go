@@ -120,5 +120,5 @@ func (r daemonResult) Data() interface{} {
 
 func (r daemonResult) String() string {
 	j, _ := json.Marshal(r)
-	return fmt.Sprintln(i18n.Tr("Daemon is now listening on %s:%s", r.IP, r.Port)) + fmt.Sprintln(string(j))
+	return fmt.Sprintln(i18n.Tr("Daemon is now listening on %s:%s", r.IP, r.Port))
 }
