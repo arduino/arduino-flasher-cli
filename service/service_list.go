@@ -47,7 +47,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 			}
 			return -1
 		} else if b.Latest {
-			return +1
+			return 1
 		}
 		return cmp.Compare(b.BuildId, a.BuildId)
 	})
