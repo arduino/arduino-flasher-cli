@@ -103,7 +103,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 	defer tmpZipFile.Close()
 
-	extractCB(&flasher.TaskProgress{Name: "extract", Message: "Start"})
+	extractCB(&flasher.TaskProgress{Name: "extract", Message: "Extracting image archive"})
 	if err := extract.Archive(ctx, tmpZipFile, tmpZip.Parent().String(), func(s string) string {
 		extractCB(&flasher.TaskProgress{Name: "extract", Message: s})
 		return s
