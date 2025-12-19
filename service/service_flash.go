@@ -40,9 +40,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	downloadCB := func(msg *flasher.DownloadProgress) {
 		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_DownloadProgress{
-				DownloadProgress: &flasher.DownloadProgress{
-					Message: msg.GetMessage(),
-				},
+				DownloadProgress: msg,
 			},
 		})
 	}
