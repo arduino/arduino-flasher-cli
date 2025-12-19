@@ -16,6 +16,7 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -137,8 +138,8 @@ func (c *Client) FetchZip(ctx context.Context, zipURL string) (io.ReadCloser, in
 // DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
-func DownloadFile(ctx context.Context, path *paths.Path, url string, label string, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
-	downloadCB.Start(url, label)
+func DownloadFile(ctx context.Context, path *paths.Path, rel *Release, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
+	downloadCB.Start(rel.Url, rel.Version)
 	defer func() {
 		if returnedError == nil {
 			downloadCB.End(true, "")
@@ -147,7 +148,7 @@ func DownloadFile(ctx context.Context, path *paths.Path, url string, label strin
 		}
 	}()
 
-	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), url, config, options...)
+	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), rel.Url, config, options...)
 	if err != nil {
 		return err
 	}
@@ -163,6 +164,24 @@ func DownloadFile(ctx context.Context, path *paths.Path, url string, label strin
 	if d.Resp.StatusCode >= 400 && d.Resp.StatusCode <= 599 {
 		msg := i18n.Tr("Server responded with: %s", d.Resp.Status)
 		return fmt.Errorf("%s", msg)
+	}
+
+	// Check the hash
+	checksum := sha256.New()
+	tmpZipFile, err := path.Open()
+	if err != nil {
+		return fmt.Errorf("could not open archive: %w", err)
+	}
+	defer tmpZipFile.Close()
+
+	_, err = io.Copy(checksum, tmpZipFile)
+	if err != nil {
+		return err
+	}
+	if sha256Byte, err := hex.DecodeString(rel.Sha256); err != nil {
+		return fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
+	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
+		return fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 
 	return nil

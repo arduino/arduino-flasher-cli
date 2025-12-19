@@ -58,7 +58,7 @@ func (s *flasherServerImpl) Download(req *flasher.DownloadRequest, stream flashe
 
 	tmpZip := paths.New(req.GetDownloadPath(), "arduino-unoq-debian-image-"+rel.Version+".tar.zst")
 
-	if err := updater.DownloadFile(ctx, tmpZip, rel.Url, rel.Version, downloadCB, downloader.Config{}); err != nil {
+	if err := updater.DownloadFile(ctx, tmpZip, rel, downloadCB, downloader.Config{}); err != nil {
 		return err
 	}
 
