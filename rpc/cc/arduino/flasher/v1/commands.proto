@@ -77,7 +77,7 @@ message FlashResponse {
     TaskProgress extraction_progress = 2;
     // Progress of qdl flashing.
     TaskProgress flash_progress = 3;
-    // Download result.
+    // Flashing result.
     Result result = 4;
   }
 }
