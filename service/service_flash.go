@@ -115,7 +115,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + rel.Version)
 	defer func() { _ = imagePath.RemoveAll() }()
 
-	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Starting"})
+	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
 	if err := updater.FlashBoard(ctx, imagePath.String(), rel.Version, req.GetPreserveUser()); err != nil {
 		return err
 	}
