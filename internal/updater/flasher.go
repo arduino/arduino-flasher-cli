@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v4/disk"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -140,8 +141,8 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 				if errT != nil {
 					warnStr = errT.Error()
 				}
-				feedback.Printf("\nWARNING: %s.", warnStr)
-				feedback.Printf("Do you want to proceed and flash %s on the board, erasing any existing data you have on it? (yes/no)", target)
+				feedback.Print(color.RedString("\nWARNING: %s. It will not be possible to preserve your data.\n", warnStr))
+				feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 				var yesInput string
 				_, err := fmt.Scanf("%s\n", &yesInput)
