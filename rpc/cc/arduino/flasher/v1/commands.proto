@@ -40,6 +40,7 @@ message Release {
 
 message DownloadRequest {
   // The version of the Debian image to download.
+  // Use "latest" to download the latest.
   string version = 1;
   // The path in which the image will be downloaded.
   string download_path = 2;
