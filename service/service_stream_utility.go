@@ -13,8 +13,8 @@ type SynchronizedSender[T any] struct {
 // Send the message using the underlyng stream.
 func (s *SynchronizedSender[T]) Send(value T) error {
 	s.lock.Lock()
+	defer s.lock.Unlock()
 	err := s.protectedSend(value)
-	s.lock.Unlock()
 	return err
 }
 
