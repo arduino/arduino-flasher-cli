@@ -24,6 +24,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -98,7 +99,7 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 	}
 
 	if !forceYes && !preserveUser {
-		feedback.Print("\nWARNING: flashing a new Linux image on the board will erase any existing data you have on it.")
+		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
 		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", args[0])
 
 		var yesInput string
