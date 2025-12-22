@@ -23,7 +23,6 @@ option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flash
 
 service Flasher {
     rpc List(ListRequest) returns (ListResponse) {};
-    rpc Download(DownloadRequest) returns (stream DownloadResponse);
     rpc Flash(FlashRequest) returns (stream FlashResponse);
 }
 
@@ -36,26 +35,6 @@ message ListResponse {
 message Release {
     string build_id = 1;
     bool latest = 2;
-}
-
-message DownloadRequest {
-  // The version of the Debian image to download.
-  // Use "latest" to download the latest.
-  string version = 1;
-  // The path in which the image will be downloaded.
-  string download_path = 2;
-}
-
-message DownloadResponse {
-  message Result {
-    // Empty message, reserved for future expansion.
-  }
-  oneof message {
-    // Progress of the download.
-    DownloadProgress progress = 1;
-    // Download result.
-    Result result = 2;
-  }
 }
 
 message FlashRequest {
