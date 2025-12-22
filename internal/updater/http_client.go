@@ -28,11 +28,11 @@ import (
 	"time"
 
 	"github.com/arduino/go-paths-helper"
+	"github.com/shirou/gopsutil/v4/disk"
 	"go.bug.st/downloader/v2"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
@@ -41,13 +41,8 @@ const pathRelease = "debian-im/Stable"
 
 // Client holds the base URL, command name, allows custom HTTP client, and optional headers.
 type Client struct {
-	HTTPClient HTTPDoer
+	HTTPClient *http.Client
 	Headers    map[string]string // Optional headers to add to each request
-}
-
-// HTTPDoer is an interface for http.Client or mocks.
-type HTTPDoer interface {
-	Do(req *http.Request) (*http.Response, error)
 }
 
 // Option is a functional option for configuring Client.
@@ -61,7 +56,7 @@ func WithHeaders(headers map[string]string) Option {
 }
 
 // WithHTTPClient sets a custom HTTP client for the Client.
-func WithHTTPClient(client HTTPDoer) Option {
+func WithHTTPClient(client *http.Client) Option {
 	return func(c *Client) {
 		c.HTTPClient = client
 	}
@@ -116,45 +111,51 @@ func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
 	return res, nil
 }
 
-// FetchZip fetches the Debian image archive.
-func (c *Client) FetchZip(ctx context.Context, zipURL string) (io.ReadCloser, int64, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", zipURL, nil)
+func (c *Client) GetReleaseByVersion(ctx context.Context, version string) (Release, error) {
+	manifest, err := c.GetInfoManifest(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+		return Release{}, err
 	}
-	c.addHeaders(req)
-	// #nosec G107 -- zipURL is constructed from trusted config and parameters
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to GET zip: %w", err)
+
+	if version == "latest" || version == manifest.Latest.Version {
+		return manifest.Latest, nil
+	} else {
+		for _, r := range manifest.Releases {
+			if version == r.Version {
+				return r, nil
+			}
+		}
 	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, 0, fmt.Errorf("bad http status from %s: %v", zipURL, resp.Status)
-	}
-	return resp.Body, resp.ContentLength, nil
+
+	return Release{}, fmt.Errorf("could not find Debian image %s", version)
 }
+
+type downloadCallback func(current, total int64)
 
 // DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
-func DownloadFile(ctx context.Context, path *paths.Path, rel *Release, downloadCB flasher.DownloadProgressCB, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
-	downloadCB.Start(rel.Url, rel.Version)
-	defer func() {
-		if returnedError == nil {
-			downloadCB.End(true, "")
-		} else {
-			downloadCB.End(false, returnedError.Error())
-		}
-	}()
+func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release, cb downloadCallback, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
 
+	// Check if there is enough free disk space before downloading and extracting an image
+	dk, err := disk.Usage(path.String())
+	if err != nil {
+		return err
+	}
+	// TODO: improve disk space check with Content-Length header
+	if dk.Free/GiB < DownloadDiskSpace {
+		return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
+	}
+
+	config.HttpClient = *c.HTTPClient
+	// TODO: add headers to downloader's http client
 	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), rel.Url, config, options...)
 	if err != nil {
 		return err
 	}
 
 	err = d.RunAndPoll(func(downloaded int64) {
-		downloadCB.Update(downloaded, d.Size())
+		cb(downloaded, d.Size())
 	}, 250*time.Millisecond)
 	if err != nil {
 		return err

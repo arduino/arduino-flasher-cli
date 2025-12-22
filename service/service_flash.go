@@ -20,7 +20,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
-	"github.com/shirou/gopsutil/v4/disk"
 	"go.bug.st/downloader/v2"
 
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
@@ -37,7 +36,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		responseCallback = func(*flasher.FlashResponse) error { return nil }
 	}
 	ctx := stream.Context()
-	downloadCB := func(msg *flasher.DownloadProgress) {
+	var downloadCB flasher.DownloadProgressCB = func(msg *flasher.DownloadProgress) {
 		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_DownloadProgress{
 				DownloadProgress: msg,
@@ -59,43 +58,23 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		})
 	}
 
-	// Check if there is enough free disk space before downloading and extracting an image
-	d, err := disk.Usage(req.TempPath)
-	if err != nil {
-		return err
-	}
-	if d.Free/updater.GiB < updater.DownloadDiskSpace {
-		return fmt.Errorf("download and extraction requires up to %d GiB of free space", updater.DownloadDiskSpace)
-	}
-
 	client := updater.NewClient()
-	manifest, err := client.GetInfoManifest(ctx)
+
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
 	if err != nil {
-		return err
-	}
-
-	var rel *updater.Release
-	if req.Version == "latest" || req.Version == manifest.Latest.Version {
-		rel = &manifest.Latest
-	} else {
-		for _, r := range manifest.Releases {
-			if req.Version == r.Version {
-				rel = &r
-				break
-			}
-		}
-	}
-
-	if rel == nil {
-		return fmt.Errorf("could not find Debian image %s", req.Version)
+		return fmt.Errorf("could not get release info: %w", err)
 	}
 
 	tmpZip := paths.New(req.GetTempPath(), "arduino-unoq-debian-image-"+rel.Version+".tar.zst")
 	defer func() { _ = tmpZip.RemoveAll() }()
 
-	if err := updater.DownloadFile(ctx, tmpZip, rel, downloadCB, downloader.Config{}); err != nil {
+	downloadCB.Start(rel.Url, rel.Version)
+	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update, downloader.Config{}); err != nil {
+		// FIXME: Maybe this is redundant?
+		downloadCB.End(false, err.Error())
 		return err
 	}
+	downloadCB.End(true, "")
 
 	tmpZipFile, err := tmpZip.Open()
 	if err != nil {

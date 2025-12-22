@@ -16,17 +16,14 @@
 package updater
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
+	"go.bug.st/downloader/v2"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -65,58 +62,25 @@ func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.P
 }
 
 func DownloadImage(ctx context.Context, targetVersion string, downloadPath *paths.Path) (*paths.Path, string, error) {
-	var err error
-
 	client := NewClient()
-	manifest, err := client.GetInfoManifest(ctx)
+	rel, err := client.GetReleaseByVersion(ctx, targetVersion)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("could not get release info: %w", err)
 	}
-
-	var rel *Release
-	if targetVersion == "latest" || targetVersion == manifest.Latest.Version {
-		rel = &manifest.Latest
-	} else {
-		for _, r := range manifest.Releases {
-			if targetVersion == r.Version {
-				rel = &r
-				break
-			}
-		}
-	}
-
-	if rel == nil {
-		return nil, "", fmt.Errorf("could not find Debian image %s", targetVersion)
-	}
-
-	download, size, err := client.FetchZip(ctx, rel.Url)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not fetch Debian image: %w", err)
-	}
-	defer download.Close()
 
 	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
-	tmpZipFile, err := tmpZip.Create()
-	if err != nil {
-		return nil, "", err
-	}
-	defer tmpZipFile.Close()
 
-	// Download and keep track of the progress
 	bar := progressbar.DefaultBytes(
-		size,
+		0,
 		i18n.Tr("Downloading Debian image version %s", rel.Version),
 	)
-	checksum := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(checksum, tmpZipFile, bar), download); err != nil {
-		return nil, "", err
+	callback := func(current, total int64) {
+		bar.AddMax64(total)
+		_ = bar.Set64(current)
 	}
 
-	// Check the hash
-	if sha256Byte, err := hex.DecodeString(rel.Sha256); err != nil {
-		return nil, "", fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
-	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
-		return nil, "", fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
+	if err := client.DownloadFile(ctx, tmpZip, rel, callback, downloader.Config{}); err != nil {
+		return nil, "", fmt.Errorf("could not download Debian image: %w", err)
 	}
 
 	return tmpZip, rel.Version, nil

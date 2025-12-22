@@ -41,6 +41,7 @@ message FlashRequest {
   // The version of the Debian image to download.
   string version = 1;
   // The path in which the image will be downloaded and extracted.
+  // If an image file is already present, it will not be downloaded again.
   string temp_path = 2;
   // Preserve user partition if possible.
   bool preserve_user = 3;
