@@ -21,7 +21,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -288,28 +287,21 @@ const (
 	Flasherd Op = 2
 )
 
-var qdlProgressRegex = regexp.MustCompile(`(\w)\s+(:?(".*?")\s+(\w+)(?:\s+at\s+(\d+kB/s))?)?`)
-
 type QDLLogLine struct {
 	Op  Op
 	Log string
 }
 
 func parseQdlLogLine(line string) (QDLLogLine, error) {
-	matches := qdlProgressRegex.FindStringSubmatch(line)
-	if matches == nil {
-		return QDLLogLine{}, fmt.Errorf("line %q does not match progress format", line)
-	}
-	slog.Debug("parsed qdl log line", "full", matches[0], "matches", matches)
-
-	if strings.HasPrefix(matches[1], "Waiting for") || strings.HasPrefix(matches[1], "waiting for") {
+	line = strings.ToLower(line)
+	if strings.HasPrefix(line, "waiting for") {
 		return QDLLogLine{
 			Op:  Waiting,
 			Log: line,
 		}, nil
 	}
 
-	if strings.HasPrefix(matches[1], "Flashed") {
+	if strings.HasPrefix(line, "flashed") {
 		return QDLLogLine{
 			Op:  Flasherd,
 			Log: line,

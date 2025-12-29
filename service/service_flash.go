@@ -53,7 +53,13 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	flashCB := func(msg *flasher.TaskProgress) {
 		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_FlashProgress{
-				FlashProgress: msg,
+				FlashProgress: &flasher.TaskProgress{
+					Name:      msg.GetName(),
+					Message:   msg.GetMessage(),
+					Completed: msg.GetCompleted(),
+					Progress:  msg.GetProgress(),
+					Total:     msg.GetTotal(),
+				},
 			},
 		})
 	}
