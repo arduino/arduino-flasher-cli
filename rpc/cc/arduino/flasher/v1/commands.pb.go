@@ -22,11 +22,10 @@
 package flasher
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -184,6 +183,7 @@ type FlashRequest struct {
 	// The version of the Debian image to download.
 	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	// The path in which the image will be downloaded and extracted.
+	// If an image file is already present, it will not be downloaded again.
 	TempPath string `protobuf:"bytes,2,opt,name=temp_path,json=tempPath,proto3" json:"temp_path,omitempty"`
 	// Preserve user partition if possible.
 	PreserveUser bool `protobuf:"varint,3,opt,name=preserve_user,json=preserveUser,proto3" json:"preserve_user,omitempty"`

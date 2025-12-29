@@ -16,9 +16,12 @@
 package updater
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +32,7 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/helper"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
@@ -37,7 +41,7 @@ const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, callback FlahsCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -91,10 +95,26 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String(), version, preserveUser)
+	return FlashBoard(ctx, imagePath.String(), version, preserveUser, nil)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, version string, preserveUser bool) error {
+type TypeEvent int
+
+const (
+	EventWaiting TypeEvent = 3
+	EventFlashed TypeEvent = 4
+)
+
+type FlashEvent struct {
+	Type        TypeEvent
+	Progress    int
+	MaxProgress int
+	Log         string
+}
+
+type FlahsCallback func(FlashEvent)
+
+func FlashBoard(ctx context.Context, downloadedImagePath string, version string, preserveUser bool, callback FlahsCallback) error {
 	var flashDir *paths.Path
 	for _, entry := range []string{"flash", "flash_UnoQ"} {
 		if p := paths.New(downloadedImagePath, entry); p.Exist() {
@@ -162,6 +182,11 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 
 	}
 
+	totalPartitions, err := getTotalPartition(flashDir.Join(rawProgram))
+	if err != nil {
+		return err
+	}
+
 	feedback.Print(i18n.Tr("Flashing with qdl"))
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml")
 	if err != nil {
@@ -169,8 +194,36 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	}
 	// Setting the directory is needed because rawprogram0.xml contains relative file paths
 	cmd.SetDir(flashDir.String())
-	cmd.RedirectStderrTo(stdout)
-	cmd.RedirectStdoutTo(stdout)
+
+	w := stdout
+	if callback != nil {
+		progress := 0
+		w = helper.NewCallbackWriter(func(line string) {
+			parsedLine, err := parseQdlLogLine(line)
+			if err != nil {
+				slog.Warn("could not parse qdl log line", "error", err, "line", line)
+				return
+			}
+
+			switch parsedLine.Op {
+			case Waiting:
+				callback(FlashEvent{
+					Type: EventWaiting,
+					Log:  line,
+				})
+			case Flasherd:
+				progress++
+				callback(FlashEvent{
+					Type:        EventFlashed,
+					Log:         line,
+					Progress:    progress,
+					MaxProgress: totalPartitions,
+				})
+			}
+		})
+	}
+	cmd.RedirectStderrTo(w)
+	cmd.RedirectStdoutTo(w)
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
@@ -226,4 +279,60 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 
 	return nil
+}
+
+type Op int
+
+const (
+	Waiting  Op = 1
+	Flasherd Op = 2
+)
+
+var qdlProgressRegex = regexp.MustCompile(`(\w)\s+(:?(".*?")\s+(\w+)(?:\s+at\s+(\d+kB/s))?)?`)
+
+type QDLLogLine struct {
+	Op  Op
+	Log string
+}
+
+func parseQdlLogLine(line string) (QDLLogLine, error) {
+	matches := qdlProgressRegex.FindStringSubmatch(line)
+	if matches == nil {
+		return QDLLogLine{}, fmt.Errorf("line %q does not match progress format", line)
+	}
+	slog.Debug("parsed qdl log line", "full", matches[0], "matches", matches)
+
+	if strings.HasPrefix(matches[1], "Waiting for") || strings.HasPrefix(matches[1], "waiting for") {
+		return QDLLogLine{
+			Op:  Waiting,
+			Log: line,
+		}, nil
+	}
+
+	if strings.HasPrefix(matches[1], "Flashed") {
+		return QDLLogLine{
+			Op:  Flasherd,
+			Log: line,
+		}, nil
+	}
+
+	return QDLLogLine{}, fmt.Errorf("line %q does not match known operations", line)
+}
+
+func getTotalPartition(path *paths.Path) (int, error) {
+	f, err := path.Open()
+	if err != nil {
+		return 0, err
+	}
+
+	r := bufio.NewScanner(f)
+	var total int
+	for r.Scan() {
+		c := strings.Count(r.Text(), "<program")
+		total += c
+	}
+	if err := r.Err(); err != nil {
+		return 0, err
+	}
+	return total, nil
 }
