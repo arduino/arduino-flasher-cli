@@ -8,9 +8,8 @@ import (
 
 func TestParseQdlLogLine(t *testing.T) {
 	tests := []struct {
-		line    string
-		want    QDLLogLine
-		wantErr bool
+		line string
+		want QDLLogLine
 	}{
 		{
 			line: "Waiting for EDL device...",
@@ -59,14 +58,8 @@ func TestParseQdlLogLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.line, func(t *testing.T) {
-			result, err := parseQdlLogLine(tt.line)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.want, result)
-			}
-
+			result := parseQdlLogLine(tt.line)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }
