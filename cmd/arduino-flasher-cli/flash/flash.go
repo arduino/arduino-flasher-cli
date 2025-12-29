@@ -114,7 +114,7 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 		}
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir)
+	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

@@ -95,7 +95,23 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	defer func() { _ = imagePath.RemoveAll() }()
 
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, imagePath.String(), rel.Version, req.GetPreserveUser()); err != nil {
+	if err := updater.FlashBoard(ctx, imagePath.String(), rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
+		switch fe.Type {
+		case updater.EventLog:
+			flashCB(&flasher.TaskProgress{
+				Name:    "flash",
+				Message: fe.Log,
+			})
+		case updater.EventProgress:
+			flashCB(&flasher.TaskProgress{
+				Name:     "flash",
+				Message:  fe.Log,
+				Progress: int64(fe.Progress),
+				Total:    int64(fe.Total),
+			})
+		}
+
+	}); err != nil {
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: "flash", Completed: true})

@@ -29,6 +29,7 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/helper"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
@@ -37,7 +38,7 @@ const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, callback FlahsCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -91,10 +92,26 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String(), version, preserveUser)
+	return FlashBoard(ctx, imagePath.String(), version, preserveUser, nil)
 }
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, version string, preserveUser bool) error {
+type EventType int
+
+const (
+	EventLog EventType = iota
+	EventProgress
+)
+
+type FlashEvent struct {
+	Type     EventType
+	Log      string
+	Progress int
+	Total    int
+}
+
+type FlahsCallback func(FlashEvent)
+
+func FlashBoard(ctx context.Context, downloadedImagePath string, version string, preserveUser bool, callback FlahsCallback) error {
 	var flashDir *paths.Path
 	for _, entry := range []string{"flash", "flash_UnoQ"} {
 		if p := paths.New(downloadedImagePath, entry); p.Exist() {
@@ -162,6 +179,11 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 
 	}
 
+	totalPartitions, err := getTotalPartition(flashDir.Join(rawProgram))
+	if err != nil {
+		return err
+	}
+
 	feedback.Print(i18n.Tr("Flashing with qdl"))
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml")
 	if err != nil {
@@ -169,8 +191,32 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	}
 	// Setting the directory is needed because rawprogram0.xml contains relative file paths
 	cmd.SetDir(flashDir.String())
-	cmd.RedirectStderrTo(stdout)
-	cmd.RedirectStdoutTo(stdout)
+
+	w := stdout
+	if callback != nil {
+		progress := 0
+		w = helper.NewCallbackWriter(func(line string) {
+			parsedLine := parseQdlLogLine(line)
+
+			switch parsedLine.Op {
+			case Flashed:
+				progress++
+				callback(FlashEvent{
+					Type:     EventProgress,
+					Log:      line,
+					Progress: progress,
+					Total:    totalPartitions,
+				})
+			default:
+				callback(FlashEvent{
+					Type: EventLog,
+					Log:  line,
+				})
+			}
+		})
+	}
+	cmd.RedirectStderrTo(w)
+	cmd.RedirectStdoutTo(w)
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
