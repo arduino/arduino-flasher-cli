@@ -92,7 +92,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath.String(), version, preserveUser, nil)
+	return FlashBoard(ctx, imagePath, version, preserveUser, nil)
 }
 
 type EventType int
@@ -111,16 +111,10 @@ type FlashEvent struct {
 
 type FlahsCallback func(FlashEvent)
 
-func FlashBoard(ctx context.Context, downloadedImagePath string, version string, preserveUser bool, callback FlahsCallback) error {
-	var flashDir *paths.Path
-	for _, entry := range []string{"flash", "flash_UnoQ"} {
-		if p := paths.New(downloadedImagePath, entry); p.Exist() {
-			flashDir = p
-			break
-		}
-	}
-	if flashDir == nil {
-		return fmt.Errorf("could not find the `flash` directory")
+func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlahsCallback) error {
+	flashDir, err := serachForFlashDir(downloadedImagePath)
+	if err != nil {
+		return err
 	}
 
 	qdlDir, err := paths.MkTempDir("", "qdl-")
@@ -222,6 +216,25 @@ func FlashBoard(ctx context.Context, downloadedImagePath string, version string,
 	}
 
 	return nil
+}
+
+func serachForFlashDir(extractPath *paths.Path) (*paths.Path, error) {
+	pathList, err := extractPath.ReadDirRecursiveFiltered(func(p *paths.Path) bool {
+		return p.IsDir()
+	}, func(p *paths.Path) bool {
+		return p.IsDir() && (p.Base() == "flash" || p.Base() == "flash_UnoQ")
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not find the `flash` directory: %w", err)
+	}
+	switch len(pathList) {
+	case 1:
+		return pathList[0], nil
+	case 0:
+		return nil, fmt.Errorf("could not find the `flash` directory in: %s", extractPath.String())
+	default:
+		return nil, fmt.Errorf("multiple `flash` directories found in: %s", extractPath.String())
+	}
 }
 
 // Checks the board GPT table and counts the number of partitions, this tells if the board supports preserving or not user's data.

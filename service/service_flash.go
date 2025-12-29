@@ -27,6 +27,7 @@ import (
 )
 
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) error {
+
 	// Setup callback functions
 	var responseCallback func(*flasher.FlashResponse) error
 	if stream != nil {
@@ -60,13 +61,19 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 
 	client := updater.NewClient()
 
+	tmpPath := paths.New(req.GetTempPath())
+	rmTempPath := func() {
+		if tmpPath.Exist() {
+			_ = tmpPath.RemoveAll()
+		}
+	}
+
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
 
-	tmpZip := paths.New(req.GetTempPath(), "arduino-unoq-debian-image-"+rel.Version+".tar.zst")
-	defer func() { _ = tmpZip.RemoveAll() }()
+	tmpZip := tmpPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 
 	downloadCB.Start(rel.Url, rel.Version)
 	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update, downloader.Config{}); err != nil {
@@ -82,8 +89,12 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 	defer tmpZipFile.Close()
 
+	extractPath := tmpPath.Join("extracted")
+	defer func() {
+		_ = extractPath.RemoveAll()
+	}()
 	extractCB(&flasher.TaskProgress{Name: "extract", Message: "Extracting image archive"})
-	if err := extract.Archive(ctx, tmpZipFile, tmpZip.Parent().String(), func(s string) string {
+	if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
 		extractCB(&flasher.TaskProgress{Name: "extract", Message: s})
 		return s
 	}); err != nil {
@@ -91,11 +102,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}
 	extractCB(&flasher.TaskProgress{Name: "extract", Completed: true})
 
-	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + rel.Version)
-	defer func() { _ = imagePath.RemoveAll() }()
-
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, imagePath.String(), rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
+	if err := updater.FlashBoard(ctx, extractPath, rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
 		switch fe.Type {
 		case updater.EventLog:
 			flashCB(&flasher.TaskProgress{
@@ -115,6 +123,9 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: "flash", Completed: true})
+
+	// if everything went fine, clean up the temp path
+	defer rmTempPath()
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{
