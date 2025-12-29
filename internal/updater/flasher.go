@@ -112,7 +112,7 @@ type FlashEvent struct {
 type FlahsCallback func(FlashEvent)
 
 func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlahsCallback) error {
-	flashDir, err := serachForFlashDir(downloadedImagePath)
+	flashDir, err := searchForFlashDir(downloadedImagePath)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 	return nil
 }
 
-func serachForFlashDir(extractPath *paths.Path) (*paths.Path, error) {
+func searchForFlashDir(extractPath *paths.Path) (*paths.Path, error) {
 	pathList, err := extractPath.ReadDirRecursiveFiltered(func(p *paths.Path) bool {
 		return p.IsDir()
 	}, func(p *paths.Path) bool {
