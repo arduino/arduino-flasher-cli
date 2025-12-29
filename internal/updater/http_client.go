@@ -136,9 +136,10 @@ type downloadCallback func(current, total int64)
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
 func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release, cb downloadCallback, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
+	f.Assert(path.NotExist() || path.IsNotDir(), "path must not be a directory")
 
 	// Check if there is enough free disk space before downloading and extracting an image
-	dk, err := disk.Usage(path.String())
+	dk, err := disk.Usage(path.Parent().String())
 	if err != nil {
 		return err
 	}

@@ -70,15 +70,16 @@ func DownloadImage(ctx context.Context, targetVersion string, downloadPath *path
 
 	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 
-	bar := progressbar.DefaultBytes(
-		0,
-		i18n.Tr("Downloading Debian image version %s", rel.Version),
-	)
+	var bar *progressbar.ProgressBar
 	callback := func(current, total int64) {
-		bar.AddMax64(total)
+		if bar == nil {
+			bar = progressbar.DefaultBytes(
+				total,
+				i18n.Tr("Downloading Debian image version %s", rel.Version),
+			)
+		}
 		_ = bar.Set64(current)
 	}
-
 	if err := client.DownloadFile(ctx, tmpZip, rel, callback, downloader.Config{}); err != nil {
 		return nil, "", fmt.Errorf("could not download Debian image: %w", err)
 	}
