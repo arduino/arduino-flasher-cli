@@ -99,7 +99,7 @@ func runDaemonCommand(srv flasher.FlasherServer, daemonPort string, maxGRPCRecvM
 	}
 
 	feedback.PrintResult(daemonResult{
-		IP:   daemonIP,
+		Host: daemonIP,
 		Port: daemonPort,
 	})
 
@@ -109,8 +109,8 @@ func runDaemonCommand(srv flasher.FlasherServer, daemonPort string, maxGRPCRecvM
 }
 
 type daemonResult struct {
-	IP   string
-	Port string
+	Host string `json:"host"`
+	Port string `json:"port"`
 }
 
 func (r daemonResult) Data() interface{} {
@@ -118,5 +118,5 @@ func (r daemonResult) Data() interface{} {
 }
 
 func (r daemonResult) String() string {
-	return fmt.Sprintln(i18n.Tr("Daemon is now listening on %s:%s", r.IP, r.Port))
+	return fmt.Sprintln(i18n.Tr("Daemon is now listening on %s:%s", r.Host, r.Port))
 }
