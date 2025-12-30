@@ -38,7 +38,7 @@ const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, callback FlahsCallback) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, callback FlashCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -109,9 +109,9 @@ type FlashEvent struct {
 	Total    int
 }
 
-type FlahsCallback func(FlashEvent)
+type FlashCallback func(FlashEvent)
 
-func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlahsCallback) error {
+func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlashCallback) error {
 	flashDir, err := searchForFlashDir(downloadedImagePath)
 	if err != nil {
 		return err
