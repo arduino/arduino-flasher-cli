@@ -23,7 +23,6 @@ package flasher
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -43,8 +42,12 @@ const (
 // FlasherClient is the client API for Flasher service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Provides RPCs to flash Arduino images onto selected boards.
 type FlasherClient interface {
+	// Retrieves the images available for flashing
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	// Starts the flashing process
 	Flash(ctx context.Context, in *FlashRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlashResponse], error)
 	// Returns the available space for a given filesystem path
 	// located on the arduino-flasher-cli storage device.
@@ -101,8 +104,12 @@ func (c *flasherClient) CheckMemory(ctx context.Context, in *CheckMemoryRequest,
 // FlasherServer is the server API for Flasher service.
 // All implementations must embed UnimplementedFlasherServer
 // for forward compatibility.
+//
+// Provides RPCs to flash Arduino images onto selected boards.
 type FlasherServer interface {
+	// Retrieves the images available for flashing
 	List(context.Context, *ListRequest) (*ListResponse, error)
+	// Starts the flashing process
 	Flash(*FlashRequest, grpc.ServerStreamingServer[FlashResponse]) error
 	// Returns the available space for a given filesystem path
 	// located on the arduino-flasher-cli storage device.
