@@ -18,9 +18,10 @@ package service
 import (
 	"context"
 
-	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 	"github.com/arduino/go-paths-helper"
 	"github.com/shirou/gopsutil/v4/disk"
+
+	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 func (s *flasherServerImpl) GetAvailableFreeSpace(ctx context.Context, req *flasher.GetAvailableFreeSpaceRequest) (*flasher.GetAvailableFreeSpaceResponse, error) {
