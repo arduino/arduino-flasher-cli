@@ -24,7 +24,6 @@ option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flash
 service Flasher {
   rpc List(ListRequest) returns (ListResponse) {}
   rpc Flash(FlashRequest) returns (stream FlashResponse);
-  rpc CheckMemory(CheckMemoryRequest) returns (CheckMemoryResponse) {}
 }
 
 message ListRequest {}
@@ -62,14 +61,4 @@ message FlashResponse {
     // Flashing result.
     Result result = 4;
   }
-}
-
-message CheckMemoryRequest {
-  // Filesystem path to be checked.
-  string path = 1;
-}
-
-message CheckMemoryResponse {
-  // Free space in giga bytes
-  float free_giga_bytes = 1;
 }
