@@ -31,7 +31,7 @@ service Flasher {
 
   // Returns the available space for a given filesystem path
   // located on the arduino-flasher-cli storage device.
-  rpc CheckMemory(CheckMemoryRequest) returns (CheckMemoryResponse) {}
+  rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
 message ListRequest {}
@@ -71,12 +71,12 @@ message FlashResponse {
   }
 }
 
-message CheckMemoryRequest {
+message GetAvailableFreeSpaceRequest {
   // Filesystem path to be checked.
   string path = 1;
 }
 
-message CheckMemoryResponse {
-  // Free space in giga bytes
-  float free_giga_bytes = 1;
+message GetAvailableFreeSpaceResponse {
+  // Free space in bytes
+  uint64 free_space = 1;
 }

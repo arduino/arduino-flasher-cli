@@ -34,9 +34,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Flasher_List_FullMethodName        = "/cc.arduino.flasher.v1.Flasher/List"
-	Flasher_Flash_FullMethodName       = "/cc.arduino.flasher.v1.Flasher/Flash"
-	Flasher_CheckMemory_FullMethodName = "/cc.arduino.flasher.v1.Flasher/CheckMemory"
+	Flasher_List_FullMethodName                  = "/cc.arduino.flasher.v1.Flasher/List"
+	Flasher_Flash_FullMethodName                 = "/cc.arduino.flasher.v1.Flasher/Flash"
+	Flasher_GetAvailableFreeSpace_FullMethodName = "/cc.arduino.flasher.v1.Flasher/GetAvailableFreeSpace"
 )
 
 // FlasherClient is the client API for Flasher service.
@@ -51,7 +51,7 @@ type FlasherClient interface {
 	Flash(ctx context.Context, in *FlashRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlashResponse], error)
 	// Returns the available space for a given filesystem path
 	// located on the arduino-flasher-cli storage device.
-	CheckMemory(ctx context.Context, in *CheckMemoryRequest, opts ...grpc.CallOption) (*CheckMemoryResponse, error)
+	GetAvailableFreeSpace(ctx context.Context, in *GetAvailableFreeSpaceRequest, opts ...grpc.CallOption) (*GetAvailableFreeSpaceResponse, error)
 }
 
 type flasherClient struct {
@@ -91,10 +91,10 @@ func (c *flasherClient) Flash(ctx context.Context, in *FlashRequest, opts ...grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Flasher_FlashClient = grpc.ServerStreamingClient[FlashResponse]
 
-func (c *flasherClient) CheckMemory(ctx context.Context, in *CheckMemoryRequest, opts ...grpc.CallOption) (*CheckMemoryResponse, error) {
+func (c *flasherClient) GetAvailableFreeSpace(ctx context.Context, in *GetAvailableFreeSpaceRequest, opts ...grpc.CallOption) (*GetAvailableFreeSpaceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CheckMemoryResponse)
-	err := c.cc.Invoke(ctx, Flasher_CheckMemory_FullMethodName, in, out, cOpts...)
+	out := new(GetAvailableFreeSpaceResponse)
+	err := c.cc.Invoke(ctx, Flasher_GetAvailableFreeSpace_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ type FlasherServer interface {
 	Flash(*FlashRequest, grpc.ServerStreamingServer[FlashResponse]) error
 	// Returns the available space for a given filesystem path
 	// located on the arduino-flasher-cli storage device.
-	CheckMemory(context.Context, *CheckMemoryRequest) (*CheckMemoryResponse, error)
+	GetAvailableFreeSpace(context.Context, *GetAvailableFreeSpaceRequest) (*GetAvailableFreeSpaceResponse, error)
 	mustEmbedUnimplementedFlasherServer()
 }
 
@@ -130,8 +130,8 @@ func (UnimplementedFlasherServer) List(context.Context, *ListRequest) (*ListResp
 func (UnimplementedFlasherServer) Flash(*FlashRequest, grpc.ServerStreamingServer[FlashResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Flash not implemented")
 }
-func (UnimplementedFlasherServer) CheckMemory(context.Context, *CheckMemoryRequest) (*CheckMemoryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CheckMemory not implemented")
+func (UnimplementedFlasherServer) GetAvailableFreeSpace(context.Context, *GetAvailableFreeSpaceRequest) (*GetAvailableFreeSpaceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAvailableFreeSpace not implemented")
 }
 func (UnimplementedFlasherServer) mustEmbedUnimplementedFlasherServer() {}
 func (UnimplementedFlasherServer) testEmbeddedByValue()                 {}
@@ -183,20 +183,20 @@ func _Flasher_Flash_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Flasher_FlashServer = grpc.ServerStreamingServer[FlashResponse]
 
-func _Flasher_CheckMemory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CheckMemoryRequest)
+func _Flasher_GetAvailableFreeSpace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAvailableFreeSpaceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(FlasherServer).CheckMemory(ctx, in)
+		return srv.(FlasherServer).GetAvailableFreeSpace(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Flasher_CheckMemory_FullMethodName,
+		FullMethod: Flasher_GetAvailableFreeSpace_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FlasherServer).CheckMemory(ctx, req.(*CheckMemoryRequest))
+		return srv.(FlasherServer).GetAvailableFreeSpace(ctx, req.(*GetAvailableFreeSpaceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -213,8 +213,8 @@ var Flasher_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Flasher_List_Handler,
 		},
 		{
-			MethodName: "CheckMemory",
-			Handler:    _Flasher_CheckMemory_Handler,
+			MethodName: "GetAvailableFreeSpace",
+			Handler:    _Flasher_GetAvailableFreeSpace_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

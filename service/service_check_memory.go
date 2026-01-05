@@ -23,19 +23,13 @@ import (
 	"github.com/shirou/gopsutil/v4/disk"
 )
 
-const GiB = 1024 * 1024 * 1024
-
-func (s *flasherServerImpl) CheckMemory(ctx context.Context, req *flasher.CheckMemoryRequest) (*flasher.CheckMemoryResponse, error) {
-
+func (s *flasherServerImpl) GetAvailableFreeSpace(ctx context.Context, req *flasher.GetAvailableFreeSpaceRequest) (*flasher.GetAvailableFreeSpaceResponse, error) {
 	dk, err := disk.Usage(paths.New(req.Path).Parent().String())
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO Return a rounded value? e.g. 1.234?
-	freeGB := float32(dk.Free) / GiB
-
-	return &flasher.CheckMemoryResponse{
-		FreeGigaBytes: freeGB,
+	return &flasher.GetAvailableFreeSpaceResponse{
+		FreeSpace: dk.Free,
 	}, nil
 }
