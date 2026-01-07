@@ -23,13 +23,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/shirou/gopsutil/v4/disk"
-	"go.bug.st/downloader/v2"
+	"go.bug.st/downloader/v3"
 	"go.bug.st/f"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -135,7 +136,7 @@ type downloadCallback func(current, total int64)
 // DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
-func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release, cb downloadCallback, config downloader.Config, options ...downloader.DownloadOptions) (returnedError error) {
+func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release, cb downloadCallback) (returnedError error) {
 	f.Assert(path.NotExist() || path.IsNotDir(), "path must not be a directory")
 
 	// Check if there is enough free disk space before downloading and extracting an image
@@ -143,14 +144,17 @@ func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release
 	if err != nil {
 		return err
 	}
-	// TODO: improve disk space check with Content-Length header
-	if dk.Free/GiB < DownloadDiskSpace {
-		return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
-	}
 
-	config.HttpClient = *c.HTTPClient
-	// TODO: add headers to downloader's http client
-	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), rel.Url, config, options...)
+	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), rel.Url, downloader.Config{
+		HttpClient:   *c.HTTPClient,
+		ExtraHeaders: maps.Clone(c.Headers),
+		AcceptFunc: func(head *http.Response) error {
+			if head.ContentLength > int64(dk.Free) { // nolint: gosec
+				return fmt.Errorf("not enough disk space: need %d bytes, have %d bytes", head.ContentLength, dk.Free)
+			}
+			return nil
+		},
+	})
 	if err != nil {
 		return err
 	}

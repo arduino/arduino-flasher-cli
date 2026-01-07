@@ -23,7 +23,6 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 	"github.com/schollz/progressbar/v3"
-	"go.bug.st/downloader/v2"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -80,7 +79,7 @@ func DownloadImage(ctx context.Context, targetVersion string, downloadPath *path
 		}
 		_ = bar.Set64(current)
 	}
-	if err := client.DownloadFile(ctx, tmpZip, rel, callback, downloader.Config{}); err != nil {
+	if err := client.DownloadFile(ctx, tmpZip, rel, callback); err != nil {
 		return nil, "", fmt.Errorf("could not download Debian image: %w", err)
 	}
 

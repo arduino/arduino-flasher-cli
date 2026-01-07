@@ -20,7 +20,6 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
-	"go.bug.st/downloader/v2"
 
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
@@ -76,7 +75,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	tmpZip := tmpPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 
 	downloadCB.Start(rel.Url, rel.Version)
-	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update, downloader.Config{}); err != nil {
+	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update); err != nil {
 		// FIXME: Maybe this is redundant?
 		downloadCB.End(false, err.Error())
 		return err
