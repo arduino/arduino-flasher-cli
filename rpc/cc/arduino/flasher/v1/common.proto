@@ -1,0 +1,66 @@
+// This file is part of arduino-flasher-cli.
+//
+// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
+//
+// This software is released under the GNU General Public License version 3,
+// which covers the main part of arduino-flasher-cli.
+// The terms of this license can be found at:
+// https://www.gnu.org/licenses/gpl-3.0.en.html
+//
+// You can be released from the requirements of the above licenses by purchasing
+// a commercial license. Buying such a license is mandatory if you want to
+// modify or otherwise use the software for commercial activities involving the
+// Arduino software without disclosing the source code of your own applications.
+// To purchase a commercial license, send an email to license@arduino.cc.
+
+syntax = "proto3";
+
+package cc.arduino.flasher.v1;
+
+option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
+
+message DownloadProgress {
+  oneof message {
+    // Sent when a download is started.
+    DownloadProgressStart start = 1;
+    // Progress updates for a download.
+    DownloadProgressUpdate update = 2;
+    // Sent when a download is finished or failed.
+    DownloadProgressEnd end = 3;
+  }
+}
+
+message DownloadProgressStart {
+  // URL of the download.
+  string url = 1;
+  // The label to display on the progress bar.
+  string label = 2;
+}
+
+message DownloadProgressUpdate {
+  // Size of the downloaded portion of the file.
+  int64 downloaded = 1;
+  // Total size of the file being downloaded.
+  int64 total_size = 2;
+}
+
+message DownloadProgressEnd {
+  // True if the download is successful.
+  bool success = 1;
+  // Info or error message, depending on the value of 'success'. Some examples:
+  // "File xxx already downloaded" or "Connection timeout".
+  string message = 2;
+}
+
+message TaskProgress {
+  // Description of the task.
+  string name = 1;
+  // Additional information about the task.
+  string message = 2;
+  // Whether the task is complete.
+  bool completed = 3;
+  // Amount of work to be done (optional).
+  int64 progress = 4;
+  // Total amount of work to be done (optional).
+  int64 total = 5;
+}

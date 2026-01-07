@@ -17,19 +17,48 @@ syntax = "proto3";
 
 package cc.arduino.flasher.v1;
 
+import "cc/arduino/flasher/v1/common.proto";
+
 option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
 
 service Flasher {
-    rpc List(ListRequest) returns (ListResponse) {};
+  rpc List(ListRequest) returns (ListResponse) {}
+  rpc Flash(FlashRequest) returns (stream FlashResponse);
 }
 
 message ListRequest {}
 
 message ListResponse {
-    repeated Release releases = 1;
+  repeated Release releases = 1;
 }
 
 message Release {
-    string build_id = 1;
-    bool latest = 2;
+  string build_id = 1;
+  bool latest = 2;
+}
+
+message FlashRequest {
+  // The version of the Debian image to download.
+  string version = 1;
+  // The path in which the image will be downloaded and extracted.
+  // If an image file is already present, it will not be downloaded again.
+  string temp_path = 2;
+  // Preserve user partition if possible.
+  bool preserve_user = 3;
+}
+
+message FlashResponse {
+  message Result {
+    // Empty message, reserved for future expansion.
+  }
+  oneof message {
+    // Progress of the download.
+    DownloadProgress download_progress = 1;
+    // Progress of the extraction.
+    TaskProgress extraction_progress = 2;
+    // Progress of qdl flashing.
+    TaskProgress flash_progress = 3;
+    // Flashing result.
+    Result result = 4;
+  }
 }
