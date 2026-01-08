@@ -16,9 +16,13 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"log/slog"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -112,27 +116,13 @@ type FlashEvent struct {
 type FlashCallback func(FlashEvent)
 
 func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlashCallback) error {
+	qdlPath, cleanup, err := installQdl()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	flashDir, err := searchForFlashDir(downloadedImagePath)
-	if err != nil {
-		return err
-	}
-
-	qdlDir, err := paths.MkTempDir("", "qdl-")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = qdlDir.RemoveAll() }()
-
-	qdlPath := qdlDir.Join("qdl")
-	if runtime.GOOS == "windows" {
-		qdlPath = qdlDir.Join("qdl.exe")
-	}
-
-	err = qdlPath.WriteFile(artifacts.QdlBinary)
-	if err != nil {
-		return err
-	}
-	err = qdlPath.Chmod(0755)
 	if err != nil {
 		return err
 	}
@@ -239,6 +229,27 @@ func searchForFlashDir(extractPath *paths.Path) (*paths.Path, error) {
 	}
 }
 
+func installQdl() (*paths.Path, func(), error) {
+	qdlDir, err := paths.MkTempDir("", "qdl-")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	qdlPath := qdlDir.Join("qdl")
+	if runtime.GOOS == "windows" {
+		qdlPath = qdlDir.Join("qdl.exe")
+	}
+
+	if err = qdlPath.WriteFile(artifacts.QdlBinary); err != nil {
+		return nil, nil, err
+	}
+	if err = qdlPath.Chmod(0755); err != nil {
+		return nil, nil, err
+	}
+
+	return qdlPath, func() { _ = qdlDir.RemoveAll() }, nil
+}
+
 // Checks the board GPT table and counts the number of partitions, this tells if the board supports preserving or not user's data.
 func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) error {
 	dumpBinPath := qdlPath.Parent().Join("dump.bin")
@@ -287,4 +298,44 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 
 	return nil
+}
+
+// WantForQdlDevice waits for a QDL device to be connected.
+// This is like and hack because QDL does not have a specific command to wait for a device,
+// so we use the read command with a dummy ELF and XML file to detect when a device is connected.
+func WaitForQdlDevice(ctx context.Context) error {
+	qdlPath, cleanup, err := installQdl()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	readXMLPath := qdlPath.Parent().Join("read.xml")
+	if err := readXMLPath.WriteFile(artifacts.ReadXML); err != nil {
+		return err
+	}
+
+	dummyBin := qdlPath.Parent().Join("dummy.elf")
+	if err := dummyBin.WriteFile([]byte{}); err != nil {
+		return err
+	}
+
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), dummyBin.String(), readXMLPath.String(), "--debug")
+	if err != nil {
+		return err
+	}
+	cmd.SetDir(qdlPath.Parent().String())
+	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+		slog.Debug("wait for qdl device command exit", "out", string(out), "err", err)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			const qdlExpectErrorStr = "USB: using out-chunk-size"
+			if exitErr.ExitCode() == 1 && bytes.Contains(out, []byte(qdlExpectErrorStr)) {
+				return nil
+			}
+		}
+		return fmt.Errorf("error waiting for QDL device: %w: %s", err, out)
+	} else {
+		return fmt.Errorf("no QDL device found: %s", out)
+	}
 }
