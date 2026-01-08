@@ -21,9 +21,17 @@ import "cc/arduino/flasher/v1/common.proto";
 
 option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
 
+// Provides RPCs to flash Arduino images onto selected boards.
 service Flasher {
+  // Retrieves the images available for flashing
   rpc List(ListRequest) returns (ListResponse) {}
+
+  // Starts the flashing process
   rpc Flash(FlashRequest) returns (stream FlashResponse);
+
+  // Returns the available space for a given filesystem path
+  // located on the arduino-flasher-cli storage device.
+  rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
 message ListRequest {}
@@ -61,4 +69,14 @@ message FlashResponse {
     // Flashing result.
     Result result = 4;
   }
+}
+
+message GetAvailableFreeSpaceRequest {
+  // Filesystem path to be checked.
+  string path = 1;
+}
+
+message GetAvailableFreeSpaceResponse {
+  // Free space in bytes
+  uint64 free_space = 1;
 }
