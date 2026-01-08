@@ -137,11 +137,6 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 		return err
 	}
 
-	stdout, _, err := feedback.DirectStreams()
-	if err != nil {
-		return err
-	}
-
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
 		if errT := checkBoardGPTTable(ctx, qdlPath, flashDir); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
@@ -186,10 +181,9 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 	// Setting the directory is needed because rawprogram0.xml contains relative file paths
 	cmd.SetDir(flashDir.String())
 
-	w := stdout
 	if callback != nil {
 		progress := 0
-		w = helper.NewCallbackWriter(func(line string) {
+		w := helper.NewCallbackWriter(func(line string) {
 			parsedLine := parseQdlLogLine(line)
 
 			switch parsedLine.Op {
@@ -208,9 +202,17 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 				})
 			}
 		})
+		cmd.RedirectStderrTo(w)
+		cmd.RedirectStdoutTo(w)
+	} else {
+		stdout, _, err := feedback.DirectStreams()
+		if err != nil {
+			return err
+		}
+		cmd.RedirectStderrTo(stdout)
+		cmd.RedirectStdoutTo(stdout)
 	}
-	cmd.RedirectStderrTo(w)
-	cmd.RedirectStdoutTo(w)
+
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
