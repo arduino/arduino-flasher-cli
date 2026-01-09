@@ -116,6 +116,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 				Progress: int64(fe.Progress),
 				Total:    int64(fe.Total),
 			})
+		default:
+			panic("unknown flash event type")
 		}
 
 	}); err != nil {
