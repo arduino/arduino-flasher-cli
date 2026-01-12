@@ -16,7 +16,6 @@
 package updater
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -26,6 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/fatih/color"
@@ -310,32 +310,24 @@ func WaitForQdlDevice(ctx context.Context) error {
 	}
 	defer cleanup()
 
-	readXMLPath := qdlPath.Parent().Join("read.xml")
-	if err := readXMLPath.WriteFile(artifacts.ReadXML); err != nil {
-		return err
-	}
-
-	dummyBin := qdlPath.Parent().Join("dummy.elf")
-	if err := dummyBin.WriteFile([]byte{}); err != nil {
-		return err
-	}
-
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), dummyBin.String(), readXMLPath.String(), "--debug")
-	if err != nil {
-		return err
-	}
-	cmd.SetDir(qdlPath.Parent().String())
-	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		slog.Debug("wait for qdl device command exit", "out", string(out), "err", err)
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			const qdlExpectErrorStr = "USB: using out-chunk-size"
-			if exitErr.ExitCode() == 1 && bytes.Contains(out, []byte(qdlExpectErrorStr)) {
-				return nil
-			}
+	for {
+		cmd, err := paths.NewProcess(nil, qdlPath.String(), "--list")
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("error waiting for QDL device: %w: %s", err, out)
-	} else {
-		return fmt.Errorf("no QDL device found: %s", out)
+		if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
+			slog.Debug("wait for qdl device command exit", "out", string(out), "err", err)
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				if exitErr.ExitCode() != 1 {
+					return fmt.Errorf("error waiting for QDL device: %w: %s", err, out)
+				}
+			}
+		} else {
+			slog.Debug("qdl device detected", "out", string(out))
+			return nil
+		}
+
+		time.Sleep(1 * time.Second)
 	}
 }
