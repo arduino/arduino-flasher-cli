@@ -103,23 +103,12 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
 	if err := updater.FlashBoard(ctx, extractPath, rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
-		switch fe.Type {
-		case updater.EventLog:
-			flashCB(&flasher.TaskProgress{
-				Name:    "flash",
-				Message: fe.Log,
-			})
-		case updater.EventProgress:
-			flashCB(&flasher.TaskProgress{
-				Name:     "flash",
-				Message:  fe.Log,
-				Progress: int64(fe.Progress),
-				Total:    int64(fe.Total),
-			})
-		default:
-			panic("unknown flash event type")
-		}
-
+		flashCB(&flasher.TaskProgress{
+			Name:     "flash",
+			Message:  fe.Log,
+			Progress: int64(fe.Progress),
+			Total:    int64(fe.Total),
+		})
 	}); err != nil {
 		return err
 	}
