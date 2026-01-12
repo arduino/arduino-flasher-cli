@@ -95,15 +95,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 	return FlashBoard(ctx, imagePath, version, preserveUser, nil)
 }
 
-type EventType int
-
-const (
-	EventLog EventType = iota
-	EventProgress
-)
-
 type FlashEvent struct {
-	Type     EventType
 	Log      string
 	Progress int
 	Total    int
@@ -185,22 +177,14 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 		progress := 0
 		w := helper.NewCallbackWriter(func(line string) {
 			parsedLine := parseQdlLogLine(line)
-
-			switch parsedLine.Op {
-			case Flashed:
+			if parsedLine.Op == Flashed {
 				progress++
-				callback(FlashEvent{
-					Type:     EventProgress,
-					Log:      line,
-					Progress: progress,
-					Total:    totalPartitions,
-				})
-			default:
-				callback(FlashEvent{
-					Type: EventLog,
-					Log:  line,
-				})
 			}
+			callback(FlashEvent{
+				Log:      line,
+				Progress: progress,
+				Total:    totalPartitions,
+			})
 		})
 		cmd.RedirectStderrTo(w)
 		cmd.RedirectStdoutTo(w)
