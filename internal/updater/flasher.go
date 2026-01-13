@@ -188,6 +188,12 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 	}
 
 	if err := cmd.RunWithinContext(ctx); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() == 1 && runtime.GOOS == "linux" {
+				return fmt.Errorf("exit status %d\nPossible qcserial issue?\nSee https://docs.arduino.cc/tutorials/uno-q/update-image/#fixing-qcserial-issue-linux-only for details.", exitErr.ExitCode())
+			}
+		}
 		return err
 	}
 
