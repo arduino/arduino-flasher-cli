@@ -34,6 +34,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/helper"
+	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
@@ -96,7 +97,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = tempContent[0]
 	}
 
-	return FlashBoard(ctx, imagePath, version, preserveUser, nil)
+	return FlashBoard(ctx, "", imagePath, version, preserveUser, nil)
 }
 
 type FlashEvent struct {
@@ -107,7 +108,7 @@ type FlashEvent struct {
 
 type FlashCallback func(FlashEvent)
 
-func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlashCallback) error {
+func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, preserveUser bool, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return err
@@ -155,8 +156,18 @@ func FlashBoard(ctx context.Context, downloadedImagePath *paths.Path, version st
 		return err
 	}
 
+	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
+
+	if serialStr != "" {
+		serial, err := serial.FromNum(serialStr)
+		if err != nil {
+			return err
+		}
+		args = append(args, "--serial", serial.Hex())
+	}
+
 	feedback.Print(i18n.Tr("Flashing with qdl"))
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml")
+	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return err
 	}
