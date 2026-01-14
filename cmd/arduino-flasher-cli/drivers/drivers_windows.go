@@ -35,19 +35,19 @@ func installDrivers() error {
 	}
 	defer tmpDir.RemoveAll()
 
-	dpinstArch := "drivers/dpinst-x86.exe"
+	dpinstArch := "src/dpinst-x86.exe"
 	if runtime.GOARCH == "amd64" {
-		dpinstArch = "drivers/dpinst-amd64.exe"
+		dpinstArch = "src/dpinst-amd64.exe"
 	}
 	dpinst, err := drivers.ReadFile(dpinstArch)
 	if err != nil {
 		return err
 	}
-	driverCat, err := drivers.ReadFile("drivers/unoq.cat")
+	driverCat, err := drivers.ReadFile("src/unoq.cat")
 	if err != nil {
 		return err
 	}
-	driverInf, err := drivers.ReadFile("drivers/unoq.inf")
+	driverInf, err := drivers.ReadFile("src/unoq.inf")
 	if err != nil {
 		return err
 	}
