@@ -17,7 +17,9 @@ package drivers
 
 import (
 	"embed"
+	"errors"
 	"log/slog"
+	"os/exec"
 	"runtime"
 
 	"github.com/arduino/go-paths-helper"
@@ -73,5 +75,14 @@ func installDrivers() error {
 		return err
 	}
 	dpinstProc.SetDir(tmpDir.String())
-	return dpinstProc.Run()
+	err = dpinstProc.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if exitErr.ExitCode() == 1 {
+			// dpinst returns exit code 1 when it successfully installs a driver
+			// see: https://learn.microsoft.com/previous-versions/windows/drivers/install/dpinst-return-code
+			return nil
+		}
+	}
+	return err
 }
