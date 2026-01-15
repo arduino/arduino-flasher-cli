@@ -70,7 +70,7 @@ func installDrivers() error {
 	}
 
 	slog.Info("Installing Windows driver")
-	dpinstProc, err := paths.NewProcessFromPath(nil, dpinstPath, "/SE", "/SW", "/SA")
+	dpinstProc, err := paths.NewProcessFromPath(nil, dpinstPath, "/Q", "/SE", "/SW", "/SA")
 	if err != nil {
 		return err
 	}
