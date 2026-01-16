@@ -17,7 +17,9 @@ package drivers
 
 import (
 	"embed"
+	"errors"
 	"log/slog"
+	"os/exec"
 	"runtime"
 
 	"github.com/arduino/go-paths-helper"
@@ -35,19 +37,19 @@ func installDrivers() error {
 	}
 	defer tmpDir.RemoveAll()
 
-	dpinstArch := "drivers/dpinst-x86.exe"
+	dpinstArch := "src/dpinst-x86.exe"
 	if runtime.GOARCH == "amd64" {
-		dpinstArch = "drivers/dpinst-amd64.exe"
+		dpinstArch = "src/dpinst-amd64.exe"
 	}
 	dpinst, err := drivers.ReadFile(dpinstArch)
 	if err != nil {
 		return err
 	}
-	driverCat, err := drivers.ReadFile("drivers/unoq.cat")
+	driverCat, err := drivers.ReadFile("src/unoq.cat")
 	if err != nil {
 		return err
 	}
-	driverInf, err := drivers.ReadFile("drivers/unoq.inf")
+	driverInf, err := drivers.ReadFile("src/unoq.inf")
 	if err != nil {
 		return err
 	}
@@ -73,5 +75,14 @@ func installDrivers() error {
 		return err
 	}
 	dpinstProc.SetDir(tmpDir.String())
-	return dpinstProc.Run()
+	err = dpinstProc.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if exitErr.ExitCode() == 1 {
+			// dpinst returns exit code 1 when it successfully installs a driver
+			// see: https://learn.microsoft.com/previous-versions/windows/drivers/install/dpinst-return-code
+			return nil
+		}
+	}
+	return err
 }
