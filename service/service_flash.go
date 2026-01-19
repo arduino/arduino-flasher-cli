@@ -102,7 +102,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: "extract", Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, extractPath, rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
+	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, req.GetPreserveUser(), func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     "flash",
 			Message:  fe.Log,
