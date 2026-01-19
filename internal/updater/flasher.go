@@ -20,12 +20,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/fatih/color"
@@ -288,36 +286,4 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 
 	return nil
-}
-
-// WantForQdlDevice waits for a QDL device to be connected.
-// This is like and hack because QDL does not have a specific command to wait for a device,
-// so we use the read command with a dummy ELF and XML file to detect when a device is connected.
-func WaitForQdlDevice(ctx context.Context) error {
-	qdlPath, cleanup, err := installQdl()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	for {
-		cmd, err := paths.NewProcess(nil, qdlPath.String(), "--list")
-		if err != nil {
-			return err
-		}
-		if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-			slog.Debug("wait for qdl device command exit", "out", string(out), "err", err)
-			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) {
-				if exitErr.ExitCode() != 1 {
-					return fmt.Errorf("error waiting for QDL device: %w: %s", err, out)
-				}
-			}
-		} else {
-			slog.Debug("qdl device detected", "out", string(out))
-			return nil
-		}
-
-		time.Sleep(1 * time.Second)
-	}
 }
