@@ -81,6 +81,11 @@ tasks:
       - test -f ./internal/updater/artifacts/resources_windows_amd64/qdl.exe
     cmd: sh ./internal/updater/artifacts/download_resources.sh
 
+  clean:
+    desc: Clean the arduino-flasher-cli artifacts
+    cmds:
+      - rm -rf ./internal/updater/artifacts/resources_*
+
   release:
     desc: Create a tag on the current commit and push it to the remote to create the release
     cmds:

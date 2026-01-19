@@ -26,7 +26,6 @@ flasher-cli embed a statically builded [qdl](https://github.com/linux-msm/qdl) b
 
 2. Update the `TAG` variable in script `internal/artifacts/download_resources.sh` to the desired version.
 
-3. Test that everything works by running `task build` and testing the resulting binary.
+3. Test that everything works by running `task clean build` and testing the resulting binary.
 
-3. Create a new release of flasher-cli, the build process will automatically download and embed the new qdl binary.
-
+4. Create a new release of flasher-cli, the build process will automatically download and embed the new qdl binary.
