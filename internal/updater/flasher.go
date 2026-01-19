@@ -18,7 +18,9 @@ package updater
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
