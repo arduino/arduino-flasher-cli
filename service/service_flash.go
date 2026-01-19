@@ -67,10 +67,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}
 
-	if err := updater.WaitForQdlDevice(ctx); err != nil {
-		return fmt.Errorf("could not find connected Arduino Uno QDL device: %w", err)
-	}
-
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
