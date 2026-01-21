@@ -5,7 +5,7 @@ set -e
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 REPO="arduino/qdl-packing"
-TAG="v2.2-22"
+TAG="v2.4-26"
 
 # Remove existing resource directories if they exist
 rm -rf $BASE_DIR/resources_*
