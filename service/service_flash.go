@@ -62,7 +62,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 
 	tmpPath := paths.New(req.GetTempPath())
 	rmTempPath := func() {
-		if tmpPath.Exist() {
+		if tmpPath.IsDir() {
 			_ = tmpPath.RemoveAll()
 		}
 	}
