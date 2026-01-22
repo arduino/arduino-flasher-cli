@@ -122,6 +122,8 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	if preserveUser {
 		if errT := checkBoardGPTTable(ctx, qdlPath, flashDir); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
 			rawProgram = "rawprogram0.nouser.xml"
+		} else if callback != nil {
+			return fmt.Errorf("it will not be possible to preserve the data: %w", errT)
 		} else {
 			res, err := func(target string) (bool, error) {
 				warnStr := "Linux image " + target + " does not support user partition preservation"
