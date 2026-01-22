@@ -29,18 +29,22 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
+	"github.com/arduino/go-paths-helper"
 )
 
 func NewDaemonCommand(srv flasher.FlasherServer) *cobra.Command {
 	var daemonPort string
 	var maxGRPCRecvMsgSize int
+	var debugFile string
+	var debug bool
+	var debugFiltersArg []string
 	daemonCommand := &cobra.Command{
 		Use:     "daemon",
 		Short:   i18n.Tr("Run the Arduino Flasher CLI as a gRPC daemon."),
 		Example: "  " + os.Args[0] + " daemon",
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			runDaemonCommand(srv, daemonPort, maxGRPCRecvMsgSize)
+			runDaemonCommand(srv, daemonPort, maxGRPCRecvMsgSize, debugFile, debug, debugFiltersArg)
 		},
 	}
 
@@ -52,11 +56,49 @@ func NewDaemonCommand(srv flasher.FlasherServer) *cobra.Command {
 		"max-grpc-recv-message-size", 16*1024*1024,
 		i18n.Tr("Sets the maximum message size in bytes the daemon can receive"))
 
+	daemonCommand.Flags().BoolVar(&debug,
+		"debug", false,
+		i18n.Tr("Enable debug logging of gRPC calls"))
+	daemonCommand.Flags().StringVar(&debugFile,
+		"debug-file", "",
+		i18n.Tr("Append debug logging to the specified file"))
+
+	daemonCommand.Flags().StringSliceVar(&debugFiltersArg,
+		"debug-filter", []string{},
+		i18n.Tr("Display only the provided gRPC calls"))
+
 	return daemonCommand
 }
 
-func runDaemonCommand(srv flasher.FlasherServer, daemonPort string, maxGRPCRecvMsgSize int) {
+func runDaemonCommand(srv flasher.FlasherServer, daemonPort string, maxGRPCRecvMsgSize int, debugFile string, debug bool, debugFiltersArg []string) {
 	gRPCOptions := []grpc.ServerOption{}
+	if debugFile != "" {
+		if !debug {
+			feedback.Fatal(i18n.Tr("The flag --debug-file must be used with --debug."), feedback.ErrBadArgument)
+		}
+	}
+	if debug {
+		if debugFile != "" {
+			outFile := paths.New(debugFile)
+			f, err := outFile.Append()
+			if err != nil {
+				feedback.Fatal(i18n.Tr("Error opening debug logging file: %s", err), feedback.ErrGeneric)
+			}
+			defer f.Close()
+			debugStdOut = f
+		} else {
+			if out, _, err := feedback.DirectStreams(); err != nil {
+				feedback.Fatal(i18n.Tr("Can't write debug log: %s", err), feedback.ErrBadArgument)
+			} else {
+				debugStdOut = out
+			}
+		}
+		debugFilters = debugFiltersArg
+		gRPCOptions = append(gRPCOptions,
+			grpc.UnaryInterceptor(unaryLoggerInterceptor),
+			grpc.StreamInterceptor(streamLoggerInterceptor),
+		)
+	}
 	gRPCOptions = append(gRPCOptions, grpc.MaxRecvMsgSize(maxGRPCRecvMsgSize))
 	s := grpc.NewServer(gRPCOptions...)
 
