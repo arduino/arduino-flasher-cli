@@ -251,23 +251,26 @@ func installQdl() (*paths.Path, func(), error) {
 
 // Checks the board GPT table and counts the number of partitions, this tells if the board supports preserving or not user's data.
 func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) error {
-	dumpBinPath := qdlPath.Parent().Join("dump.bin")
+	dumpBinPath := flashDir.Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
 		return err
 	}
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", flashDir.Join("prog_firehose_ddr.elf").String(), readXMLPath.String())
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
 	if err != nil {
 		return err
 	}
-	cmd.SetDir(qdlPath.Parent().String())
+	cmd.SetDir(flashDir.String())
 	if err := cmd.RunWithinContext(ctx); err != nil {
 		return err
 	}
 	if !dumpBinPath.Exist() {
 		return fmt.Errorf("it was not possible to access the current Debian image GPT table")
 	}
+	defer func() {
+		_ = dumpBinPath.Remove()
+	}()
 	dump, err := dumpBinPath.ReadFile()
 	if err != nil {
 		return err
