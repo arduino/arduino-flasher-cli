@@ -120,6 +120,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
+		feedback.Print(i18n.Tr("Checking if the OS version on the UNO Q supports data preservation. Please connect the board in EDL mode."))
 		if errT := checkBoardGPTTable(ctx, qdlPath, flashDir); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
 			rawProgram = "rawprogram0.nouser.xml"
 		} else if callback != nil {
