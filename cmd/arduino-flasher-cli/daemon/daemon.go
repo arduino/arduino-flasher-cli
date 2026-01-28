@@ -23,13 +23,13 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
-	"github.com/arduino/go-paths-helper"
 )
 
 func NewDaemonCommand(srv flasher.FlasherServer) *cobra.Command {
