@@ -97,6 +97,11 @@ tasks:
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
 
+  license:update:
+    desc: Update license headers in Go files
+    cmds:
+      - addlicense -c "(C) Arduino s.r.l. and/or its affiliated companies" -f ./license_header.tpl $(find . -name "*.go" -type f -print0 | xargs -0)
+
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:cache-dep-licenses:
     desc: Cache dependency license metadata
