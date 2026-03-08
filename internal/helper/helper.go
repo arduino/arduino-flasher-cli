@@ -17,6 +17,8 @@ package helper
 
 import (
 	"bytes"
+	"encoding/binary"
+	"unicode/utf16"
 )
 
 // CallbackWriter is a custom writer that processes each line calling the callback.
@@ -46,4 +48,16 @@ func (p *CallbackWriter) Write(data []byte) (int, error) {
 		p.callback(string(line))
 	}
 	return len(data), nil
+}
+
+func DecodeUTF16(b []byte) string {
+	var ints []uint16
+	for j := 0; j < len(b); j += 2 {
+		r := binary.LittleEndian.Uint16(b[j : j+2])
+		if r == 0 {
+			break
+		}
+		ints = append(ints, r)
+	}
+	return string(utf16.Decode(ints))
 }
