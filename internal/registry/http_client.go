@@ -179,12 +179,7 @@ func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Rel
 		return nil, err
 	}
 
-	fmt.Printf("release: %+v\n", rel)
-
 	filePath := basePath.Join(rel.FileName)
-
-	fmt.Printf(filePath.String())
-
 	d, err := downloader.DownloadWithConfigAndContext(ctx, filePath.String(), rel.Url, downloader.Config{
 		HttpClient:   *c.HTTPClient,
 		ExtraHeaders: maps.Clone(c.Headers),
