@@ -58,14 +58,14 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		tempImagePath, v, err := DownloadAndExtract(ctx, version, temp)
+		v, err := DownloadAndExtract(ctx, version, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
 		}
 
 		version = v
-		imagePath = tempImagePath
+		imagePath = temp
 	} else if !imagePath.IsDir() {
 		temp, err := SetTempDir("extract-", tempDir)
 		if err != nil {
@@ -87,12 +87,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("error extracting the archive: %v", err)
 		}
 
-		tempContent, err := temp.ReadDir(paths.AndFilter(paths.FilterDirectories(), paths.FilterPrefixes("arduino-unoq-debian-image-")))
-		if err != nil {
-			return fmt.Errorf("could not find Debian image directory: %v", err)
-		}
-
-		imagePath = tempContent[0]
+		imagePath = temp
 	}
 
 	return FlashBoard(ctx, "", imagePath, version, preserveUser, nil)

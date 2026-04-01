@@ -22,19 +22,19 @@ import (
 
 	"go.bug.st/f"
 
-	"github.com/arduino/arduino-flasher-cli/internal/updater"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
-	client := updater.NewClient()
+	client := registry.NewClient()
 
 	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	releases := f.Map(manifest.Releases, func(r updater.Release) *flasher.Release {
+	releases := f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
 		return &flasher.Release{
 			BuildId: r.Version,
 			Latest:  r.Version == manifest.Latest.Version,
