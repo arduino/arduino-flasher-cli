@@ -130,17 +130,15 @@ func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
 		}
 		return path.Base(url.Path), nil
 	}
-	res.Latest.FileName, err = getFileName(res.Latest)
-	if err != nil {
+	if res.Latest.FileName, err = getFileName(res.Latest); err != nil {
 		return Manifest{}, err
 	}
 	for i := range res.Releases {
-		r := &res.Releases[i]
-		url, err := url.Parse(r.Url)
-		if err != nil {
-			return Manifest{}, fmt.Errorf("invalid URL in manifest for release %s: %w", r.Version, err)
+		if name, err := getFileName(res.Releases[i]); err != nil {
+			return Manifest{}, err
+		} else {
+			res.Releases[i].FileName = name
 		}
-		r.FileName = path.Base(url.Path)
 	}
 
 	return res, nil
