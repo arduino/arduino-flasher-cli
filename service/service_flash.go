@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
@@ -58,7 +59,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		})
 	}
 
-	client := updater.NewClient()
+	client := registry.NewClient()
 
 	tmpPath := paths.New(req.GetTempPath())
 	rmTempPath := func() {
@@ -72,10 +73,9 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return fmt.Errorf("could not get release info: %w", err)
 	}
 
-	tmpZip := tmpPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
-
 	downloadCB.Start(rel.Url, rel.Version)
-	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update); err != nil {
+	tmpZip, err := client.DownloadFile(ctx, tmpPath, rel, downloadCB.Update)
+	if err != nil {
 		// FIXME: Maybe this is redundant?
 		downloadCB.End(false, err.Error())
 		return err

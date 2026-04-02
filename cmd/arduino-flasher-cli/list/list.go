@@ -23,8 +23,8 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/tablestyle"
-	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 func NewListCmd() *cobra.Command {
@@ -40,7 +40,7 @@ func NewListCmd() *cobra.Command {
 }
 
 func runListCommand(ctx context.Context) {
-	client := updater.NewClient()
+	client := registry.NewClient()
 
 	manifest, err := client.GetInfoManifest(ctx)
 	if err != nil {
@@ -51,8 +51,8 @@ func runListCommand(ctx context.Context) {
 }
 
 type listResult struct {
-	Latest   updater.Release   `json:"latest"`
-	Releases []updater.Release `json:"releases"`
+	Latest   registry.Release   `json:"latest"`
+	Releases []registry.Release `json:"releases"`
 }
 
 // Data implements Result interface
