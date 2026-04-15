@@ -1,6 +1,7 @@
 package serial
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -20,5 +21,5 @@ func FromHex(hexStr string) (Serial, error) {
 }
 
 func (s Serial) Hex() string {
-	return strings.ToUpper(strconv.FormatInt(s.num, 16))
+	return strings.ToUpper(fmt.Sprintf("%08x", s.num))
 }
