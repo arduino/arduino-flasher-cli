@@ -21,5 +21,5 @@ func FromHex(hexStr string) (Serial, error) {
 }
 
 func (s Serial) Hex() string {
-	return strings.ToUpper(fmt.Sprintf("%08x", s.num))
+ return fmt.Sprintf("%08X", s.num)
 }
