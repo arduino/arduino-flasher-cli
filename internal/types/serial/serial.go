@@ -3,7 +3,6 @@ package serial
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 type Serial struct {
@@ -21,5 +20,5 @@ func FromHex(hexStr string) (Serial, error) {
 }
 
 func (s Serial) Hex() string {
- return fmt.Sprintf("%08X", s.num)
+	return fmt.Sprintf("%08X", s.num)
 }
