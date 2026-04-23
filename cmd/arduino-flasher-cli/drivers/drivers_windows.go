@@ -17,12 +17,12 @@ package drivers
 
 import (
 	"embed"
-	"errors"
 	"log/slog"
 	"os/exec"
-	"runtime"
 
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 )
 
 //go:embed src
@@ -37,24 +37,11 @@ func installDrivers() error {
 	}
 	defer tmpDir.RemoveAll()
 
-	dpinstArch := "src/dpinst-x86.exe"
-	if runtime.GOARCH == "amd64" {
-		dpinstArch = "src/dpinst-amd64.exe"
-	}
-	dpinst, err := drivers.ReadFile(dpinstArch)
-	if err != nil {
-		return err
-	}
 	driverCat, err := drivers.ReadFile("src/unoq.cat")
 	if err != nil {
 		return err
 	}
 	driverInf, err := drivers.ReadFile("src/unoq.inf")
-	if err != nil {
-		return err
-	}
-	dpinstPath := tmpDir.Join("dpinst.exe")
-	err = dpinstPath.WriteFile(dpinst)
 	if err != nil {
 		return err
 	}
@@ -70,19 +57,9 @@ func installDrivers() error {
 	}
 
 	slog.Info("Installing Windows driver")
-	dpinstProc, err := paths.NewProcessFromPath(nil, dpinstPath, "/SE", "/SW", "/SA")
-	if err != nil {
-		return err
-	}
-	dpinstProc.SetDir(tmpDir.String())
-	err = dpinstProc.Run()
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if exitErr.ExitCode() == 1 {
-			// dpinst returns exit code 1 when it successfully installs a driver
-			// see: https://learn.microsoft.com/previous-versions/windows/drivers/install/dpinst-return-code
-			return nil
-		}
-	}
+	dpinstProc := exec.Command("pnputil", "/add-driver", infPath.String(), "/install")
+	dpinstProc.Dir = tmpDir.String()
+	out, err := dpinstProc.CombinedOutput()
+	feedback.Print(string(out))
 	return err
 }
