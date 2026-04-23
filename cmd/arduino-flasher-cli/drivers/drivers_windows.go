@@ -57,9 +57,9 @@ func installDrivers() error {
 	}
 
 	slog.Info("Installing Windows driver")
-	dpinstProc := exec.Command("pnputil", "/add-driver", infPath.String(), "/install")
-	dpinstProc.Dir = tmpDir.String()
-	out, err := dpinstProc.CombinedOutput()
+	pnputilProc := exec.Command("pnputil", "/add-driver", infPath.String(), "/install")
+	pnputilProc.Dir = tmpDir.String()
+	out, err := pnputilProc.CombinedOutput()
 	feedback.Print(string(out))
 	return err
 }
