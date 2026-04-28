@@ -21,7 +21,7 @@ jobs:
   run-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: build
         run: go tool task build # needed to download the embedded resources
@@ -32,7 +32,7 @@ jobs:
         with:
           dprint-version: 0.48.0
 
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.4.0
           args: --timeout 300s
