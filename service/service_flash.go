@@ -26,7 +26,7 @@ import (
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
-func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) error {
+func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 
 	// Setup callback functions
 	var responseCallback func(*flasher.FlashResponse) error
@@ -62,11 +62,12 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	client := registry.NewClient()
 
 	tmpPath := paths.New(req.GetTempPath())
-	rmTempPath := func() {
-		if tmpPath.IsDir() {
+	defer func() {
+		// if the flash was successful, we can clean up the temporary files.
+		if outErr == nil {
 			_ = tmpPath.RemoveAll()
 		}
-	}
+	}()
 
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
 	if err != nil {
@@ -113,9 +114,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: "flash", Completed: true})
-
-	// if everything went fine, clean up the temp path
-	defer rmTempPath()
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{
