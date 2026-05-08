@@ -1,0 +1,20 @@
+version = 1
+
+# Tool-generated or configuration files.
+[[annotations]]
+path = [
+  ".editorconfig",
+  ".golangci.yml",
+  ".gitignore",
+  ".licensed.yml",
+  "buf.gen.yaml",
+  "buf.lock",
+  "buf.yaml",
+  "dprint.json",
+  "Taskfile.yml",
+  "go.mod",
+  "go.sum",
+  "README.md",
+]
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"
