@@ -1,0 +1,8 @@
+This file is part of arduino-flasher-cli.
+
+{% for copyright_line in copyright_lines %}
+{{ copyright_line }}
+{% endfor %}
+{% for expression in spdx_expressions %}
+SPDX-License-Identifier: {{ expression }}
+{% endfor %}
