@@ -18,12 +18,3 @@ path = [
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
-
-[[annotations]]
-path = [
-"rpc/cc/arduino/flasher/v1/commands.proto",
-"rpc/cc/arduino/flasher/v1/common.proto"
-]
-SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
-SPDX-License-Identifier = "GPL-3.0-or-later"
-

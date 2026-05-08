@@ -110,7 +110,7 @@ tasks:
   go:update-license-headers:
     desc: Update license headers in Go files with reuse template
     cmds:
-      - uvx reuse annotate --template arduino-flasher-cli --exclude-year --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -type f -print0 | xargs -0)
+      - uvx reuse annotate --template arduino-flasher-cli --exclude-year --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -o  -name "*.proto" -type f -print0 | xargs -0)
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:cache-dep-licenses:
