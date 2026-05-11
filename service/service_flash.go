@@ -59,7 +59,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
+	// TODO: add Ventuno Q support
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), registry.UnoQ)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
@@ -93,7 +94,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: "extract", Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
+	// TODO: boardType is hardcoded from now, but we should retrieve it from the request
+	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, registry.UnoQ, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     "flash",
 			Message:  fe.Log,

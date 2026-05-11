@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/helper"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
@@ -30,7 +31,7 @@ const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -47,7 +48,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		v, err := DownloadAndExtract(ctx, version, temp)
+		v, err := DownloadAndExtract(ctx, version, boardType, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
@@ -79,7 +80,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, "", imagePath, version, preserveUser, rootSize, nil)
+	return FlashBoard(ctx, "", imagePath, version, boardType, preserveUser, rootSize, nil)
 }
 
 type FlashEvent struct {
@@ -91,9 +92,8 @@ type FlashEvent struct {
 type FlashCallback func(FlashEvent)
 
 const board16GB = 16000000000
-const board32GB = 32000000000
 
-func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
+func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardType string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return err
@@ -105,96 +105,98 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
-	feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
-	boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
-	if err != nil {
-		return err
-	}
-
-	boardSize := getBoardSize(boardGPT)
-	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
-		rootSize = 20 * GiB
-	}
-
 	rawProgram := "rawprogram0.xml"
-	if preserveUser {
-		if errT := checkUserPartitionPreservation(boardGPT); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
-			rawProgram = "rawprogram0.nouser.xml"
+	if boardType == registry.UnoQ {
+		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
+		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
+		if err != nil {
+			return err
+		}
 
-			rootBoardSize := boardGPT.RootPartition.SizeInBytes()
-			imageTable, err := ParseGptTable(flashDir.Join("gpt_main0.bin"))
+		boardSize := getBoardSize(boardGPT)
+		if rootSize == 0 && boardSize > board16GB && !preserveUser {
+			rootSize = 20 * GiB
+		}
+
+		if preserveUser {
+			if errT := checkUserPartitionPreservation(boardGPT); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
+				rawProgram = "rawprogram0.nouser.xml"
+
+				rootBoardSize := boardGPT.RootPartition.SizeInBytes()
+				imageTable, err := ParseGptTable(flashDir.Join("gpt_main0.bin"))
+				if err != nil {
+					return err
+				}
+				rootXmlSize := imageTable.RootPartition.SizeInBytes()
+				if rootBoardSize != rootXmlSize {
+					binCleanup, err := imageTable.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootBoardSize)
+					if err != nil {
+						return fmt.Errorf("could not resize root partition in GPT table: %w", err)
+					}
+					defer binCleanup()
+
+					rawProgramFile := flashDir.Join(rawProgram)
+					rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootBoardSize)
+					if err != nil {
+						return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
+					}
+					defer cleanup()
+				}
+			} else if callback != nil {
+				return fmt.Errorf("it will not be possible to preserve the data: %w", errT)
+			} else {
+				res, err := func(target string) (bool, error) {
+					warnStr := "Linux image " + target + " does not support user partition preservation"
+					if errT != nil {
+						warnStr = errT.Error()
+					}
+					feedback.Print(color.RedString("\nWARNING: %s. It will not be possible to preserve your data.\n", warnStr))
+					feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
+
+					var yesInput string
+					_, err := fmt.Scanf("%s\n", &yesInput)
+					if err != nil {
+						return false, err
+					}
+					yes := strings.ToLower(yesInput) == yesPrompt || strings.ToLower(yesInput) == "y"
+					return yes, nil
+				}(version)
+				if err != nil {
+					return err
+				}
+				if !res {
+					return fmt.Errorf("flashing not confirmed by user, exiting")
+				}
+			}
+
+		} else if rootSize > 0 {
+			gptTableFile := flashDir.Join("gpt_main0.bin")
+
+			table, err := ParseGptTable(gptTableFile)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not parse GPT table: %w", err)
 			}
-			rootXmlSize := imageTable.RootPartition.SizeInBytes()
-			if rootBoardSize != rootXmlSize {
-				binCleanup, err := imageTable.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootBoardSize)
-				if err != nil {
-					return fmt.Errorf("could not resize root partition in GPT table: %w", err)
-				}
-				defer binCleanup()
 
-				rawProgramFile := flashDir.Join(rawProgram)
-				rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootBoardSize)
-				if err != nil {
-					return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
-				}
-				defer cleanup()
-			}
-		} else if callback != nil {
-			return fmt.Errorf("it will not be possible to preserve the data: %w", errT)
-		} else {
-			res, err := func(target string) (bool, error) {
-				warnStr := "Linux image " + target + " does not support user partition preservation"
-				if errT != nil {
-					warnStr = errT.Error()
-				}
-				feedback.Print(color.RedString("\nWARNING: %s. It will not be possible to preserve your data.\n", warnStr))
-				feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
-
-				var yesInput string
-				_, err := fmt.Scanf("%s\n", &yesInput)
-				if err != nil {
-					return false, err
-				}
-				yes := strings.ToLower(yesInput) == yesPrompt || strings.ToLower(yesInput) == "y"
-				return yes, nil
-			}(version)
+			binCleanup, err := table.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootSize)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not resize root partition in GPT table: %w", err)
 			}
-			if !res {
-				return fmt.Errorf("flashing not confirmed by user, exiting")
+			defer binCleanup()
+
+			rawProgramFile := flashDir.Join(rawProgram)
+			rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootSize)
+			if err != nil {
+				return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
 			}
+			defer cleanup()
 		}
-
-	} else if rootSize > 0 {
-		gptTableFile := flashDir.Join("gpt_main0.bin")
-
-		table, err := ParseGptTable(gptTableFile)
-		if err != nil {
-			return fmt.Errorf("could not parse GPT table: %w", err)
-		}
-
-		binCleanup, err := table.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootSize)
-		if err != nil {
-			return fmt.Errorf("could not resize root partition in GPT table: %w", err)
-		}
-		defer binCleanup()
-
-		rawProgramFile := flashDir.Join(rawProgram)
-		rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootSize)
-		if err != nil {
-			return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
-		}
-		defer cleanup()
+		feedback.Print(i18n.Tr("Flashing with qdl [root partition size: %dGiB]", cmp.Or(rootSize, boardGPT.RootPartition.SizeInBytes())/GiB))
 	}
 
 	totalPartitions, err := getTotalPartition(flashDir.Join(rawProgram))
 	if err != nil {
 		return err
 	}
-
 	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
 
 	if serialStr != "" {
@@ -205,7 +207,6 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		args = append(args, "--serial", serial.Hex())
 	}
 
-	feedback.Print(i18n.Tr("Flashing with qdl [root partition size: %dGiB]", cmp.Or(rootSize, boardGPT.RootPartition.SizeInBytes())/GiB))
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return err

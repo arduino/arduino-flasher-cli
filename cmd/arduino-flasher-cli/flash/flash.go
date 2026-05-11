@@ -20,6 +20,7 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
@@ -129,7 +130,25 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 		}
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir, rootSize, nil)
+	version := args[0]
+	boardType := registry.UnoQ
+	switch version {
+	case "latest":
+		var err error
+		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
+		boardType, err = updater.DetectBoardType(ctx)
+		if err != nil {
+			feedback.Fatal(i18n.Tr("could not detect board type: %v", err), feedback.ErrBadArgument)
+		}
+	case "unoq":
+		version = "latest"
+		boardType = registry.UnoQ
+	case "ventunoq":
+		version = "latest"
+		boardType = registry.VentunoQ
+	}
+
+	err = updater.Flash(ctx, imagePath, version, boardType, forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

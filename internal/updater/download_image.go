@@ -22,8 +22,8 @@ import (
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.Path) (string, error) {
-	tmpZip, version, err := DownloadImage(ctx, targetVersion, temp)
+func DownloadAndExtract(ctx context.Context, targetVersion string, boardType string, temp *paths.Path) (string, error) {
+	tmpZip, version, err := DownloadImage(ctx, targetVersion, boardType, temp)
 	if err != nil {
 		return "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -39,9 +39,9 @@ func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.P
 	return version, nil
 }
 
-func DownloadImage(ctx context.Context, targetVersion string, downloadPath *paths.Path) (*paths.Path, string, error) {
+func DownloadImage(ctx context.Context, targetVersion string, boardType string, downloadPath *paths.Path) (*paths.Path, string, error) {
 	client := registry.NewClient()
-	rel, err := client.GetReleaseByVersion(ctx, targetVersion)
+	rel, err := client.GetReleaseByVersion(ctx, targetVersion, boardType)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not get release info: %w", err)
 	}

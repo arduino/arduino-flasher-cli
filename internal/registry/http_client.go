@@ -30,6 +30,8 @@ import (
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
 const pathRelease = "debian-im/Stable"
+const UnoQ = "UNO Q"
+const VentunoQ = "VENTUNO Q"
 
 type Manifest struct {
 	Latest   Release   `json:"latest"`
@@ -86,8 +88,12 @@ func (c *Client) addHeaders(req *http.Request) {
 }
 
 // GetInfoManifest fetches and decodes the Debian images info.json.
-func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
+func (c *Client) GetInfoManifest(ctx context.Context, boardType string) (Manifest, error) {
 	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
+	if boardType == VentunoQ {
+		// TODO: use the correct manifest URL
+		return Manifest{}, fmt.Errorf("board type %s is not supported yet", boardType)
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
@@ -134,8 +140,8 @@ func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
 	return res, nil
 }
 
-func (c *Client) GetReleaseByVersion(ctx context.Context, version string) (Release, error) {
-	manifest, err := c.GetInfoManifest(ctx)
+func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardType string) (Release, error) {
+	manifest, err := c.GetInfoManifest(ctx, boardType)
 	if err != nil {
 		return Release{}, err
 	}
