@@ -105,16 +105,20 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
-	feedback.Print(i18n.Tr("Checking board size"))
-	_, err = checkBoardSize(ctx, qdlPath, flashDir)
+	feedback.Print(i18n.Tr("Checking UNO Q board size and OS version. Please connect the board in EDL mode."))
+	gpt, err := readGPTTable(ctx, qdlPath, flashDir)
+	if err != nil {
+		return err
+	}
+
+	_, err = checkBoardSize(gpt)
 	if err != nil {
 		return err
 	}
 
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
-		feedback.Print(i18n.Tr("Checking if the OS version on the UNO Q supports data preservation. Please connect the board in EDL mode."))
-		if errT := checkBoardGPTTable(ctx, qdlPath, flashDir); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
+		if errT := checkUserPartitionPreservation(gpt); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
 			rawProgram = "rawprogram0.nouser.xml"
 		} else if callback != nil {
 			return fmt.Errorf("it will not be possible to preserve the data: %w", errT)
@@ -263,37 +267,40 @@ func installQdl() (*paths.Path, func(), error) {
 	return qdlPath, func() { _ = qdlDir.RemoveAll() }, nil
 }
 
-// Checks the board GPT table and counts the number of partitions, this tells if the board supports preserving or not user's data.
-func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) error {
+// readGPTTable reads the GPT table of the board performing a qdl read
+func readGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (string, error) {
 	dumpBinPath := flashDir.Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
-		return err
+		return "", err
 	}
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
 	if err != nil {
-		return err
+		return "", err
 	}
 	cmd.SetDir(flashDir.String())
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return err
+		return "", err
 	}
 	if !dumpBinPath.Exist() {
-		return fmt.Errorf("it was not possible to access the current Debian image GPT table")
+		return "", fmt.Errorf("it was not possible to access the current Debian image GPT table")
 	}
 	defer func() {
 		_ = dumpBinPath.Remove()
 	}()
 	dump, err := dumpBinPath.ReadFile()
 	if err != nil {
-		return err
+		return "", err
 	}
-	strDump := hex.Dump(dump)
+	return hex.Dump(dump), nil
+}
 
-	strDumpSlice := strings.Split(strDump, "\n")
+// checkUserPartitionPreservation checks the board GPT table and counts the number of partitions, to tell if the board supports preserving the user's data.
+func checkUserPartitionPreservation(gpt string) error {
+	gptSlice := strings.Split(gpt, "\n")
 	// the max number of partitions is stored at entry 0x50
-	maxPartitions, err := strconv.ParseInt(strings.Split(strDumpSlice[5], " ")[2], 16, 16)
+	maxPartitions, err := strconv.ParseInt(strings.Split(gptSlice[5], " ")[2], 16, 16)
 	if err != nil {
 		return err
 	}
@@ -303,7 +310,7 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	// TODO: check if the size of each partition is 80h or just assume it?
 	for i := 32; numPartitions < int(maxPartitions); i += 8 {
 		// partitions are made of non-zero bytes, if all 0s then there are no more entries
-		if strings.Contains(strDumpSlice[i], "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00") {
+		if strings.Contains(gptSlice[i], "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00") {
 			break
 		}
 		numPartitions++
@@ -317,35 +324,10 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 }
 
 // checkBoardSize checks the board size by reading the GPT table and looking for the value of the last usable LBA for partitions.
-func checkBoardSize(ctx context.Context, qdlPath, flashDir *paths.Path) (uint64, error) {
-	dumpBinPath := flashDir.Join("dump.bin")
-	readXMLPath := qdlPath.Parent().Join("read.xml")
-	err := readXMLPath.WriteFile(artifacts.ReadXML)
-	if err != nil {
-		return 0, err
-	}
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
-	if err != nil {
-		return 0, err
-	}
-	cmd.SetDir(flashDir.String())
-	if err := cmd.RunWithinContext(ctx); err != nil {
-		return 0, err
-	}
-	if !dumpBinPath.Exist() {
-		return 0, fmt.Errorf("it was not possible to access the current Debian image GPT table")
-	}
-	defer func() {
-		_ = dumpBinPath.Remove()
-	}()
-	dump, err := dumpBinPath.ReadFile()
-	if err != nil {
-		return 0, err
-	}
-	strDump := hex.Dump(dump)
-	if strings.Contains(strDump, "00000030  de 27 d3 01") {
+func checkBoardSize(gpt string) (uint64, error) {
+	if strings.Contains(gpt, "00000030  de 27 d3 01") {
 		return boardSize16GB, nil
-	} else if strings.Contains(strDump, "00000030  de df a3 03") {
+	} else if strings.Contains(gpt, "00000030  de df a3 03") {
 		return boardSize32GB, nil
 	}
 	return 0, fmt.Errorf("unknown board size")
