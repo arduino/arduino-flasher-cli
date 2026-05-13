@@ -30,6 +30,8 @@ const GiB = uint64(1024 * 1024 * 1024)
 const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
+const boardSize16GB = uint64(16)
+const boardSize32GB = uint64(32)
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
@@ -99,6 +101,12 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	defer cleanup()
 
 	flashDir, err := searchForFlashDir(downloadedImagePath)
+	if err != nil {
+		return err
+	}
+
+	feedback.Print(i18n.Tr("Checking board size"))
+	_, err = checkBoardSize(ctx, qdlPath, flashDir)
 	if err != nil {
 		return err
 	}
@@ -306,4 +314,39 @@ func checkBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) erro
 	}
 
 	return nil
+}
+
+// checkBoardSize checks the board size by reading the GPT table and looking for the value of the last usable LBA for partitions.
+func checkBoardSize(ctx context.Context, qdlPath, flashDir *paths.Path) (uint64, error) {
+	dumpBinPath := flashDir.Join("dump.bin")
+	readXMLPath := qdlPath.Parent().Join("read.xml")
+	err := readXMLPath.WriteFile(artifacts.ReadXML)
+	if err != nil {
+		return 0, err
+	}
+	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
+	if err != nil {
+		return 0, err
+	}
+	cmd.SetDir(flashDir.String())
+	if err := cmd.RunWithinContext(ctx); err != nil {
+		return 0, err
+	}
+	if !dumpBinPath.Exist() {
+		return 0, fmt.Errorf("it was not possible to access the current Debian image GPT table")
+	}
+	defer func() {
+		_ = dumpBinPath.Remove()
+	}()
+	dump, err := dumpBinPath.ReadFile()
+	if err != nil {
+		return 0, err
+	}
+	strDump := hex.Dump(dump)
+	if strings.Contains(strDump, "00000030  de 27 d3 01") {
+		return boardSize16GB, nil
+	} else if strings.Contains(strDump, "00000030  de df a3 03") {
+		return boardSize32GB, nil
+	}
+	return 0, fmt.Errorf("unknown board size")
 }
