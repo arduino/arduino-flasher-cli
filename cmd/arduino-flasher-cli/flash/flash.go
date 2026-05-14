@@ -8,6 +8,7 @@ package flash
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -112,6 +113,30 @@ func checkDriversInstalled() {
 	}
 }
 
+// Prompts the user to confirm the flash operation and whether to preserve the user partition.
+func askFlashQuestions(r io.Reader, imageRef string, preserveUserFlagChanged bool, preserveUser bool) (bool, bool, error) {
+	feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will replace the system partition on the board. The user partition can optionally be preserved.\n"))
+	feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", imageRef)
+
+	var yesInput string
+	if _, err := fmt.Fscanf(r, "%s\n", &yesInput); err != nil {
+		return false, preserveUser, err
+	}
+	if !(strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y") {
+		return false, preserveUser, nil
+	}
+
+	if !preserveUserFlagChanged {
+		feedback.Print("Do you want to preserve the user partition? (yes/no)")
+		var preserveInput string
+		if _, err := fmt.Fscanf(r, "%s\n", &preserveInput); err != nil {
+			return false, preserveUser, err
+		}
+		preserveUser = strings.ToLower(preserveInput) == "yes" || strings.ToLower(preserveInput) == "y"
+	}
+	return true, preserveUser, nil
+}
+
 func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, preserveUserFlagChanged bool, tempDir string, rootSize uint64) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
@@ -119,29 +144,14 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 	}
 
 	if !forceYes {
-		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will replace the system partition on the board. The user partition can optionally be preserved.\n"))
-		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", args[0])
-
-		var yesInput string
-		_, err := fmt.Scanf("%s\n", &yesInput)
+		proceed, resolvedPreserveUser, err := askFlashQuestions(os.Stdin, args[0], preserveUserFlagChanged, preserveUser)
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
-		yes := strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y"
-
-		if !yes {
+		if !proceed {
 			return
 		}
-
-		if !preserveUserFlagChanged {
-			feedback.Print("Do you want to preserve the user partition? (yes/no)")
-			var preserveInput string
-			_, err = fmt.Scanf("%s\n", &preserveInput)
-			if err != nil {
-				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
-			}
-			preserveUser = strings.ToLower(preserveInput) == "yes" || strings.ToLower(preserveInput) == "y"
-		}
+		preserveUser = resolvedPreserveUser
 	}
 
 	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
