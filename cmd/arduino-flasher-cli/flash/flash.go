@@ -90,7 +90,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, cmd.Flags().Changed("preserve-user"), tempDir, rootSize)
 		},
 	}
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
@@ -112,14 +112,14 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, preserveUserFlagChanged bool, tempDir string, rootSize uint64) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
 	}
 
-	if !forceYes && !preserveUser {
-		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
+	if !forceYes {
+		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will replace the system partition on the board. The user partition can optionally be preserved.\n"))
 		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", args[0])
 
 		var yesInput string
@@ -131,6 +131,16 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 
 		if !yes {
 			return
+		}
+
+		if !preserveUserFlagChanged {
+			feedback.Print("Do you want to preserve the user partition? (yes/no)")
+			var preserveInput string
+			_, err = fmt.Scanf("%s\n", &preserveInput)
+			if err != nil {
+				feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+			}
+			preserveUser = strings.ToLower(preserveInput) == "yes" || strings.ToLower(preserveInput) == "y"
 		}
 	}
 
