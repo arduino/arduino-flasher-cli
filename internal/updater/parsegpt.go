@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/arduino/arduino-flasher-cli/internal/helper"
@@ -98,26 +99,22 @@ func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 }
 
 func (t GptTable) ResizeRoot(gptFile *paths.Path, size uint64) error {
-	f, err := gptFile.Create()
-	if err != nil {
-		return fmt.Errorf("Failed to create output file: %v", err)
-	}
-	defer f.Close()
-
 	newBuff := make([]byte, len(t.raw))
 	copy(newBuff, t.raw)
 
 	newSize := size / 512
-	binary.LittleEndian.PutUint64(newBuff[t.rootPartition.PosLastLBA:], newSize)
-	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosFistLBA:], newSize+1)
-	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosLastLBA:], newSize+2)
+	rootLastLBA := t.rootPartition.FirstLBA + newSize - 1
+	binary.LittleEndian.PutUint64(newBuff[t.rootPartition.PosLastLBA:], rootLastLBA)
+	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosFistLBA:], rootLastLBA+1)
+	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosLastLBA:], rootLastLBA)
 
-	_, err = f.Write(newBuff)
-	return err
+	return gptFile.WriteFile(newBuff)
 }
 
-var startSectorRegex = regexp.MustCompile(`start_sector="\d+"`)
+var startSectorRegex = regexp.MustCompile(`start_sector="(\d+)"`)
 var startByteHexRegex = regexp.MustCompile(`start_byte_hex="0x[0-9a-fA-F]+"`)
+var numPartitionsSectorsRegex = regexp.MustCompile(`num_partition_sectors="\d+"`)
+var sizeInKbRegex = regexp.MustCompile(`size_in_KB="\d+.\d"`)
 
 func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 	f, err := rawProgramFile.Open()
@@ -127,15 +124,29 @@ func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 	defer f.Close()
 
 	newSize := size / 512
-	newSizeHex := fmt.Sprintf("0x%x", newSize*512)
 
 	scanner := bufio.NewScanner(f)
 	newFileContent := make([]byte, 0, 1024)
+	rootfsStartSector := uint64(0)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.Contains(line, rootfsPartitionName) {
+			match := startSectorRegex.FindStringSubmatch(line)
+			if len(match) > 1 {
+				rootfsStartSector, err = strconv.ParseUint(match[1], 10, 64)
+				if err != nil {
+					return err
+				}
+			}
+			line = numPartitionsSectorsRegex.ReplaceAllString(line, fmt.Sprintf(`num_partition_sectors="%d"`, newSize))
+			line = sizeInKbRegex.ReplaceAllString(line, fmt.Sprintf(`size_in_KB="%.1f"`, float64(size)/1024))
+		}
 		if strings.Contains(line, userdataPartitionName) {
-			line = startSectorRegex.ReplaceAllString(line, fmt.Sprintf(`start_sector="%d"`, newSize))
+			fmt.Println(line)
+			line = startSectorRegex.ReplaceAllString(line, fmt.Sprintf(`start_sector="%d"`, rootfsStartSector+newSize))
+			newSizeHex := fmt.Sprintf("0x%x", (rootfsStartSector+newSize)*512)
 			line = startByteHexRegex.ReplaceAllString(line, fmt.Sprintf(`start_byte_hex="%s"`, newSizeHex))
+			fmt.Println(line)
 		}
 
 		newFileContent = append(newFileContent, line...)
