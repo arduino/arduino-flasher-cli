@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/arduino/arduino-flasher-cli/internal/helper"
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-flasher-cli/internal/helper"
 )
 
 type GptTable struct {
@@ -32,13 +33,13 @@ const rootfsPartitionName = "rootfs"
 func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 	f, err := gptFile.Open()
 	if err != nil {
-		return GptTable{}, fmt.Errorf("Failed to open GPT file: %v", err)
+		return GptTable{}, fmt.Errorf("failed to open GPT file: %v", err)
 	}
 	defer f.Close()
 
 	buf, err := io.ReadAll(f)
 	if err != nil {
-		return GptTable{}, fmt.Errorf("Failed to read GPT file: %v", err)
+		return GptTable{}, fmt.Errorf("failed to read GPT file: %v", err)
 	}
 	_ = f.Close()
 
@@ -78,15 +79,6 @@ func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 			userPartition.LastLBA = lastLBA
 		}
 
-		// { //DEBUG
-		// 	fmt.Printf("Partition Type GUID: %x\n", partitionTypeGuid)
-		// 	fmt.Printf("Unique Partition GUID: %x\n", uniquePartitionGuid)
-		// 	fmt.Printf("First LBA: %d (%f)Gb\n", firstLBA, float64(firstLBA*512)/1024/1024/1024)
-		// 	fmt.Printf("Last LBA: %d (%f)Gb\n", lastLBA, float64(lastLBA*512)/1024/1024/1024)
-		// 	fmt.Printf("Attributes: %x\n", attributes)
-		// 	fmt.Printf("Partition Name: %s\n", partitionName)
-		// }
-
 		i, buf = i+uint64(sizePartitionEntry), buf[sizePartitionEntry:]
 	}
 
@@ -119,7 +111,7 @@ var sizeInKbRegex = regexp.MustCompile(`size_in_KB="\d+.\d"`)
 func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 	f, err := rawProgramFile.Open()
 	if err != nil {
-		return fmt.Errorf("Failed to open rawprogram0.xml file: %v", err)
+		return fmt.Errorf("failed to open rawprogram0.xml file: %v", err)
 	}
 	defer f.Close()
 
@@ -152,5 +144,5 @@ func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 	}
 	_ = f.Close()
 
-	return rawProgramFile.WriteFile([]byte(newFileContent))
+	return rawProgramFile.WriteFile(newFileContent)
 }
