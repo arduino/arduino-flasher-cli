@@ -1,3 +1,9 @@
+// This file is part of arduino-flasher-cli.
+//
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package serial
 
 import (
@@ -99,12 +105,17 @@ func TestSerialHex(t *testing.T) {
 		{
 			name:  "Convert to hexadecimal",
 			input: Serial{num: 123456789},
-			want:  "75BCD15",
+			want:  "075BCD15",
+		},
+		{
+			name:  "Convert to hexadecimal (no padding)",
+			input: Serial{num: 987654321},
+			want:  "3ADE68B1",
 		},
 		{
 			name:  "Convert zero",
 			input: Serial{num: 0},
-			want:  "0",
+			want:  "00000000",
 		},
 	}
 

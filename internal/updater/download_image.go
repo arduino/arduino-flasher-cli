@@ -1,17 +1,7 @@
 // This file is part of arduino-flasher-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-//
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-flasher-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
-//
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package updater
 
@@ -26,48 +16,35 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 )
-
-type Manifest struct {
-	Latest   Release   `json:"latest"`
-	Releases []Release `json:"releases"`
-}
-
-type Release struct {
-	Version string `json:"version"`
-	Url     string `json:"url"`
-	Sha256  string `json:"sha256"`
-}
 
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.Path) (*paths.Path, string, error) {
+func DownloadAndExtract(ctx context.Context, targetVersion string, temp *paths.Path) (string, error) {
 	tmpZip, version, err := DownloadImage(ctx, targetVersion, temp)
 	if err != nil {
-		return nil, "", fmt.Errorf("error downloading the image: %v", err)
+		return "", fmt.Errorf("error downloading the image: %v", err)
 	}
 
-	err = ExtractImage(ctx, tmpZip, tmpZip.Parent())
+	err = ExtractImage(ctx, tmpZip, temp)
 	if err != nil {
-		return nil, "", fmt.Errorf("error extracting the image: %v", err)
+		return "", fmt.Errorf("error extracting the image: %v", err)
 	}
 
-	imagePath := tmpZip.Parent().Join("arduino-unoq-debian-image-" + version)
 	if targetVersion == "latest" {
 		version += "(latest)"
 	}
-	return imagePath, version, nil
+	return version, nil
 }
 
 func DownloadImage(ctx context.Context, targetVersion string, downloadPath *paths.Path) (*paths.Path, string, error) {
-	client := NewClient()
+	client := registry.NewClient()
 	rel, err := client.GetReleaseByVersion(ctx, targetVersion)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not get release info: %w", err)
 	}
-
-	tmpZip := downloadPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
 
 	var bar *progressbar.ProgressBar
 	callback := func(current, total int64) {
@@ -79,11 +56,11 @@ func DownloadImage(ctx context.Context, targetVersion string, downloadPath *path
 		}
 		_ = bar.Set64(current)
 	}
-	if err := client.DownloadFile(ctx, tmpZip, rel, callback); err != nil {
+	if tmpZip, err := client.DownloadFile(ctx, downloadPath, rel, callback); err != nil {
 		return nil, "", fmt.Errorf("could not download Debian image: %w", err)
+	} else {
+		return tmpZip, rel.Version, nil
 	}
-
-	return tmpZip, rel.Version, nil
 }
 
 func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {

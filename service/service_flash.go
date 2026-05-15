@@ -1,17 +1,7 @@
 // This file is part of arduino-flasher-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-//
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-flasher-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
-//
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package service
 
@@ -21,11 +11,12 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
-func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) error {
+func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 
 	// Setup callback functions
 	var responseCallback func(*flasher.FlashResponse) error
@@ -58,24 +49,24 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		})
 	}
 
-	client := updater.NewClient()
+	client := registry.NewClient()
 
 	tmpPath := paths.New(req.GetTempPath())
-	rmTempPath := func() {
-		if tmpPath.IsDir() {
+	defer func() {
+		// if the flash was successful, we can clean up the temporary files.
+		if outErr == nil {
 			_ = tmpPath.RemoveAll()
 		}
-	}
+	}()
 
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
 
-	tmpZip := tmpPath.Join("arduino-unoq-debian-image-" + rel.Version + ".tar.zst")
-
 	downloadCB.Start(rel.Url, rel.Version)
-	if err := client.DownloadFile(ctx, tmpZip, rel, downloadCB.Update); err != nil {
+	tmpZip, err := client.DownloadFile(ctx, tmpPath, rel, downloadCB.Update)
+	if err != nil {
 		// FIXME: Maybe this is redundant?
 		downloadCB.End(false, err.Error())
 		return err
@@ -113,9 +104,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: "flash", Completed: true})
-
-	// if everything went fine, clean up the temp path
-	defer rmTempPath()
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{

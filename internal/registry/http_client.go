@@ -1,19 +1,9 @@
 // This file is part of arduino-flasher-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-//
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-flasher-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
-//
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
 
-package updater
+package registry
 
 import (
 	"bytes"
@@ -26,6 +16,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"path"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
@@ -39,6 +30,18 @@ import (
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
 const pathRelease = "debian-im/Stable"
+
+type Manifest struct {
+	Latest   Release   `json:"latest"`
+	Releases []Release `json:"releases"`
+}
+
+type Release struct {
+	Version  string `json:"version"`
+	Url      string `json:"url"`
+	Sha256   string `json:"sha256"`
+	FileName string `json:"-"`
+}
 
 // Client holds the base URL, command name, allows custom HTTP client, and optional headers.
 type Client struct {
@@ -109,6 +112,25 @@ func (c *Client) GetInfoManifest(ctx context.Context) (Manifest, error) {
 	} else if len(sha256Byte) != sha256.Size {
 		return Manifest{}, fmt.Errorf("bad sha256sum in manifest: got %d bytes", len(sha256Byte))
 	}
+
+	getFileName := func(rel Release) (string, error) {
+		url, err := url.Parse(rel.Url)
+		if err != nil {
+			return "", fmt.Errorf("invalid URL in manifest for release %s: %w", rel.Version, err)
+		}
+		return path.Base(url.Path), nil
+	}
+	if res.Latest.FileName, err = getFileName(res.Latest); err != nil {
+		return Manifest{}, err
+	}
+	for i := range res.Releases {
+		if name, err := getFileName(res.Releases[i]); err != nil {
+			return Manifest{}, err
+		} else {
+			res.Releases[i].FileName = name
+		}
+	}
+
 	return res, nil
 }
 
@@ -136,16 +158,17 @@ type downloadCallback func(current, total int64)
 // DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
 // A DownloadProgressCB callback function must be passed to monitor download progress.
 // If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
-func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release, cb downloadCallback) (returnedError error) {
-	f.Assert(path.NotExist() || path.IsNotDir(), "path must not be a directory")
+func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Release, cb downloadCallback) (*paths.Path, error) {
+	f.Assert(basePath.IsDir(), "path must be a directory")
 
 	// Check if there is enough free disk space before downloading and extracting an image
-	dk, err := disk.Usage(path.Parent().String())
+	dk, err := disk.Usage(basePath.String())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	d, err := downloader.DownloadWithConfigAndContext(ctx, path.String(), rel.Url, downloader.Config{
+	filePath := basePath.Join(rel.FileName)
+	d, err := downloader.DownloadWithConfigAndContext(ctx, filePath.String(), rel.Url, downloader.Config{
 		HttpClient:   *c.HTTPClient,
 		ExtraHeaders: maps.Clone(c.Headers),
 		AcceptFunc: func(head *http.Response) error {
@@ -156,39 +179,39 @@ func (c *Client) DownloadFile(ctx context.Context, path *paths.Path, rel Release
 		},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = d.RunAndPoll(func(downloaded int64) {
 		cb(downloaded, d.Size())
 	}, 250*time.Millisecond)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// The URL is not reachable for some reason
 	if d.Resp.StatusCode >= 400 && d.Resp.StatusCode <= 599 {
 		msg := i18n.Tr("Server responded with: %s", d.Resp.Status)
-		return fmt.Errorf("%s", msg)
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	// Check the hash
 	checksum := sha256.New()
-	tmpZipFile, err := path.Open()
+	tmpZipFile, err := filePath.Open()
 	if err != nil {
-		return fmt.Errorf("could not open archive: %w", err)
+		return nil, fmt.Errorf("could not open archive: %w", err)
 	}
 	defer tmpZipFile.Close()
 
 	_, err = io.Copy(checksum, tmpZipFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if sha256Byte, err := hex.DecodeString(rel.Sha256); err != nil {
-		return fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
+		return nil, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
 	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
-		return fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
+		return nil, fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 
-	return nil
+	return filePath, nil
 }

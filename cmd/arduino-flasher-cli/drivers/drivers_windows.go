@@ -1,28 +1,18 @@
 // This file is part of arduino-flasher-cli.
 //
-// Copyright 2025 ARDUINO SA (http://www.arduino.cc/)
-//
-// This software is released under the GNU General Public License version 3,
-// which covers the main part of arduino-flasher-cli.
-// The terms of this license can be found at:
-// https://www.gnu.org/licenses/gpl-3.0.en.html
-//
-// You can be released from the requirements of the above licenses by purchasing
-// a commercial license. Buying such a license is mandatory if you want to
-// modify or otherwise use the software for commercial activities involving the
-// Arduino software without disclosing the source code of your own applications.
-// To purchase a commercial license, send an email to license@arduino.cc.
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package drivers
 
 import (
 	"embed"
-	"errors"
 	"log/slog"
 	"os/exec"
-	"runtime"
 
 	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 )
 
 //go:embed src
@@ -37,24 +27,11 @@ func installDrivers() error {
 	}
 	defer tmpDir.RemoveAll()
 
-	dpinstArch := "src/dpinst-x86.exe"
-	if runtime.GOARCH == "amd64" {
-		dpinstArch = "src/dpinst-amd64.exe"
-	}
-	dpinst, err := drivers.ReadFile(dpinstArch)
-	if err != nil {
-		return err
-	}
 	driverCat, err := drivers.ReadFile("src/unoq.cat")
 	if err != nil {
 		return err
 	}
 	driverInf, err := drivers.ReadFile("src/unoq.inf")
-	if err != nil {
-		return err
-	}
-	dpinstPath := tmpDir.Join("dpinst.exe")
-	err = dpinstPath.WriteFile(dpinst)
 	if err != nil {
 		return err
 	}
@@ -70,19 +47,9 @@ func installDrivers() error {
 	}
 
 	slog.Info("Installing Windows driver")
-	dpinstProc, err := paths.NewProcessFromPath(nil, dpinstPath, "/SE", "/SW", "/SA")
-	if err != nil {
-		return err
-	}
-	dpinstProc.SetDir(tmpDir.String())
-	err = dpinstProc.Run()
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if exitErr.ExitCode() == 1 {
-			// dpinst returns exit code 1 when it successfully installs a driver
-			// see: https://learn.microsoft.com/previous-versions/windows/drivers/install/dpinst-return-code
-			return nil
-		}
-	}
+	pnputilProc := exec.Command("pnputil", "/add-driver", infPath.String(), "/install")
+	pnputilProc.Dir = tmpDir.String()
+	out, err := pnputilProc.CombinedOutput()
+	feedback.Print(string(out))
 	return err
 }

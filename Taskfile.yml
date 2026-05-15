@@ -14,6 +14,7 @@ tasks:
       - install:linter
       - install:goimports
       - install:dprint
+      - install:reuse
 
   install:linter:
     cmds:
@@ -27,6 +28,10 @@ tasks:
     cmds:
       - curl -fsSL https://dprint.dev/install.sh | sh -s {{ .DPRINT_VERSION }}
       - mkdir -p .bin && cp $HOME/.dprint/bin/dprint .bin/dprint # workaround for local install
+
+  install:reuse:
+    cmds:
+      - uv tool install reuse
 
   test:
     desc: Run all go tests
@@ -96,6 +101,16 @@ tasks:
           fi
       - git tag -a "{{.CLI_ARGS}}" -m "Release {{.CLI_ARGS}}"
       - git push origin "{{.CLI_ARGS}}"
+
+  go:check-license-headers:
+    desc: verify presence of license headers and exit with non-zero code if missing
+    cmds:
+      - uvx reuse lint
+
+  go:update-license-headers:
+    desc: Update license headers in Go files with reuse template
+    cmds:
+      - uvx reuse annotate --template arduino-flasher-cli --exclude-year --copyright "Arduino s.r.l. and/or its affiliated companies"  --license GPL-3.0-or-later -r  $(find . -name "*.go" -o  -name "*.proto" -o  -name "*.sh" -type f -print0 | xargs -0)
 
   # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies-task/Taskfile.yml
   general:cache-dep-licenses:

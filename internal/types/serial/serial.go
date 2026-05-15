@@ -1,8 +1,14 @@
+// This file is part of arduino-flasher-cli.
+//
+// Copyright (C) Arduino s.r.l. and/or its affiliated companies
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package serial
 
 import (
+	"fmt"
 	"strconv"
-	"strings"
 )
 
 type Serial struct {
@@ -20,5 +26,5 @@ func FromHex(hexStr string) (Serial, error) {
 }
 
 func (s Serial) Hex() string {
-	return strings.ToUpper(strconv.FormatInt(s.num, 16))
+	return fmt.Sprintf("%08X", s.num)
 }
