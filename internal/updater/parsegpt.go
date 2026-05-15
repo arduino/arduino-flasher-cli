@@ -142,11 +142,9 @@ func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 			line = sizeInKbRegex.ReplaceAllString(line, fmt.Sprintf(`size_in_KB="%.1f"`, float64(size)/1024))
 		}
 		if strings.Contains(line, userdataPartitionName) {
-			fmt.Println(line)
 			line = startSectorRegex.ReplaceAllString(line, fmt.Sprintf(`start_sector="%d"`, rootfsStartSector+newSize))
 			newSizeHex := fmt.Sprintf("0x%x", (rootfsStartSector+newSize)*512)
 			line = startByteHexRegex.ReplaceAllString(line, fmt.Sprintf(`start_byte_hex="%s"`, newSizeHex))
-			fmt.Println(line)
 		}
 
 		newFileContent = append(newFileContent, line...)
