@@ -111,9 +111,13 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
-	_, err = checkBoardSize(gpt)
+	boardSize, err := checkBoardSize(gpt)
 	if err != nil {
 		return err
+	}
+
+	if rootSize == 0 && boardSize == boardSize32GB && !preserveUser {
+		rootSize = 20000000000 // ~20GB
 	}
 
 	rawProgram := "rawprogram0.xml"
