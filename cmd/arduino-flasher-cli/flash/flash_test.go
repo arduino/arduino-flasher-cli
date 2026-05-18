@@ -22,9 +22,9 @@ func TestAskFlashQuestions(t *testing.T) {
 		wantPreserveUser        bool
 	}{
 		{
-			name:         "user declines flash",
-			input:        "no\n",
-			wantProceed:  false,
+			name:             "user declines flash",
+			input:            "no\n",
+			wantProceed:      false,
 			wantPreserveUser: false,
 		},
 		{

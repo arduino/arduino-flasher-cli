@@ -122,7 +122,7 @@ func askFlashQuestions(r io.Reader, imageRef string, preserveUserFlagChanged boo
 	if _, err := fmt.Fscanf(r, "%s\n", &yesInput); err != nil {
 		return false, preserveUser, err
 	}
-	if !(strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y") {
+	if strings.ToLower(yesInput) != "yes" && strings.ToLower(yesInput) != "y" {
 		return false, preserveUser, nil
 	}
 
