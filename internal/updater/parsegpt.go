@@ -103,6 +103,10 @@ func (t GptTable) ResizeRoot(gptFile *paths.Path, size uint64) error {
 	return gptFile.WriteFile(newBuff)
 }
 
+func (e PartitionEntry) SizeInBytes() uint64 {
+	return (e.LastLBA - e.FirstLBA + 1) * 512
+}
+
 var startSectorRegex = regexp.MustCompile(`start_sector="(\d+)"`)
 var startByteHexRegex = regexp.MustCompile(`start_byte_hex="0x[0-9a-fA-F]+"`)
 var numPartitionsSectorsRegex = regexp.MustCompile(`num_partition_sectors="\d+"`)

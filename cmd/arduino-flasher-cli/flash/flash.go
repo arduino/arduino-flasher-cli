@@ -64,6 +64,10 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
 
+			if rootSizeStr != "0MB" && preserveUser {
+				feedback.Fatal(i18n.Tr("cannot specify root-size when preserve-user is enabled"), feedback.ErrBadArgument)
+			}
+
 			rootSize, err := humanize.ParseBytes(rootSizeStr)
 			if err != nil {
 				feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
