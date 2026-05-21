@@ -28,7 +28,6 @@ const GiB = uint64(1024 * 1024 * 1024)
 const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
-const boardSize32GB = uint64(32) * GiB
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
@@ -109,7 +108,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	boardSize := getBoardSize(boardGPT)
-	if rootSize == 0 && boardSize == boardSize32GB && !preserveUser {
+	if rootSize == 0 && boardSize > 16000000000 && boardSize <= 32000000000 && !preserveUser {
 		rootSize = 20 * GiB
 	}
 
