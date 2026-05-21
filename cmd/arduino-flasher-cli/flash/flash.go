@@ -23,6 +23,8 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
+const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
+
 func NewFlashCmd() *cobra.Command {
 	var forceYes, preserveUser bool
 	var tempDir string
@@ -58,7 +60,9 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
 			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
-			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n",
+			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n" +
+			" " + os.Args[0] + " flash latest --preserve-user \n" +
+			" " + os.Args[0] + " flash latest --root-size 12GB \n",
 
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -71,6 +75,10 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			rootSize, err := humanize.ParseBytes(rootSizeStr)
 			if err != nil {
 				feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
+			}
+
+			if rootSize != 0 && rootSize < minRootSize {
+				feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
 			}
 
 			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir, rootSize)
