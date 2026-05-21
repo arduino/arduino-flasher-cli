@@ -7,12 +7,10 @@ package updater
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
@@ -30,8 +28,7 @@ const GiB = uint64(1024 * 1024 * 1024)
 const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
-const boardSize16GB = uint64(16)
-const boardSize32GB = uint64(32)
+const boardSize32GB = uint64(32) * GiB
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
@@ -106,35 +103,27 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	feedback.Print(i18n.Tr("Checking UNO Q board size and OS version. Please connect the board in EDL mode."))
-	gpt, binCleanup, err := readGPTTable(ctx, qdlPath, flashDir)
-	if err != nil {
-		return err
-	}
-	defer binCleanup()
-
-	boardSize, err := checkBoardSize(gpt)
+	boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
 	if err != nil {
 		return err
 	}
 
+	boardSize := getBoardSize(boardGPT)
 	if rootSize == 0 && boardSize == boardSize32GB && !preserveUser {
-		rootSize = 20000000000 // ~20GB
+		rootSize = 20 * GiB
 	}
 
 	rawProgram := "rawprogram0.xml"
 	if preserveUser {
-		if errT := checkUserPartitionPreservation(gpt); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
+		if errT := checkUserPartitionPreservation(boardGPT); errT == nil && flashDir.Join("rawprogram0.nouser.xml").Exist() {
 			rawProgram = "rawprogram0.nouser.xml"
-			boardTable, err := ParseGptTable(flashDir.Join("dump.bin"))
-			if err != nil {
-				return err
-			}
-			rootBoardSize := boardTable.rootPartition.SizeInBytes()
+
+			rootBoardSize := boardGPT.RootPartition.SizeInBytes()
 			imageTable, err := ParseGptTable(flashDir.Join("gpt_main0.bin"))
 			if err != nil {
 				return err
 			}
-			rootXmlSize := imageTable.rootPartition.SizeInBytes()
+			rootXmlSize := imageTable.RootPartition.SizeInBytes()
 			if rootBoardSize != rootXmlSize {
 				binCleanup, err := imageTable.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootBoardSize)
 				if err != nil {
@@ -300,65 +289,44 @@ func installQdl() (*paths.Path, func(), error) {
 	return qdlPath, func() { _ = qdlDir.RemoveAll() }, nil
 }
 
-// readGPTTable reads the GPT table of the board performing a qdl read
-func readGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (string, func(), error) {
+// readBoardGPTTable reads the GPT table of the board performing a qdl read
+func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (GptTable, error) {
 	dumpBinPath := flashDir.Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
-		return "", nil, err
+		return GptTable{}, err
 	}
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
 	if err != nil {
-		return "", nil, err
+		return GptTable{}, err
 	}
 	cmd.SetDir(flashDir.String())
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return "", nil, err
+		return GptTable{}, err
 	}
 	if !dumpBinPath.Exist() {
-		return "", nil, fmt.Errorf("it was not possible to access the current Debian image GPT table")
+		return GptTable{}, fmt.Errorf("it was not possible to access the current Debian image GPT table")
 	}
-	dump, err := dumpBinPath.ReadFile()
+	defer func() { _ = dumpBinPath.Remove() }()
+
+	gptTable, err := ParseGptTable(dumpBinPath)
 	if err != nil {
-		return "", nil, err
+		return GptTable{}, fmt.Errorf("could not parse GPT table: %w", err)
 	}
-	return hex.Dump(dump), func() { _ = dumpBinPath.Remove() }, nil
+
+	return gptTable, nil
 }
 
 // checkUserPartitionPreservation checks the board GPT table and counts the number of partitions, to tell if the board supports preserving the user's data.
-func checkUserPartitionPreservation(gpt string) error {
-	gptSlice := strings.Split(gpt, "\n")
-	// the max number of partitions is stored at entry 0x250
-	maxPartitions, err := strconv.ParseInt(strings.Split(gptSlice[37], " ")[2], 16, 16)
-	if err != nil {
-		return err
-	}
-
-	numPartitions := 0
-	// starting from entry 0x400, there is a new partition every 0x80 bytes
-	// TODO: check if the size of each partition is 80h or just assume it?
-	for i := 64; numPartitions < int(maxPartitions); i += 8 {
-		// partitions are made of non-zero bytes, if all 0s then there are no more entries
-		if strings.Contains(gptSlice[i], "00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00") {
-			break
-		}
-		numPartitions++
-	}
-
-	if numPartitions == 73 && maxPartitions == 76 {
+func checkUserPartitionPreservation(gpt GptTable) error {
+	if gpt.PartitionCount == 73 && gpt.Header.NumPartitions == 76 {
 		return fmt.Errorf("the current Debian image (R0) does not support user partition preservation")
 	}
-
 	return nil
 }
 
-// checkBoardSize checks the board size by reading the GPT table and looking for the value of the last usable LBA for partitions.
-func checkBoardSize(gpt string) (uint64, error) {
-	if strings.Contains(gpt, "00000230  de 27 d3 01") {
-		return boardSize16GB, nil
-	} else if strings.Contains(gpt, "00000230  de df a3 03") {
-		return boardSize32GB, nil
-	}
-	return 0, fmt.Errorf("unknown board size")
+func getBoardSize(gpt GptTable) uint64 {
+	return (gpt.Header.LastLBA + 1) * 512
+
 }

@@ -22,14 +22,14 @@ func TestParseGptTable(t *testing.T) {
 		FirstLBA:   2033984,
 		PosLastLBA: 9640,
 		LastLBA:    22954551,
-	}, gptTable.rootPartition)
+	}, gptTable.RootPartition)
 
 	assert.Equal(t, PartitionEntry{
 		PosFistLBA: 9760,
 		FirstLBA:   22954552,
 		PosLastLBA: 9768,
 		LastLBA:    22954551,
-	}, gptTable.userPartition)
+	}, gptTable.UserPartition)
 }
 
 func TestParseGptTableResizeRoot(t *testing.T) {
@@ -49,14 +49,14 @@ func TestParseGptTableResizeRoot(t *testing.T) {
 		FirstLBA:   2033984,
 		PosLastLBA: 9640,
 		LastLBA:    (3*GiB)/512 + 2033984 - 1,
-	}, gptTable.rootPartition)
+	}, gptTable.RootPartition)
 
 	assert.Equal(t, PartitionEntry{
 		PosFistLBA: 9760,
 		FirstLBA:   (3*GiB)/512 + 2033984,
 		PosLastLBA: 9768,
 		LastLBA:    (3*GiB)/512 + 2033984 - 1,
-	}, gptTable.userPartition)
+	}, gptTable.UserPartition)
 }
 
 func TestMoveUserdata(t *testing.T) {

@@ -20,9 +20,18 @@ import (
 )
 
 type GptTable struct {
-	raw           []byte
-	rootPartition PartitionEntry
-	userPartition PartitionEntry
+	raw []byte
+
+	Header GPTHeader
+
+	PartitionCount int
+	RootPartition  PartitionEntry
+	UserPartition  PartitionEntry
+}
+
+type GPTHeader struct {
+	LastLBA       uint64
+	NumPartitions uint32
 }
 
 type PartitionEntry struct {
@@ -56,9 +65,19 @@ func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 
 	sizePartitionEntry := binary.LittleEndian.Uint32(buf[84 : 84+4])
 
+	// After skipping MBR, buf points to GPT header
+
+	// myLBA := binary.LittleEndian.Uint64(buf[24 : 24+8])
+	// alternateLBA := binary.LittleEndian.Uint64(buf[32 : 32+8])
+	// firstUsableLBA := binary.LittleEndian.Uint64(buf[40 : 40+8])
+	lastUsableLBA := binary.LittleEndian.Uint64(buf[48 : 48+8])
+	// partEntriesLBA := binary.LittleEndian.Uint64(buf[72 : 72+8])
+	numPartEntries := binary.LittleEndian.Uint32(buf[80 : 80+4])
+
 	i, buf = i+512, buf[512:] // Skip GPT header
 
 	var userPartition, rootPartition PartitionEntry
+	count := 0
 	for len(buf) >= int(sizePartitionEntry) {
 		partitionTypeGuid := buf[0:16]
 		// uniquePartitionGuid := buf[16 : 16+16]
@@ -85,12 +104,15 @@ func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 		}
 
 		i, buf = i+uint64(sizePartitionEntry), buf[sizePartitionEntry:]
+		count++
 	}
 
 	return GptTable{
-		raw:           originalBuf,
-		rootPartition: rootPartition,
-		userPartition: userPartition,
+		raw:            originalBuf,
+		Header:         GPTHeader{LastLBA: lastUsableLBA, NumPartitions: numPartEntries},
+		PartitionCount: count,
+		RootPartition:  rootPartition,
+		UserPartition:  userPartition,
 	}, nil
 
 }
@@ -100,10 +122,10 @@ func (t GptTable) ResizeRoot(gptResizedFile *paths.Path, size uint64) (func(), e
 	copy(newBuff, t.raw)
 
 	newSize := size / 512
-	rootLastLBA := t.rootPartition.FirstLBA + newSize - 1
-	binary.LittleEndian.PutUint64(newBuff[t.rootPartition.PosLastLBA:], rootLastLBA)
-	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosFistLBA:], rootLastLBA+1)
-	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosLastLBA:], rootLastLBA)
+	rootLastLBA := t.RootPartition.FirstLBA + newSize - 1
+	binary.LittleEndian.PutUint64(newBuff[t.RootPartition.PosLastLBA:], rootLastLBA)
+	binary.LittleEndian.PutUint64(newBuff[t.UserPartition.PosFistLBA:], rootLastLBA+1)
+	binary.LittleEndian.PutUint64(newBuff[t.UserPartition.PosLastLBA:], rootLastLBA)
 
 	return func() { _ = gptResizedFile.Remove() }, gptResizedFile.WriteFile(newBuff)
 }
