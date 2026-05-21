@@ -136,14 +136,18 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 			}
 			rootXmlSize := imageTable.rootPartition.SizeInBytes()
 			if rootBoardSize != rootXmlSize {
-				if err := imageTable.ResizeRoot(flashDir.Join("gpt_main0.bin"), rootBoardSize); err != nil {
+				binCleanup, err := imageTable.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootBoardSize)
+				if err != nil {
 					return fmt.Errorf("could not resize root partition in GPT table: %w", err)
 				}
+				defer binCleanup()
 
 				rawProgramFile := flashDir.Join(rawProgram)
-				if err = MoveUserdata(rawProgramFile, rootBoardSize); err != nil {
+				rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootBoardSize)
+				if err != nil {
 					return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
 				}
+				defer cleanup()
 			}
 		} else if callback != nil {
 			return fmt.Errorf("it will not be possible to preserve the data: %w", errT)
@@ -182,14 +186,18 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 			return fmt.Errorf("could not parse GPT table: %w", err)
 		}
 
-		if err := table.ResizeRoot(gptTableFile, rootSize); err != nil {
+		binCleanup, err := table.ResizeRoot(flashDir.Join("gpt_main0_resized.bin"), rootSize)
+		if err != nil {
 			return fmt.Errorf("could not resize root partition in GPT table: %w", err)
 		}
+		defer binCleanup()
 
 		rawProgramFile := flashDir.Join(rawProgram)
-		if err = MoveUserdata(rawProgramFile, rootSize); err != nil {
+		rawProgram, cleanup, err = MoveUserdata(rawProgramFile, rootSize)
+		if err != nil {
 			return fmt.Errorf("could not move userdata partition in rawprogram0.xml: %w", err)
 		}
+		defer cleanup()
 	}
 
 	totalPartitions, err := getTotalPartition(flashDir.Join(rawProgram))

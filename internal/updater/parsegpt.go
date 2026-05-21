@@ -95,7 +95,7 @@ func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
 
 }
 
-func (t GptTable) ResizeRoot(gptFile *paths.Path, size uint64) error {
+func (t GptTable) ResizeRoot(gptResizedFile *paths.Path, size uint64) (func(), error) {
 	newBuff := make([]byte, len(t.raw))
 	copy(newBuff, t.raw)
 
@@ -105,7 +105,7 @@ func (t GptTable) ResizeRoot(gptFile *paths.Path, size uint64) error {
 	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosFistLBA:], rootLastLBA+1)
 	binary.LittleEndian.PutUint64(newBuff[t.userPartition.PosLastLBA:], rootLastLBA)
 
-	return gptFile.WriteFile(newBuff)
+	return func() { _ = gptResizedFile.Remove() }, gptResizedFile.WriteFile(newBuff)
 }
 
 func (e PartitionEntry) SizeInBytes() uint64 {
@@ -117,10 +117,10 @@ var startByteHexRegex = regexp.MustCompile(`start_byte_hex="0x[0-9a-fA-F]+"`)
 var numPartitionsSectorsRegex = regexp.MustCompile(`num_partition_sectors="\d+"`)
 var sizeInKbRegex = regexp.MustCompile(`size_in_KB="\d+.\d"`)
 
-func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
+func MoveUserdata(rawProgramFile *paths.Path, size uint64) (string, func(), error) {
 	f, err := rawProgramFile.Open()
 	if err != nil {
-		return fmt.Errorf("failed to open rawprogram0.xml file: %v", err)
+		return "", nil, fmt.Errorf("failed to open rawprogram0.xml file: %v", err)
 	}
 	defer f.Close()
 
@@ -136,7 +136,7 @@ func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 			if len(match) > 1 {
 				rootfsStartSector, err = strconv.ParseUint(match[1], 10, 64)
 				if err != nil {
-					return err
+					return "", nil, err
 				}
 			}
 			line = numPartitionsSectorsRegex.ReplaceAllString(line, fmt.Sprintf(`num_partition_sectors="%d"`, newSize))
@@ -147,11 +147,14 @@ func MoveUserdata(rawProgramFile *paths.Path, size uint64) error {
 			newSizeHex := fmt.Sprintf("0x%x", (rootfsStartSector+newSize)*512)
 			line = startByteHexRegex.ReplaceAllString(line, fmt.Sprintf(`start_byte_hex="%s"`, newSizeHex))
 		}
+		if strings.Contains(line, `filename="gpt_main0.bin"`) {
+			line = strings.ReplaceAll(line, `gpt_main0.bin`, `gpt_main0_resized.bin`)
+		}
 
 		newFileContent = append(newFileContent, line...)
 		newFileContent = append(newFileContent, '\n')
 	}
-	_ = f.Close()
 
-	return rawProgramFile.WriteFile(newFileContent)
+	rawProgramResizedFile := rawProgramFile.Parent().Join("rawprogram0_resized.xml")
+	return rawProgramResizedFile.Base(), func() { _ = rawProgramResizedFile.Remove() }, rawProgramResizedFile.WriteFile(newFileContent)
 }

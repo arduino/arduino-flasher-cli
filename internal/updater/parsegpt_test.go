@@ -38,7 +38,7 @@ func TestParseGptTableResizeRoot(t *testing.T) {
 
 	newGptFile := paths.New(t.TempDir()).Join("gpt_main0.bin")
 
-	err = gptTable.ResizeRoot(newGptFile, 3*GiB)
+	_, err = gptTable.ResizeRoot(newGptFile, 3*GiB)
 	require.NoError(t, err)
 
 	gptTable, err = ParseGptTable(newGptFile)
@@ -65,10 +65,12 @@ func TestMoveUserdata(t *testing.T) {
 	err := paths.New("testdata/rawprogram0.xml").CopyTo(rawProgramFile)
 	require.NoError(t, err)
 
-	err = MoveUserdata(rawProgramFile, 3*GiB)
+	resizedFileName, _, err := MoveUserdata(rawProgramFile, 3*GiB)
 	require.NoError(t, err)
 
-	got, err := rawProgramFile.ReadFile()
+	resizedFile := tmpDir.Join(resizedFileName)
+	require.FileExists(t, resizedFile.String())
+	got, err := resizedFile.ReadFile()
 	require.NoError(t, err)
 
 	want, err := paths.New("testdata/rawprogram0_resized.xml").ReadFile()
