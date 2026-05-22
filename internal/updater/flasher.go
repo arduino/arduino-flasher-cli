@@ -6,6 +6,7 @@
 package updater
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -89,6 +90,9 @@ type FlashEvent struct {
 
 type FlashCallback func(FlashEvent)
 
+const board16GB = 16000000000
+const board32GB = 32000000000
+
 func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
@@ -108,7 +112,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	boardSize := getBoardSize(boardGPT)
-	if rootSize == 0 && boardSize > 16000000000 && boardSize <= 32000000000 && !preserveUser {
+	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
 		rootSize = 20 * GiB
 	}
 
@@ -165,8 +169,6 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		}
 
 	} else if rootSize > 0 {
-		fmt.Printf("Resizing root partition to %d bytes...\n", rootSize)
-
 		gptTableFile := flashDir.Join("gpt_main0.bin")
 
 		table, err := ParseGptTable(gptTableFile)
@@ -203,7 +205,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		args = append(args, "--serial", serial.Hex())
 	}
 
-	feedback.Print(i18n.Tr("Flashing with qdl"))
+	feedback.Print(i18n.Tr("Flashing with qdl [root partition size: %dGiB]", cmp.Or(rootSize, boardGPT.RootPartition.SizeInBytes())/GiB))
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return err
