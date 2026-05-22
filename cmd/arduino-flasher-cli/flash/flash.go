@@ -68,17 +68,21 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
 
-			if rootSizeStr != "0MB" && preserveUser {
-				feedback.Fatal(i18n.Tr("cannot specify root-size when preserve-user is enabled"), feedback.ErrBadArgument)
-			}
+			rootSize := uint64(0)
+			if rootSizeStr != "" {
+				if preserveUser {
+					feedback.Fatal(i18n.Tr("cannot specify root-size when preserve-user is enabled"), feedback.ErrBadArgument)
+				}
 
-			rootSize, err := humanize.ParseBytes(rootSizeStr)
-			if err != nil {
-				feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
-			}
+				var err error
+				rootSize, err = humanize.ParseBytes(rootSizeStr)
+				if err != nil {
+					feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
+				}
 
-			if rootSize != 0 && rootSize < minRootSize {
-				feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
+				if rootSize < minRootSize {
+					feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
+				}
 			}
 
 			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir, rootSize)
@@ -87,7 +91,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
-	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "0MB", "Size of the root partition (e.g., 8GB, 500MB)")
+	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
 
 	return appCmd
 }
