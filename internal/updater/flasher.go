@@ -101,7 +101,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
-	feedback.Print(i18n.Tr("Checking UNO Q board size and OS version. Please connect the board in EDL mode."))
+	feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
 	boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
 	if err != nil {
 		return err
