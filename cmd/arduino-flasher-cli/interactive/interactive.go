@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
 	"text/tabwriter"
 
 	"charm.land/huh/v2"
@@ -23,17 +22,11 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
-
-var rootSizePresets = []huh.Option[string]{
-	huh.NewOption("Auto-detect", ""),
-	huh.NewOption("10 GB", "10GB"),
-	huh.NewOption("12 GB", "12GB"),
-	huh.NewOption("16 GB", "16GB"),
-	huh.NewOption("20 GB", "20GB"),
-	huh.NewOption("24 GB", "24GB"),
-	huh.NewOption("Custom…", "custom"),
-}
+const (
+	giB         int64 = 1024 * 1024 * 1024
+	rootSizeMin int64 = 9 * giB
+	rootSizeMax int64 = 64 * giB
+)
 
 // Run starts the interactive wizard and performs the flash.
 func Run(ctx context.Context) {
@@ -64,7 +57,7 @@ func Run(ctx context.Context) {
 	var (
 		selectedVersion string
 		preserveUser    bool
-		rootSizeStr     string // default "": auto-detect
+		rootSize        uint64 // 0 == auto-detect
 		confirm         bool
 	)
 
@@ -72,22 +65,22 @@ func Run(ctx context.Context) {
 	imageForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("Select the image version to flash").
-				Description("Use ↑/↓ to navigate, Enter to confirm").
+				Title(i18n.Tr("Select the image version to flash")).
+				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 				Options(versionOptions...).
 				Value(&selectedVersion),
 		),
 	)
 	if err := imageForm.RunWithContext(ctx); err != nil {
-		return // user cancelled
+		return // user canceled
 	}
 
 	// Step 2 — partition options
 	partForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title("Preserve user partition?").
-				Description("Keep existing user data on the board").
+				Title(i18n.Tr("Preserve user partition?")).
+				Description(i18n.Tr("Keep existing user data on the board")).
 				Value(&preserveUser),
 		),
 	)
@@ -95,55 +88,49 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	// Root size is mutually exclusive with preserve-user — only ask when user partition will be erased
+	// Root size is mutually exclusive with preserve-user — only ask when the user partition will be erased
 	if !preserveUser {
-		sizePickForm := huh.NewForm(
-			huh.NewGroup(
-				huh.NewSelect[string]().
-					Title("Root partition size").
-					Description("Use ↑/↓ to navigate, Enter to confirm").
-					Options(rootSizePresets...).
-					Value(&rootSizeStr),
-			),
-		)
-		if err := sizePickForm.RunWithContext(ctx); err != nil {
-			return
-		}
-
-		// "Custom…" was chosen — ask for a free-form value
-		if rootSizeStr == "custom" {
-			customForm := huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("Enter root partition size").
-						Description("e.g. 14GB, 15GiB — minimum 9GB").
-						Placeholder("12GB").
-						Validate(func(s string) error {
-							s = strings.TrimSpace(s)
-							if s == "" {
-								return fmt.Errorf("value required")
-							}
-							size, err := humanize.ParseBytes(s)
-							if err != nil {
-								return fmt.Errorf("invalid size: %v", err)
-							}
-							if size < minRootSize {
-								return fmt.Errorf("must be at least 9GB")
-							}
-							return nil
-						}).
-						Value(&rootSizeStr),
-				),
-			)
-			if err := customForm.RunWithContext(ctx); err != nil {
+		var rootSizeStr string
+		changeRootSize := huh.NewForm(huh.NewGroup(
+			huh.NewConfirm().
+				Title(i18n.Tr("Change root partition size?")).
+				Description(i18n.Tr("By default, the root partition size is automatically determined,\nsplitting the available space roughly equally between the root and home partitions.")).
+				Value(&confirm),
+		))
+		if err := changeRootSize.RunWithContext(ctx); err != nil || !confirm {
+			feedback.Print(i18n.Tr("Using default root partition size (auto-detect)."))
+			rootSize = 0
+		} else {
+			rootSizeForm := huh.NewForm(huh.NewGroup(
+				huh.NewInput().
+					Title(i18n.Tr("Root partition size")).
+					Description(i18n.Tr("Insert a value in GB")).
+					Value(&rootSizeStr).
+					Validate(func(input string) error {
+						if input == "" {
+							return nil // allow empty input for auto-detect
+						}
+						sizeGB, err := humanize.ParseBytes(input + "GB")
+						if err != nil {
+							return fmt.Errorf("invalid size: %w", err)
+						}
+						if sizeGB < uint64(rootSizeMin) || sizeGB > uint64(rootSizeMax) {
+							return fmt.Errorf("size must be between %d and %d GiB", rootSizeMin/giB, rootSizeMax/giB)
+						}
+						return nil
+					}),
+			))
+			if err := rootSizeForm.RunWithContext(ctx); err != nil {
 				return
 			}
-		}
-	}
 
-	rootSize := uint64(0)
-	if rootSizeStr != "" {
-		rootSize, _ = humanize.ParseBytes(strings.TrimSpace(rootSizeStr))
+			if size, err := humanize.ParseBytes(rootSizeStr + "GB"); err != nil {
+				feedback.Print(i18n.Tr("Flash canceled."))
+				return
+			} else {
+				rootSize = size
+			}
+		}
 	}
 
 	// Step 3 — summary + confirm
@@ -151,15 +138,15 @@ func Run(ctx context.Context) {
 	confirmForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title("Ready to flash").
+				Title(i18n.Tr("Ready to flash")).
 				Description(summary).
-				Affirmative("Flash now").
-				Negative("Cancel").
+				Affirmative(i18n.Tr("Flash now")).
+				Negative(i18n.Tr("Cancel")).
 				Value(&confirm),
 		),
 	)
 	if err := confirmForm.RunWithContext(ctx); err != nil || !confirm {
-		feedback.Print(i18n.Tr("Flash cancelled."))
+		feedback.Print(i18n.Tr("Flash canceled."))
 		return
 	}
 
