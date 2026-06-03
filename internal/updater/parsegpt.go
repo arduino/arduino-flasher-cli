@@ -1,0 +1,182 @@
+// This file is part of arduino-flasher-cli.
+//
+// SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package updater
+
+import (
+	"bufio"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/arduino/go-paths-helper"
+
+	"github.com/arduino/arduino-flasher-cli/internal/helper"
+)
+
+type GptTable struct {
+	raw []byte
+
+	Header GPTHeader
+
+	PartitionCount int
+	RootPartition  PartitionEntry
+	UserPartition  PartitionEntry
+}
+
+type GPTHeader struct {
+	LastLBA       uint64
+	NumPartitions uint32
+}
+
+type PartitionEntry struct {
+	PosFistLBA uint64
+	FirstLBA   uint64
+	PosLastLBA uint64
+	LastLBA    uint64
+}
+
+const userdataPartitionName = "userdata"
+const rootfsPartitionName = "rootfs"
+
+func ParseGptTable(gptFile *paths.Path) (GptTable, error) {
+	f, err := gptFile.Open()
+	if err != nil {
+		return GptTable{}, fmt.Errorf("failed to open GPT file: %v", err)
+	}
+	defer f.Close()
+
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return GptTable{}, fmt.Errorf("failed to read GPT file: %v", err)
+	}
+	_ = f.Close()
+
+	originalBuf := buf
+	i := uint64(0)
+
+	i, buf = i+512, buf[512:] // Skip MBR
+	// signature := buf[0:8]
+
+	sizePartitionEntry := binary.LittleEndian.Uint32(buf[84 : 84+4])
+
+	// After skipping MBR, buf points to GPT header
+
+	// myLBA := binary.LittleEndian.Uint64(buf[24 : 24+8])
+	// alternateLBA := binary.LittleEndian.Uint64(buf[32 : 32+8])
+	// firstUsableLBA := binary.LittleEndian.Uint64(buf[40 : 40+8])
+	lastUsableLBA := binary.LittleEndian.Uint64(buf[48 : 48+8])
+	// partEntriesLBA := binary.LittleEndian.Uint64(buf[72 : 72+8])
+	numPartEntries := binary.LittleEndian.Uint32(buf[80 : 80+4])
+
+	i, buf = i+512, buf[512:] // Skip GPT header
+
+	var userPartition, rootPartition PartitionEntry
+	count := 0
+	for len(buf) >= int(sizePartitionEntry) {
+		partitionTypeGuid := buf[0:16]
+		// uniquePartitionGuid := buf[16 : 16+16]
+		firstLBA := binary.LittleEndian.Uint64(buf[32 : 32+8])
+		lastLBA := binary.LittleEndian.Uint64(buf[40 : 40+8])
+		// attributes := binary.LittleEndian.Uint64(buf[48 : 48+8])
+		partitionName := helper.DecodeUTF16(buf[56 : 56+72])
+
+		if partitionTypeGuid[0] == 0 {
+			break
+		}
+
+		if partitionName == rootfsPartitionName {
+			rootPartition.PosFistLBA = i + 32
+			rootPartition.PosLastLBA = i + 40
+			rootPartition.FirstLBA = firstLBA
+			rootPartition.LastLBA = lastLBA
+		}
+		if partitionName == userdataPartitionName {
+			userPartition.PosFistLBA = i + 32
+			userPartition.PosLastLBA = i + 40
+			userPartition.FirstLBA = firstLBA
+			userPartition.LastLBA = lastLBA
+		}
+
+		i, buf = i+uint64(sizePartitionEntry), buf[sizePartitionEntry:]
+		count++
+	}
+
+	return GptTable{
+		raw:            originalBuf,
+		Header:         GPTHeader{LastLBA: lastUsableLBA, NumPartitions: numPartEntries},
+		PartitionCount: count,
+		RootPartition:  rootPartition,
+		UserPartition:  userPartition,
+	}, nil
+
+}
+
+func (t GptTable) ResizeRoot(gptResizedFile *paths.Path, size uint64) (func(), error) {
+	newBuff := make([]byte, len(t.raw))
+	copy(newBuff, t.raw)
+
+	newSize := size / 512
+	rootLastLBA := t.RootPartition.FirstLBA + newSize - 1
+	binary.LittleEndian.PutUint64(newBuff[t.RootPartition.PosLastLBA:], rootLastLBA)
+	binary.LittleEndian.PutUint64(newBuff[t.UserPartition.PosFistLBA:], rootLastLBA+1)
+	binary.LittleEndian.PutUint64(newBuff[t.UserPartition.PosLastLBA:], rootLastLBA)
+
+	return func() { _ = gptResizedFile.Remove() }, gptResizedFile.WriteFile(newBuff)
+}
+
+func (e PartitionEntry) SizeInBytes() uint64 {
+	return (e.LastLBA - e.FirstLBA + 1) * 512
+}
+
+var startSectorRegex = regexp.MustCompile(`start_sector="(\d+)"`)
+var startByteHexRegex = regexp.MustCompile(`start_byte_hex="0x[0-9a-fA-F]+"`)
+var numPartitionsSectorsRegex = regexp.MustCompile(`num_partition_sectors="\d+"`)
+var sizeInKbRegex = regexp.MustCompile(`size_in_KB="\d+.\d"`)
+
+func MoveUserdata(rawProgramFile *paths.Path, size uint64) (string, func(), error) {
+	f, err := rawProgramFile.Open()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to open rawprogram0.xml file: %v", err)
+	}
+	defer f.Close()
+
+	newSize := size / 512
+
+	scanner := bufio.NewScanner(f)
+	newFileContent := make([]byte, 0, 1024)
+	rootfsStartSector := uint64(0)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, rootfsPartitionName) {
+			match := startSectorRegex.FindStringSubmatch(line)
+			if len(match) > 1 {
+				rootfsStartSector, err = strconv.ParseUint(match[1], 10, 64)
+				if err != nil {
+					return "", nil, err
+				}
+			}
+			line = numPartitionsSectorsRegex.ReplaceAllString(line, fmt.Sprintf(`num_partition_sectors="%d"`, newSize))
+			line = sizeInKbRegex.ReplaceAllString(line, fmt.Sprintf(`size_in_KB="%.1f"`, float64(size)/1024))
+		}
+		if strings.Contains(line, userdataPartitionName) {
+			line = startSectorRegex.ReplaceAllString(line, fmt.Sprintf(`start_sector="%d"`, rootfsStartSector+newSize))
+			newSizeHex := fmt.Sprintf("0x%x", (rootfsStartSector+newSize)*512)
+			line = startByteHexRegex.ReplaceAllString(line, fmt.Sprintf(`start_byte_hex="%s"`, newSizeHex))
+		}
+		if strings.Contains(line, `filename="gpt_main0.bin"`) {
+			line = strings.ReplaceAll(line, `gpt_main0.bin`, `gpt_main0_resized.bin`)
+		}
+
+		newFileContent = append(newFileContent, line...)
+		newFileContent = append(newFileContent, '\n')
+	}
+
+	rawProgramResizedFile := rawProgramFile.Parent().Join("rawprogram0_resized.xml")
+	return rawProgramResizedFile.Base(), func() { _ = rawProgramResizedFile.Remove() }, rawProgramResizedFile.WriteFile(newFileContent)
+}

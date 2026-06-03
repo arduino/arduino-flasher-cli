@@ -1,0 +1,10 @@
+version = 1
+
+[[annotations]]
+path = [
+  "gpt_main0.bin",
+  "rawprogram0_resized.xml",
+  "rawprogram0.xml"
+]
+SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
+SPDX-License-Identifier = "GPL-3.0-or-later"

@@ -6,6 +6,7 @@ require (
 	github.com/arduino/go-paths-helper v1.14.0
 	github.com/arduino/go-windows-runas v1.0.1
 	github.com/codeclysm/extract/v4 v4.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/leonelquinteros/gotext v1.7.2

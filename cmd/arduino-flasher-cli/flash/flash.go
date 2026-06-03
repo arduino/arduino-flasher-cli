@@ -14,6 +14,7 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
+	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -22,9 +23,12 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
+const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
+
 func NewFlashCmd() *cobra.Command {
 	var forceYes, preserveUser bool
 	var tempDir string
+	var rootSizeStr string
 	appCmd := &cobra.Command{
 		Use:   "flash",
 		Short: "Flash a Debian image on the board",
@@ -56,17 +60,38 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
 			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
-			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n",
+			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n" +
+			" " + os.Args[0] + " flash latest --preserve-user \n" +
+			" " + os.Args[0] + " flash latest --root-size 12GB \n",
 
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
-			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir)
+
+			rootSize := uint64(0)
+			if rootSizeStr != "" {
+				if preserveUser {
+					feedback.Fatal(i18n.Tr("cannot specify root-size when preserve-user is enabled"), feedback.ErrBadArgument)
+				}
+
+				var err error
+				rootSize, err = humanize.ParseBytes(rootSizeStr)
+				if err != nil {
+					feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
+				}
+
+				if rootSize < minRootSize {
+					feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
+				}
+			}
+
+			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
+	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
 
 	return appCmd
 }
@@ -82,7 +107,7 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, tempDir string) {
+func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
@@ -104,7 +129,7 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 		}
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir, nil)
+	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
