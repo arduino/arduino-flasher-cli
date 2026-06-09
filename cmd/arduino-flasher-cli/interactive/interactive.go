@@ -25,7 +25,6 @@ import (
 const (
 	giB         int64 = 1024 * 1024 * 1024
 	rootSizeMin int64 = 9 * giB
-	rootSizeMax int64 = 64 * giB
 )
 
 // Run starts the interactive wizard and performs the flash.
@@ -90,7 +89,6 @@ func Run(ctx context.Context) {
 
 	// Root size is mutually exclusive with preserve-user — only ask when the user partition will be erased
 	if !preserveUser {
-		var rootSizeStr string
 		changeRootSize := huh.NewForm(huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Change root partition size?")).
@@ -99,23 +97,21 @@ func Run(ctx context.Context) {
 		))
 		if err := changeRootSize.RunWithContext(ctx); err != nil || !confirm {
 			feedback.Print(i18n.Tr("Using default root partition size (auto-detect)."))
-			rootSize = 0
 		} else {
+			var rootSizeStr string
 			rootSizeForm := huh.NewForm(huh.NewGroup(
 				huh.NewInput().
 					Title(i18n.Tr("Root partition size")).
 					Description(i18n.Tr("Insert a value in GB")).
+					Placeholder("e.g. 16").
 					Value(&rootSizeStr).
 					Validate(func(input string) error {
-						if input == "" {
-							return nil // allow empty input for auto-detect
-						}
 						sizeGB, err := humanize.ParseBytes(input + "GB")
 						if err != nil {
 							return fmt.Errorf("invalid size: %w", err)
 						}
-						if sizeGB < uint64(rootSizeMin) || sizeGB > uint64(rootSizeMax) {
-							return fmt.Errorf("size must be between %d and %d GiB", rootSizeMin/giB, rootSizeMax/giB)
+						if sizeGB < uint64(rootSizeMin) {
+							return fmt.Errorf("size must be between more then %d GiB", rootSizeMin/giB)
 						}
 						return nil
 					}),
@@ -123,12 +119,13 @@ func Run(ctx context.Context) {
 			if err := rootSizeForm.RunWithContext(ctx); err != nil {
 				return
 			}
-
-			if size, err := humanize.ParseBytes(rootSizeStr + "GB"); err != nil {
-				feedback.Print(i18n.Tr("Flash canceled."))
-				return
-			} else {
-				rootSize = size
+			if rootSizeStr != "" {
+				if size, err := humanize.ParseBytes(rootSizeStr + "GB"); err != nil {
+					feedback.Print(i18n.Tr("Flash canceled."))
+					return
+				} else {
+					rootSize = size
+				}
 			}
 		}
 	}
@@ -177,6 +174,9 @@ func buildSummary(version string, preserveUser bool, rootSize uint64) string {
 	fmt.Fprintln(w, "Root size:\t"+rootSizeStr)
 	w.Flush()
 
-	buf.WriteString("\nWARNING: This will erase existing data on the board.")
+	if !preserveUser {
+		buf.WriteString("\nWARNING: This will erase existing data on the board.")
+	}
+
 	return buf.String()
 }
