@@ -13,9 +13,31 @@ import (
 
 	"github.com/arduino/go-paths-helper"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
+	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
+
+func SetBoardAndVersion(ctx context.Context, version string) (string, string, error) {
+	boardType := ""
+	switch version {
+	case "latest":
+		var err error
+		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
+		boardType, err = DetectBoardType(ctx)
+		if err != nil {
+			return "", "", err
+		}
+	case "unoq":
+		version = "latest"
+		boardType = registry.UnoQ
+	case "ventunoq":
+		version = "latest"
+		boardType = registry.VentunoQ
+	}
+	return version, boardType, nil
+}
 
 func DetectBoardType(ctx context.Context) (string, error) {
 	qdlPath, cleanup, err := installQdl()

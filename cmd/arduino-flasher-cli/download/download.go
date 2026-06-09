@@ -14,7 +14,6 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
@@ -37,14 +36,17 @@ func NewDownloadCmd() *cobra.Command {
 }
 
 func runDownloadCommand(ctx context.Context, args []string, destDir string) {
-	targetVersion := args[0]
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	// TODO: add Ventuno Q support
-	downloadPath, _, err := updater.DownloadImage(ctx, targetVersion, registry.UnoQ, downloadPath)
+	version, boardType, err := updater.SetBoardAndVersion(ctx, args[0])
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	}
+
+	downloadPath, _, err = updater.DownloadImage(ctx, version, boardType, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
