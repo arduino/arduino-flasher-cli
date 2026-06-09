@@ -8,6 +8,7 @@ package interactive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"text/tabwriter"
 
@@ -32,18 +33,18 @@ func Run(ctx context.Context) {
 	client := registry.NewClient()
 
 	var manifest registry.Manifest
-	spinner := spinner.New().
+	sp := spinner.New().
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
 			var err error
 			manifest, err = client.GetInfoManifest(ctx)
 			return err
 		})
-	if err := spinner.Run(); err != nil {
+	if err := sp.Run(); err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}
 
-	versionOptions := make([]huh.Option[string], 0, len(manifest.Releases)+1)
+	versionOptions := make([]huh.Option[string], 0, len(manifest.Releases))
 	for i := len(manifest.Releases) - 1; i >= 0; i-- {
 		r := manifest.Releases[i]
 		label := r.Version
@@ -56,12 +57,13 @@ func Run(ctx context.Context) {
 	var (
 		selectedVersion string
 		preserveUser    bool
-		rootSize        uint64 // 0 == auto-detect
+		changeRootSize  bool
+		rootSizeStr     string
 		confirm         bool
 	)
 
-	// Step 1 — pick image
-	imageForm := huh.NewForm(
+	form := huh.NewForm(
+		// Step 1 — pick image
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title(i18n.Tr("Select the image version to flash")).
@@ -69,83 +71,72 @@ func Run(ctx context.Context) {
 				Options(versionOptions...).
 				Value(&selectedVersion),
 		),
-	)
-	if err := imageForm.RunWithContext(ctx); err != nil {
-		return // user canceled
-	}
 
-	// Step 2 — partition options
-	partForm := huh.NewForm(
+		// Step 2 — partition options
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Preserve user partition?")).
 				Description(i18n.Tr("Keep existing user data on the board")).
+				Affirmative(i18n.Tr("Yes")).
+				Negative(i18n.Tr("No")).
 				Value(&preserveUser),
 		),
-	)
-	if err := partForm.RunWithContext(ctx); err != nil {
-		return
-	}
 
-	// Root size is mutually exclusive with preserve-user — only ask when the user partition will be erased
-	if !preserveUser {
-		changeRootSize := huh.NewForm(huh.NewGroup(
+		// Step 3a — ask whether to override root size (only when user partition will be erased)
+		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Change root partition size?")).
 				Description(i18n.Tr("By default, the root partition size is automatically determined,\nsplitting the available space roughly equally between the root and home partitions.")).
-				Value(&confirm),
-		))
-		if err := changeRootSize.RunWithContext(ctx); err != nil || !confirm {
-			feedback.Print(i18n.Tr("Using default root partition size (auto-detect)."))
-		} else {
-			var rootSizeStr string
-			rootSizeForm := huh.NewForm(huh.NewGroup(
-				huh.NewInput().
-					Title(i18n.Tr("Root partition size")).
-					Description(i18n.Tr("Insert a value in GB")).
-					Placeholder("e.g. 16").
-					Value(&rootSizeStr).
-					Validate(func(input string) error {
-						sizeGB, err := humanize.ParseBytes(input + "GB")
-						if err != nil {
-							return fmt.Errorf("invalid size: %w", err)
-						}
-						if sizeGB < uint64(rootSizeMin) {
-							return fmt.Errorf("size must be between more then %d GiB", rootSizeMin/giB)
-						}
-						return nil
-					}),
-			))
-			if err := rootSizeForm.RunWithContext(ctx); err != nil {
-				return
-			}
-			if rootSizeStr != "" {
-				if size, err := humanize.ParseBytes(rootSizeStr + "GB"); err != nil {
-					feedback.Print(i18n.Tr("Flash canceled."))
-					return
-				} else {
-					rootSize = size
-				}
-			}
-		}
-	}
+				Affirmative(i18n.Tr("Yes")).
+				Negative(i18n.Tr("No")).
+				Value(&changeRootSize),
+		).WithHideFunc(func() bool { return preserveUser }),
 
-	// Step 3 — summary + confirm
-	summary := buildSummary(selectedVersion, preserveUser, rootSize)
-	confirmForm := huh.NewForm(
+		// Step 3b — actual root size input (only when user wants to override)
+		huh.NewGroup(
+			huh.NewInput().
+				Title(i18n.Tr("Root partition size")).
+				Description(i18n.Tr("Insert a value in GB")).
+				Placeholder(i18n.Tr("e.g. 16")).
+				Value(&rootSizeStr).
+				Validate(func(input string) error {
+					sizeGB, err := humanize.ParseBytes(input + "GB")
+					if err != nil {
+						return fmt.Errorf("invalid size: %w", err)
+					}
+					if sizeGB < uint64(rootSizeMin) {
+						return fmt.Errorf("size must be more than %d GiB", rootSizeMin/giB)
+					}
+					return nil
+				}),
+		).WithHideFunc(func() bool { return preserveUser || !changeRootSize }),
+
+		// Step 4 — summary + confirm (description is recomputed when any binding changes)
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Ready to flash")).
-				Description(summary).
+				DescriptionFunc(func() string {
+					return buildSummary(selectedVersion, preserveUser, parseRootSize(rootSizeStr, changeRootSize, preserveUser))
+				}, []any{&selectedVersion, &preserveUser, &changeRootSize, &rootSizeStr}).
 				Affirmative(i18n.Tr("Flash now")).
 				Negative(i18n.Tr("Cancel")).
 				Value(&confirm),
 		),
 	)
-	if err := confirmForm.RunWithContext(ctx); err != nil || !confirm {
+
+	if err := form.RunWithContext(ctx); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			feedback.Print(i18n.Tr("Flash canceled."))
+			return
+		}
+		feedback.Fatal(i18n.Tr("error running interactive wizard: %v", err), feedback.ErrBadArgument)
+	}
+	if !confirm {
 		feedback.Print(i18n.Tr("Flash canceled."))
 		return
 	}
+
+	rootSize := parseRootSize(rootSizeStr, changeRootSize, preserveUser)
 
 	// Resolve image path (version string — Flash will download it)
 	imagePath, _ := paths.New(selectedVersion).Abs()
@@ -156,26 +147,41 @@ func Run(ctx context.Context) {
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
 }
 
+// parseRootSize converts the user-supplied size string into bytes.
+// Returns 0 (auto-detect) when the user partition is preserved, the user did
+// not request a custom size, or the input is empty/unparseable (already
+// validated by the form).
+func parseRootSize(rootSizeStr string, changeRootSize, preserveUser bool) uint64 {
+	if preserveUser || !changeRootSize || rootSizeStr == "" {
+		return 0
+	}
+	size, err := humanize.ParseBytes(rootSizeStr + "GB")
+	if err != nil {
+		return 0
+	}
+	return size
+}
+
 func buildSummary(version string, preserveUser bool, rootSize uint64) string {
-	userPartition := "will be erased"
+	userPartition := i18n.Tr("will be erased")
 	if preserveUser {
-		userPartition = "preserved"
+		userPartition = i18n.Tr("preserved")
 	}
 
-	rootSizeStr := "auto-detect"
+	rootSizeStr := i18n.Tr("auto-detect")
 	if rootSize > 0 {
 		rootSizeStr = humanize.Bytes(rootSize)
 	}
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Image version:\t"+version)
-	fmt.Fprintln(w, "User partition:\t"+userPartition)
-	fmt.Fprintln(w, "Root size:\t"+rootSizeStr)
-	w.Flush()
+	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
+	fmt.Fprintln(w, i18n.Tr("User partition:")+"\t"+userPartition)
+	fmt.Fprintln(w, i18n.Tr("Root size:")+"\t"+rootSizeStr)
+	_ = w.Flush()
 
 	if !preserveUser {
-		buf.WriteString("\nWARNING: This will erase existing data on the board.")
+		buf.WriteString("\n" + i18n.Tr("WARNING: This will erase existing data on the board."))
 	}
 
 	return buf.String()
