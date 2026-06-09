@@ -61,8 +61,7 @@ func DetectBoardType(ctx context.Context) (string, error) {
 		return "", err
 	}
 	cmd.SetDir(qdlPath.Parent().String())
-	if out, err := cmd.RunAndCaptureCombinedOutput(ctx); err != nil {
-		fmt.Println(string(out))
+	if err := cmd.RunWithinContext(ctx); err != nil {
 		return "", err
 	}
 	if !detectBinPath.Exist() {
