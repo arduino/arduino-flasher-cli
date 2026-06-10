@@ -57,7 +57,6 @@ func Run(ctx context.Context) {
 	var (
 		selectedVersion string
 		preserveUser    bool
-		changeRootSize  bool
 		rootSizeStr     string
 		confirm         bool
 	)
@@ -82,24 +81,17 @@ func Run(ctx context.Context) {
 				Value(&preserveUser),
 		),
 
-		// Step 3a — ask whether to override root size (only when user partition will be erased)
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(i18n.Tr("Change root partition size?")).
-				Description(i18n.Tr("By default, the root partition size is automatically determined,\nsplitting the available space roughly equally between the root and home partitions.")).
-				Affirmative(i18n.Tr("Yes")).
-				Negative(i18n.Tr("No")).
-				Value(&changeRootSize),
-		).WithHideFunc(func() bool { return preserveUser }),
-
-		// Step 3b — actual root size input (only when user wants to override)
+		// Step 3 — root size override (only when user partition will be erased)
 		huh.NewGroup(
 			huh.NewInput().
-				Title(i18n.Tr("Root partition size")).
-				Description(i18n.Tr("Insert a value in GB")).
+				Title(i18n.Tr("Root partition size (optional)")).
+				Description(i18n.Tr("Leave blank to split available space equally between root and home partitions.\nOtherwise, insert a value in GB (e.g. 16).")).
 				Placeholder(i18n.Tr("e.g. 16")).
 				Value(&rootSizeStr).
 				Validate(func(input string) error {
+					if input == "" {
+						return nil
+					}
 					sizeGB, err := humanize.ParseBytes(input + "GB")
 					if err != nil {
 						return fmt.Errorf("invalid size: %w", err)
@@ -109,15 +101,15 @@ func Run(ctx context.Context) {
 					}
 					return nil
 				}),
-		).WithHideFunc(func() bool { return preserveUser || !changeRootSize }),
+		).WithHideFunc(func() bool { return preserveUser }),
 
 		// Step 4 — summary + confirm (description is recomputed when any binding changes)
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Ready to flash")).
 				DescriptionFunc(func() string {
-					return buildSummary(selectedVersion, preserveUser, parseRootSize(rootSizeStr, changeRootSize, preserveUser))
-				}, []any{&selectedVersion, &preserveUser, &changeRootSize, &rootSizeStr}).
+					return buildSummary(selectedVersion, preserveUser, parseRootSize(rootSizeStr, preserveUser))
+				}, []any{&selectedVersion, &preserveUser, &rootSizeStr}).
 				Affirmative(i18n.Tr("Flash now")).
 				Negative(i18n.Tr("Cancel")).
 				Value(&confirm),
@@ -136,7 +128,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	rootSize := parseRootSize(rootSizeStr, changeRootSize, preserveUser)
+	rootSize := parseRootSize(rootSizeStr, preserveUser)
 
 	// Resolve image path (version string — Flash will download it)
 	imagePath, _ := paths.New(selectedVersion).Abs()
@@ -151,8 +143,8 @@ func Run(ctx context.Context) {
 // Returns 0 (auto-detect) when the user partition is preserved, the user did
 // not request a custom size, or the input is empty/unparseable (already
 // validated by the form).
-func parseRootSize(rootSizeStr string, changeRootSize, preserveUser bool) uint64 {
-	if preserveUser || !changeRootSize || rootSizeStr == "" {
+func parseRootSize(rootSizeStr string, preserveUser bool) uint64 {
+	if preserveUser || rootSizeStr == "" {
 		return 0
 	}
 	size, err := humanize.ParseBytes(rootSizeStr + "GB")
