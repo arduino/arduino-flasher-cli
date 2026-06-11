@@ -20,7 +20,7 @@ import (
 )
 
 func SetBoardAndVersion(ctx context.Context, version string) (string, string, error) {
-	boardType := ""
+	boardType := registry.UnoQ
 	switch version {
 	case "latest":
 		var err error
