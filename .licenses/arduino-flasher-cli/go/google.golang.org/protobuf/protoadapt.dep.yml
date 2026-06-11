@@ -4,7 +4,7 @@ version: v1.36.10
 type: go
 summary: Package protoadapt bridges the original and new proto APIs.
 homepage: https://pkg.go.dev/google.golang.org/protobuf/protoadapt
-license: other
+license: bsd-3-clause
 licenses:
 - sources: protobuf@v1.36.10/LICENSE
   text: |

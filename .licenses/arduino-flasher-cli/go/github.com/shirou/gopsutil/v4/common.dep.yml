@@ -2,7 +2,7 @@
 name: github.com/shirou/gopsutil/v4/common
 version: v4.25.10
 type: go
-summary: 'SPDX-License-Identifier: BSD-3-Clause'
+summary: 'SPDX-License-Identifier: bsd-3-clause'
 homepage: https://pkg.go.dev/github.com/shirou/gopsutil/v4/common
 license: bsd-3-clause
 licenses:
