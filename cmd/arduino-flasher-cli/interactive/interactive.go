@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"charm.land/huh/v2"
@@ -24,8 +26,17 @@ import (
 )
 
 const (
-	giB         int64 = 1024 * 1024 * 1024
-	rootSizeMin int64 = 9 * giB
+	giB         uint64 = 1024 * 1024 * 1024
+	rootSizeMin uint64 = 9 * giB
+
+	// systemReservedBytes is the approximate space taken by Qualcomm system
+	// partitions (xbl, abl, boot, tz, ...) before rootfs starts. Used only
+	// for the home-partition preview in the wizard; actual sizes are decided
+	// by the GPT shipped with the image.
+	systemReservedBytes uint64 = 1 * giB
+
+	board16GBBytes uint64 = 16_000_000_000
+	board32GBBytes uint64 = 32_000_000_000
 )
 
 // Run starts the interactive wizard and performs the flash.
@@ -55,14 +66,27 @@ func Run(ctx context.Context) {
 	}
 
 	var (
+		boardStorage    uint64
 		selectedVersion string
 		preserveUser    bool
-		rootSizeStr     string
+		rootPctStr      string
 		confirm         bool
 	)
 
 	form := huh.NewForm(
-		// Step 1 — pick image
+		// Step 1 — pick board variant
+		huh.NewGroup(
+			huh.NewSelect[uint64]().
+				Title(i18n.Tr("Select your board")).
+				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+				Options(
+					huh.NewOption(i18n.Tr("UNO Q (2GB RAM, 16GB storage)"), board16GBBytes),
+					huh.NewOption(i18n.Tr("UNO Q (4GB RAM, 32GB storage)"), board32GBBytes),
+				).
+				Value(&boardStorage),
+		),
+
+		// Step 2 — pick image
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title(i18n.Tr("Select the image version to flash")).
@@ -71,7 +95,7 @@ func Run(ctx context.Context) {
 				Value(&selectedVersion),
 		),
 
-		// Step 2 — partition options
+		// Step 3 — partition options
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Preserve user partition?")).
@@ -81,35 +105,47 @@ func Run(ctx context.Context) {
 				Value(&preserveUser),
 		),
 
-		// Step 3 — root size override (only when user partition will be erased)
+		// Step 4 — root/home split, expressed as a percentage of total
+		// storage assigned to the root partition. The description is
+		// re-evaluated on every keystroke (huh bindings) so the user sees
+		// the resulting partition sizes live.
 		huh.NewGroup(
 			huh.NewInput().
-				Title(i18n.Tr("Root partition size (optional)")).
-				Description(i18n.Tr("Leave blank to split available space equally between root and home partitions.\nOtherwise, insert a value in GB (e.g. 16).")).
-				Placeholder(i18n.Tr("e.g. 16")).
-				Value(&rootSizeStr).
+				Title(i18n.Tr("Root partition size (% of total storage)")).
+				DescriptionFunc(func() string {
+					return buildSplitPreview(boardStorage, rootPctStr)
+				}, []any{&boardStorage, &rootPctStr}).
+				Placeholder(i18n.Tr("e.g. 50 (leave blank for default)")).
+				Value(&rootPctStr).
 				Validate(func(input string) error {
 					if input == "" {
 						return nil
 					}
-					sizeGB, err := humanize.ParseBytes(input + "GB")
+					pct, err := parsePercentage(input)
 					if err != nil {
-						return fmt.Errorf("invalid size: %w", err)
+						return err
 					}
-					if sizeGB < uint64(rootSizeMin) {
-						return fmt.Errorf("size must be more than %d GiB", rootSizeMin/giB)
+					if pct < 1 || pct > 95 {
+						return fmt.Errorf("percentage must be between 1 and 95")
+					}
+					rootSize := rootSizeFromPct(boardStorage, pct)
+					if rootSize < rootSizeMin {
+						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", rootSizeMin/giB)
+					}
+					if rootSize+systemReservedBytes >= boardStorage {
+						return fmt.Errorf("percentage too high: no space left for the home partition")
 					}
 					return nil
 				}),
 		).WithHideFunc(func() bool { return preserveUser }),
 
-		// Step 4 — summary + confirm (description is recomputed when any binding changes)
+		// Step 5 — summary + confirm (description is recomputed when any binding changes)
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Ready to flash")).
 				DescriptionFunc(func() string {
-					return buildSummary(selectedVersion, preserveUser, parseRootSize(rootSizeStr, preserveUser))
-				}, []any{&selectedVersion, &preserveUser, &rootSizeStr}).
+					return buildSummary(boardStorage, selectedVersion, preserveUser, parseRootSize(boardStorage, rootPctStr, preserveUser))
+				}, []any{&boardStorage, &selectedVersion, &preserveUser, &rootPctStr}).
 				Affirmative(i18n.Tr("Flash now")).
 				Negative(i18n.Tr("Cancel")).
 				Value(&confirm),
@@ -128,7 +164,7 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	rootSize := parseRootSize(rootSizeStr, preserveUser)
+	rootSize := parseRootSize(boardStorage, rootPctStr, preserveUser)
 
 	// Resolve image path (version string — Flash will download it)
 	imagePath, _ := paths.New(selectedVersion).Abs()
@@ -139,22 +175,72 @@ func Run(ctx context.Context) {
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
 }
 
-// parseRootSize converts the user-supplied size string into bytes.
+// parsePercentage parses a string like "50" or "50%" as an integer percentage.
+func parsePercentage(input string) (uint64, error) {
+	trimmed := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(input), "%"))
+	pct, err := strconv.ParseUint(trimmed, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid percentage: enter an integer like 50")
+	}
+	return pct, nil
+}
+
+// rootSizeFromPct returns the root-partition size in bytes for a given board
+// storage and percentage.
+func rootSizeFromPct(boardStorage, pct uint64) uint64 {
+	return boardStorage * pct / 100
+}
+
+// parseRootSize converts the user-supplied percentage string into the root
+// partition size in bytes (absolute), suitable to be passed to updater.Flash.
 // Returns 0 (auto-detect) when the user partition is preserved, the user did
 // not request a custom size, or the input is empty/unparseable (already
 // validated by the form).
-func parseRootSize(rootSizeStr string, preserveUser bool) uint64 {
-	if preserveUser || rootSizeStr == "" {
+func parseRootSize(boardStorage uint64, rootPctStr string, preserveUser bool) uint64 {
+	if preserveUser || rootPctStr == "" || boardStorage == 0 {
 		return 0
 	}
-	size, err := humanize.ParseBytes(rootSizeStr + "GB")
+	pct, err := parsePercentage(rootPctStr)
 	if err != nil {
 		return 0
 	}
-	return size
+	return rootSizeFromPct(boardStorage, pct)
 }
 
-func buildSummary(version string, preserveUser bool, rootSize uint64) string {
+// buildSplitPreview produces the live description shown under the percentage
+// input field, e.g.:
+//
+//	Total storage: 16 GB
+//	Root partition: 8.0 GiB (50%)
+//	Home partition: ~6.0 GiB
+func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
+	var buf bytes.Buffer
+	buf.WriteString(i18n.Tr("Total storage: %s", humanize.Bytes(boardStorage)) + "\n")
+
+	if rootPctStr == "" {
+		buf.WriteString(i18n.Tr("Leave blank to use the default split decided by the image."))
+		return buf.String()
+	}
+	pct, err := parsePercentage(rootPctStr)
+	if err != nil {
+		buf.WriteString(i18n.Tr("Enter an integer percentage (1-95)."))
+		return buf.String()
+	}
+	if pct < 1 || pct > 95 {
+		buf.WriteString(i18n.Tr("Percentage must be between 1 and 95."))
+		return buf.String()
+	}
+	rootSize := rootSizeFromPct(boardStorage, pct)
+	var homeSize uint64
+	if rootSize+systemReservedBytes < boardStorage {
+		homeSize = boardStorage - systemReservedBytes - rootSize
+	}
+	fmt.Fprintf(&buf, "%s %s (%d%%)\n", i18n.Tr("Root partition:"), humanize.IBytes(rootSize), pct)
+	fmt.Fprintf(&buf, "%s ~%s", i18n.Tr("Home partition:"), humanize.IBytes(homeSize))
+	return buf.String()
+}
+
+func buildSummary(boardStorage uint64, version string, preserveUser bool, rootSize uint64) string {
 	userPartition := i18n.Tr("will be erased")
 	if preserveUser {
 		userPartition = i18n.Tr("preserved")
@@ -162,11 +248,12 @@ func buildSummary(version string, preserveUser bool, rootSize uint64) string {
 
 	rootSizeStr := i18n.Tr("auto-detect")
 	if rootSize > 0 {
-		rootSizeStr = humanize.Bytes(rootSize)
+		rootSizeStr = humanize.IBytes(rootSize)
 	}
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+i18n.Tr("UNO Q (%s storage)", humanize.Bytes(boardStorage)))
 	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
 	fmt.Fprintln(w, i18n.Tr("User partition:")+"\t"+userPartition)
 	fmt.Fprintln(w, i18n.Tr("Root size:")+"\t"+rootSizeStr)
