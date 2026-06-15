@@ -19,10 +19,12 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
+const latest = "latest"
+
 func SetBoardAndVersion(ctx context.Context, version string) (string, string, error) {
 	boardType := registry.UnoQ
 	switch version {
-	case "latest":
+	case latest:
 		var err error
 		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
 		boardType, err = DetectBoardType(ctx)
@@ -30,10 +32,10 @@ func SetBoardAndVersion(ctx context.Context, version string) (string, string, er
 			return "", "", err
 		}
 	case "unoq":
-		version = "latest"
+		version = latest
 		boardType = registry.UnoQ
 	case "ventunoq":
-		version = "latest"
+		version = latest
 		boardType = registry.VentunoQ
 	}
 	return version, boardType, nil
