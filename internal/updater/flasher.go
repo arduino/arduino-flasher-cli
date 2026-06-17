@@ -92,6 +92,7 @@ type FlashCallback func(FlashEvent)
 
 const board16GB = 16000000000
 const board32GB = 32000000000
+const minUserPartitionSize = 2 * GiB
 
 func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
@@ -112,6 +113,9 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	boardSize := getBoardSize(boardGPT)
+	if rootSize > 0 && rootSize > boardSize-minUserPartitionSize {
+		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-minUserPartitionSize)/GiB, rootSize/GiB)
+	}
 	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
 		rootSize = 20 * GiB
 	}
