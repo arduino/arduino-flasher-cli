@@ -111,7 +111,7 @@ func Run(ctx context.Context) {
 		// the resulting partition sizes live.
 		huh.NewGroup(
 			huh.NewInput().
-				Title(i18n.Tr("Root partition size (% of total storage)")).
+				Title(i18n.Tr("Root partition size (%% of total storage)")).
 				DescriptionFunc(func() string {
 					return buildSplitPreview(boardStorage, rootPctStr)
 				}, []any{&boardStorage, &rootPctStr}).
