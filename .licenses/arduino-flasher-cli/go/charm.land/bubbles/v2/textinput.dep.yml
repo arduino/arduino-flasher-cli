@@ -1,16 +1,16 @@
 ---
-name: github.com/mattn/go-runewidth
-version: v0.0.20
+name: charm.land/bubbles/v2/textinput
+version: v2.0.0
 type: go
-summary:
-homepage: https://pkg.go.dev/github.com/mattn/go-runewidth
+summary: Package textinput provides a text input component for Bubble Tea applications.
+homepage: https://pkg.go.dev/charm.land/bubbles/v2/textinput
 license: mit
 licenses:
-- sources: LICENSE
+- sources: v2@v2.0.0/LICENSE
   text: |
-    The MIT License (MIT)
+    MIT License
 
-    Copyright (c) 2016 Yasuhiro Matsumoto
+    Copyright (c) 2020-2026 Charmbracelet, Inc.
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,15 @@ licenses:
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-- sources: README.md
-  text: 'under the MIT License: http://mattn.mit-license.org/2013'
+- sources: v2@v2.0.0/README.md
+  text: |-
+    [MIT](https://github.com/charmbracelet/bubbletea/raw/main/LICENSE)
+
+    ---
+
+    Part of [Charm](https://charm.land).
+
+    <a href="https://charm.sh/"><img alt="The Charm logo" src="https://stuff.charm.sh/charm-banner-next.jpg" width="400"></a>
+
+    Charm热爱开源 • Charm loves open source
 notices: []
