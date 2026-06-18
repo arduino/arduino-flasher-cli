@@ -1,16 +1,17 @@
 ---
-name: github.com/mattn/go-runewidth
-version: v0.0.20
+name: github.com/charmbracelet/ultraviolet
+version: v0.0.0-20260205113103-524a6607adb8
 type: go
-summary:
-homepage: https://pkg.go.dev/github.com/mattn/go-runewidth
+summary: Package uv (Ultraviolet) is a library for creating terminal-based user interfaces
+  in Go.
+homepage: https://pkg.go.dev/github.com/charmbracelet/ultraviolet
 license: mit
 licenses:
 - sources: LICENSE
   text: |
-    The MIT License (MIT)
+    MIT License
 
-    Copyright (c) 2016 Yasuhiro Matsumoto
+    Copyright (c) 2025 Charmbracelet, Inc
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -30,5 +31,14 @@ licenses:
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 - sources: README.md
-  text: 'under the MIT License: http://mattn.mit-license.org/2013'
+  text: |-
+    [MIT](./LICENSE)
+
+    ---
+
+    Part of [Charm](https://charm.land).
+
+    <a href="https://charm.sh/"><img alt="The Charm logo" width="400" src="https://stuff.charm.sh/charm-banner-next.jpg" /></a>
+
+    Charm热爱开源 • Charm loves open source • نحنُ نحب المصادر المفتوحة
 notices: []
