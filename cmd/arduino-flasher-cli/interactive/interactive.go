@@ -215,21 +215,29 @@ func parseRootSize(boardStorage uint64, rootPctStr string, preserveUser bool) ui
 //	Home partition: ~6.0 GiB
 func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	var buf bytes.Buffer
+	toPadString := func() string {
+		const padLines = 3
+		n := bytes.Count(buf.Bytes(), []byte("\n"))
+		buf.Write(bytes.Repeat([]byte("\n"), max(0, padLines-n)))
+		return buf.String()
+	}
+
 	buf.WriteString(i18n.Tr("Total storage: %s", humanize.Bytes(boardStorage)) + "\n")
 
 	if rootPctStr == "" {
 		buf.WriteString(i18n.Tr("Leave blank to use the default split decided by the image."))
-		return buf.String()
+		return toPadString()
 	}
 	pct, err := parsePercentage(rootPctStr)
 	if err != nil {
 		buf.WriteString(i18n.Tr("Enter an integer percentage (1-95)."))
-		return buf.String()
+		return toPadString()
 	}
 	if pct < 1 || pct > 95 {
 		buf.WriteString(i18n.Tr("Percentage must be between 1 and 95."))
-		return buf.String()
+		return toPadString()
 	}
+
 	rootSize := rootSizeFromPct(boardStorage, pct)
 	var homeSize uint64
 	if rootSize+systemReservedBytes < boardStorage {
@@ -237,7 +245,7 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	}
 	fmt.Fprintf(&buf, "%s %s (%d%%)\n", i18n.Tr("Root partition:"), humanize.IBytes(rootSize), pct)
 	fmt.Fprintf(&buf, "%s ~%s", i18n.Tr("Home partition:"), humanize.IBytes(homeSize))
-	return buf.String()
+	return toPadString()
 }
 
 func buildSummary(boardStorage uint64, version string, preserveUser bool, rootSize uint64) string {
