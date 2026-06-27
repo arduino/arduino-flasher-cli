@@ -30,7 +30,7 @@ const DownloadDiskSpace = uint64(12)
 const ExtractDiskSpace = uint64(10)
 const yesPrompt = "yes"
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -79,7 +79,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes 
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, "", imagePath, version, preserveUser, rootSize, nil)
+	return FlashBoard(ctx, serialStr, imagePath, version, preserveUser, rootSize, nil)
 }
 
 type FlashEvent struct {
@@ -198,7 +198,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
 
 	if serialStr != "" {
-		serial, err := serial.FromNum(serialStr)
+		serial, err := serial.FromHex(serialStr)
 		if err != nil {
 			return err
 		}

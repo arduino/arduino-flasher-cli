@@ -169,7 +169,7 @@ func Run(ctx context.Context) {
 	// Resolve image path (version string — Flash will download it)
 	imagePath, _ := paths.New(selectedVersion).Abs()
 
-	if err := updater.Flash(ctx, imagePath, selectedVersion, true, preserveUser, "", rootSize, nil); err != nil {
+	if err := updater.Flash(ctx, "", imagePath, selectedVersion, true, preserveUser, "", rootSize, nil); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
