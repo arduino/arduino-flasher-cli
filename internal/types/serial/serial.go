@@ -22,7 +22,7 @@ func FromNum(numStr string) (Serial, error) {
 }
 
 func FromHex(hexStr string) (Serial, error) {
-    s := strings.TrimPrefix(strings.TrimPrefix(hexStr, "0x"), "0X")
+	s := strings.TrimPrefix(strings.TrimPrefix(hexStr, "0x"), "0X")
 	num, err := strconv.ParseInt(s, 16, 64)
 	return Serial{num: num}, err
 }
