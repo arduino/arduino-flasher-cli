@@ -79,6 +79,24 @@ func TestSerialFromHex(t *testing.T) {
 			want:    Serial{},
 			wantErr: true,
 		},
+		{
+			name:    "Valid hex with 0x prefix",
+			input:   "0x0004F3A1",
+			want:    Serial{num: 0x0004F3A1},
+			wantErr: false,
+		},
+		{
+			name:    "Valid hex with 0X prefix",
+			input:   "0X0004F3A1",
+			want:    Serial{num: 0x0004F3A1},
+			wantErr: false,
+		},
+		{
+			name:    "Valid hex lowercase",
+			input:   "0004f3a1",
+			want:    Serial{num: 0x0004f3a1},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
