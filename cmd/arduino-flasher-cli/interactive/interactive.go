@@ -26,14 +26,7 @@ import (
 )
 
 const (
-	giB         uint64 = 1024 * 1024 * 1024
-	rootSizeMin uint64 = 9 * giB
-
-	// systemReservedBytes is the approximate space taken by Qualcomm system
-	// partitions (xbl, abl, boot, tz, ...) before rootfs starts. Used only
-	// for the home-partition preview in the wizard; actual sizes are decided
-	// by the GPT shipped with the image.
-	systemReservedBytes uint64 = 1 * giB
+	rootSizeMin uint64 = 9 * updater.GiB
 
 	board16GBBytes uint64 = 16_000_000_000
 	board32GBBytes uint64 = 32_000_000_000
@@ -130,9 +123,9 @@ func Run(ctx context.Context) {
 					}
 					rootSize := rootSizeFromPct(boardStorage, pct)
 					if rootSize < rootSizeMin {
-						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", rootSizeMin/giB)
+						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", rootSizeMin/updater.GiB)
 					}
-					if rootSize+systemReservedBytes >= boardStorage {
+					if rootSize+updater.SystemReservedBytes >= boardStorage {
 						return fmt.Errorf("percentage too high: no space left for the home partition")
 					}
 					return nil
@@ -240,8 +233,8 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 
 	rootSize := rootSizeFromPct(boardStorage, pct)
 	var homeSize uint64
-	if rootSize+systemReservedBytes < boardStorage {
-		homeSize = boardStorage - systemReservedBytes - rootSize
+	if rootSize+updater.SystemReservedBytes < boardStorage {
+		homeSize = boardStorage - updater.SystemReservedBytes - rootSize
 	}
 	fmt.Fprintf(&buf, "%s %s (%d%%)\n", i18n.Tr("Root partition:"), humanize.IBytes(rootSize), pct)
 	fmt.Fprintf(&buf, "%s ~%s", i18n.Tr("Home partition:"), humanize.IBytes(homeSize))
