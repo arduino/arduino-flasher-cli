@@ -92,14 +92,11 @@ func (c *Client) addHeaders(req *http.Request) {
 }
 
 // GetInfoManifest fetches and decodes the Debian images info.json.
-func (c *Client) GetInfoManifest(ctx context.Context, boardType string, os string) (Manifest, error) {
+func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
 	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
-	if boardType == VentunoQ {
-		if os == Ubuntu {
-			// TODO: use the correct manifest URL
-			return Manifest{}, fmt.Errorf("%s does not support Ubuntu images yet", boardType)
-		}
-		return Manifest{}, fmt.Errorf("%s does not support Debian images yet", boardType)
+	if os == Ubuntu {
+		// TODO: use the correct manifest URL
+		return Manifest{}, fmt.Errorf("Ubuntu images are not supported yet")
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
@@ -148,11 +145,12 @@ func (c *Client) GetInfoManifest(ctx context.Context, boardType string, os strin
 }
 
 func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardType string, os string) (Release, error) {
-	manifest, err := c.GetInfoManifest(ctx, boardType, os)
+	manifest, err := c.GetInfoManifest(ctx, os)
 	if err != nil {
 		return Release{}, err
 	}
 
+	// TODO: boardType should be used here to filter Debian releases based on the board type
 	if version == "latest" || version == manifest.Latest.Version {
 		return manifest.Latest, nil
 	} else {

@@ -14,10 +14,10 @@ import (
 
 func TestGetManifestBoardType(t *testing.T) {
 	c := NewClient()
-	_, err := c.GetInfoManifest(context.Background(), VentunoQ, Ubuntu)
+	_, err := c.GetInfoManifest(context.Background(), Ubuntu)
 	require.Error(t, err)
 
-	manifest, err := c.GetInfoManifest(context.Background(), UnoQ, Debian)
+	manifest, err := c.GetInfoManifest(context.Background(), Debian)
 	require.NoError(t, err)
 	require.NotEmpty(t, manifest.Releases)
 }

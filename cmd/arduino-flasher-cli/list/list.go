@@ -32,8 +32,8 @@ func NewListCmd() *cobra.Command {
 func runListCommand(ctx context.Context) {
 	client := registry.NewClient()
 
-	// TODO: add Ventuno Q support
-	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ, registry.Debian)
+	// TODO: add support for Ubuntu images
+	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}

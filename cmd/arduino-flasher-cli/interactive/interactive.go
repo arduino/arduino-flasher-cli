@@ -41,8 +41,8 @@ func Run(ctx context.Context) {
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
 			var err error
-			// TODO: add support for VENTUNO Q
-			manifest, err = client.GetInfoManifest(ctx, registry.UnoQ, registry.Debian)
+			// TODO: add support for Ubuntu images
+			manifest, err = client.GetInfoManifest(ctx, registry.Debian)
 			return err
 		})
 	if err := sp.Run(); err != nil {
