@@ -125,7 +125,7 @@ func Run(ctx context.Context) {
 					if rootSize < rootSizeMin {
 						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", rootSizeMin/updater.GiB)
 					}
-					if rootSize+updater.SystemReservedBytes >= boardStorage {
+					if rootSize+updater.SystemReservedBytes+updater.MinUserPartitionSize >= boardStorage {
 						return fmt.Errorf("percentage too high: no space left for the home partition")
 					}
 					return nil

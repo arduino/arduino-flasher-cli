@@ -95,7 +95,7 @@ type FlashCallback func(FlashEvent)
 const (
 	board16GB            = 16000000000
 	board32GB            = 32000000000
-	minUserPartitionSize = 2 * GiB
+	MinUserPartitionSize = 2 * GiB
 	// SystemReservedBytes is the approximate space taken by Qualcomm system
 	// partitions (xbl, abl, boot, tz, ...) before rootfs starts. Used only
 	// for the home-partition preview in the wizard; actual sizes are decided
@@ -122,8 +122,8 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	boardSize := getBoardSize(boardGPT)
-	if rootSize > 0 && rootSize > boardSize-minUserPartitionSize-SystemReservedBytes {
-		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-minUserPartitionSize)/GiB, rootSize/GiB)
+	if rootSize > 0 && rootSize > boardSize-MinUserPartitionSize-SystemReservedBytes {
+		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-MinUserPartitionSize)/GiB, rootSize/GiB)
 	}
 	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
 		rootSize = 20 * GiB
