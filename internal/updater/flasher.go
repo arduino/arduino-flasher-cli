@@ -25,10 +25,12 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
-const GiB = uint64(1024 * 1024 * 1024)
-const DownloadDiskSpace = uint64(12)
-const ExtractDiskSpace = uint64(10)
-const yesPrompt = "yes"
+const (
+	GiB               = uint64(1024 * 1024 * 1024)
+	DownloadDiskSpace = uint64(12)
+	ExtractDiskSpace  = uint64(10)
+	yesPrompt         = "yes"
+)
 
 func Flash(ctx context.Context, imagePath *paths.Path, version string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
@@ -90,8 +92,16 @@ type FlashEvent struct {
 
 type FlashCallback func(FlashEvent)
 
-const board16GB = 16000000000
-const board32GB = 32000000000
+const (
+	board16GB            = 16000000000
+	board32GB            = 32000000000
+	MinUserPartitionSize = 2 * GiB
+	// SystemReservedBytes is the approximate space taken by Qualcomm system
+	// partitions (xbl, abl, boot, tz, ...) before rootfs starts. Used only
+	// for the home-partition preview in the wizard; actual sizes are decided
+	// by the GPT shipped with the image.
+	SystemReservedBytes uint64 = 1 * GiB
+)
 
 func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
@@ -112,6 +122,9 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	boardSize := getBoardSize(boardGPT)
+	if rootSize > 0 && rootSize > boardSize-MinUserPartitionSize-SystemReservedBytes {
+		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-MinUserPartitionSize-SystemReservedBytes)/GiB, rootSize/GiB)
+	}
 	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
 		rootSize = 20 * GiB
 	}
