@@ -96,7 +96,7 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
 	if os == Ubuntu {
 		// TODO: use the correct manifest URL
-		return Manifest{}, fmt.Errorf("Ubuntu images are not supported yet")
+		return Manifest{}, fmt.Errorf("ubuntu images are not supported yet")
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
