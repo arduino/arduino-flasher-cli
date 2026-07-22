@@ -18,6 +18,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
@@ -64,9 +65,13 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			" " + os.Args[0] + " flash latest --preserve-user \n" +
 			" " + os.Args[0] + " flash latest --root-size 12GB \n",
 
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
+			if len(args) == 0 {
+				interactive.Run(cmd.Context())
+				return
+			}
 
 			rootSize := uint64(0)
 			if rootSizeStr != "" {

@@ -4,7 +4,7 @@ sources:
 cache_path: .licenses
 
 apps:
-  - source_path: .
+  - source_path: ./cmd/arduino-flasher-cli
 
 # Source: https://github.com/arduino/tooling-project-assets/blob/main/workflow-templates/assets/check-dependencies/GPL-3.0/.licensed.yml
 allowed:
