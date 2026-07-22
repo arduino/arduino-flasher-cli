@@ -41,12 +41,12 @@ func runDownloadCommand(ctx context.Context, args []string, destDir string) {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	version, boardType, err := updater.SetBoardAndVersion(ctx, args[0])
+	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
 	}
 
-	downloadPath, _, err = updater.DownloadImage(ctx, version, boardType, downloadPath)
+	downloadPath, _, err = updater.DownloadImage(ctx, version, boardType, os, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}

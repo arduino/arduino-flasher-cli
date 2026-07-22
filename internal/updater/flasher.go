@@ -33,7 +33,7 @@ const (
 	yesPrompt         = "yes"
 )
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType string, os string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -50,7 +50,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		v, err := DownloadAndExtract(ctx, version, boardType, temp)
+		v, err := DownloadAndExtract(ctx, version, boardType, os, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)

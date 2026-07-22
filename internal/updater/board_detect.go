@@ -21,24 +21,25 @@ import (
 
 const latest = "latest"
 
-func SetBoardAndVersion(ctx context.Context, version string) (string, string, error) {
+func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, string, error) {
 	boardType := registry.UnoQ
+	os := registry.Debian
 	switch version {
 	case latest:
 		var err error
 		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
 		boardType, err = DetectBoardType(ctx)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
-	case "unoq":
-		version = latest
-		boardType = registry.UnoQ
 	case "ventunoq":
 		version = latest
 		boardType = registry.VentunoQ
+		os = registry.Ubuntu
+	case "unoq":
+		version = latest
 	}
-	return version, boardType, nil
+	return version, boardType, os, nil
 }
 
 func DetectBoardType(ctx context.Context) (string, error) {

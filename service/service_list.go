@@ -20,7 +20,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	client := registry.NewClient()
 
 	// TODO: add Ventuno Q support
-	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ)
+	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ, registry.Debian)
 	if err != nil {
 		return nil, err
 	}

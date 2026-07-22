@@ -33,7 +33,7 @@ func runListCommand(ctx context.Context) {
 	client := registry.NewClient()
 
 	// TODO: add Ventuno Q support
-	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ)
+	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ, registry.Debian)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}
