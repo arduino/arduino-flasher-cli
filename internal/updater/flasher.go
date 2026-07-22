@@ -123,7 +123,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 
 	boardSize := getBoardSize(boardGPT)
 	if rootSize > 0 && rootSize > boardSize-MinUserPartitionSize-SystemReservedBytes {
-		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-MinUserPartitionSize)/GiB, rootSize/GiB)
+		return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-MinUserPartitionSize-SystemReservedBytes)/GiB, rootSize/GiB)
 	}
 	if rootSize == 0 && boardSize > board16GB && boardSize <= board32GB && !preserveUser {
 		rootSize = 20 * GiB
