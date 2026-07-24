@@ -46,7 +46,7 @@ func NewDaemonCommand(srv flasher.FlasherServer) *cobra.Command {
 }
 
 func runDaemonCommand(srv flasher.FlasherServer, daemonPort string, maxGRPCRecvMsgSize int) {
-	gRPCOptions := []grpc.ServerOption{}
+	gRPCOptions := make([]grpc.ServerOption, 0, 1)
 	gRPCOptions = append(gRPCOptions, grpc.MaxRecvMsgSize(maxGRPCRecvMsgSize))
 	s := grpc.NewServer(gRPCOptions...)
 
