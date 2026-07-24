@@ -22,6 +22,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
@@ -113,28 +114,26 @@ func checkDriversInstalled() {
 	}
 }
 
-// Prompts the user to confirm the flash operation and whether to preserve the user partition.
-func askFlashQuestions(r io.Reader, imageRef string, preserveUserFlagChanged bool, preserveUser bool) (bool, bool, error) {
-	feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will replace the system partition on the board. The user partition can optionally be preserved.\n"))
+// Prompts the user to confirm the flash operation.
+func askProceedFlash(r io.Reader, imageRef string) (bool, error) {
+	feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will replace the system partition on the board. On UNO Q, the user partition can optionally be preserved.\n"))
 	feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", imageRef)
 
 	var yesInput string
 	if _, err := fmt.Fscanf(r, "%s\n", &yesInput); err != nil {
-		return false, preserveUser, err
+		return false, err
 	}
-	if strings.ToLower(yesInput) != "yes" && strings.ToLower(yesInput) != "y" {
-		return false, preserveUser, nil
-	}
+	return strings.ToLower(yesInput) == "yes" || strings.ToLower(yesInput) == "y", nil
+}
 
-	if !preserveUserFlagChanged {
-		feedback.Print("Do you want to preserve the user partition? (yes/no)")
-		var preserveInput string
-		if _, err := fmt.Fscanf(r, "%s\n", &preserveInput); err != nil {
-			return false, preserveUser, err
-		}
-		preserveUser = strings.ToLower(preserveInput) == "yes" || strings.ToLower(preserveInput) == "y"
+// Prompts the user to choose whether to preserve the user partition.
+func askPreservePartition(r io.Reader) (bool, error) {
+	feedback.Print("Do you want to preserve the user partition? (yes/no)")
+	var preserveInput string
+	if _, err := fmt.Fscanf(r, "%s\n", &preserveInput); err != nil {
+		return false, err
 	}
-	return true, preserveUser, nil
+	return strings.ToLower(preserveInput) == "yes" || strings.ToLower(preserveInput) == "y", nil
 }
 
 func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, preserveUserFlagChanged bool, tempDir string, rootSize uint64) {
@@ -144,22 +143,29 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 	}
 
 	if !forceYes {
-		proceed, resolvedPreserveUser, err := askFlashQuestions(os.Stdin, args[0], preserveUserFlagChanged, preserveUser)
+		proceed, err := askProceedFlash(os.Stdin, args[0])
 		if err != nil {
 			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 		}
 		if !proceed {
 			return
 		}
-		preserveUser = resolvedPreserveUser
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
+	version, boardType, osName, err := updater.DetectBoardAndSetOs(ctx, args[0])
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
 	}
 
-	err = updater.Flash(ctx, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
+	// Preserving the user partition is only meaningful on UNO Q boards.
+	if !forceYes && !preserveUserFlagChanged && boardType == registry.UnoQ {
+		preserveUser, err = askPreservePartition(os.Stdin)
+		if err != nil {
+			feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+		}
+	}
+
+	err = updater.Flash(ctx, imagePath, version, boardType, osName, forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
