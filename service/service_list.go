@@ -19,7 +19,8 @@ import (
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
 	client := registry.NewClient()
 
-	manifest, err := client.GetInfoManifest(ctx)
+	// TODO: add support for Ubuntu images
+	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
 	if err != nil {
 		return nil, err
 	}

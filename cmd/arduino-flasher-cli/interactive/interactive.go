@@ -41,7 +41,8 @@ func Run(ctx context.Context) {
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
 			var err error
-			manifest, err = client.GetInfoManifest(ctx)
+			// TODO: add support for Ubuntu images
+			manifest, err = client.GetInfoManifest(ctx, registry.Debian)
 			return err
 		})
 	if err := sp.Run(); err != nil {
@@ -162,7 +163,8 @@ func Run(ctx context.Context) {
 	// Resolve image path (version string — Flash will download it)
 	imagePath, _ := paths.New(selectedVersion).Abs()
 
-	if err := updater.Flash(ctx, imagePath, selectedVersion, true, preserveUser, "", rootSize, nil); err != nil {
+	// TODO: add support for VENTUNO Q
+	if err := updater.Flash(ctx, imagePath, selectedVersion, registry.UnoQ, registry.Debian, true, preserveUser, "", rootSize, nil); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))

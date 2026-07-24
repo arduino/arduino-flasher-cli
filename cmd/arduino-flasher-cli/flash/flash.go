@@ -134,7 +134,12 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 		}
 	}
 
-	err = updater.Flash(ctx, imagePath, args[0], forceYes, preserveUser, tempDir, rootSize, nil)
+	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	}
+
+	err = updater.Flash(ctx, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

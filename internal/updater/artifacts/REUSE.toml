@@ -3,7 +3,9 @@ version = 1
 [[annotations]]
 path = [
   ".gitignore",
-  "read.xml"
+  "read.xml",
+  "detect.xml",
+  "prog_firehose_ddr.elf"
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
