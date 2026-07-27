@@ -144,3 +144,29 @@ func TestSerialHex(t *testing.T) {
 		})
 	}
 }
+
+func TestSerialDecimal(t *testing.T) {
+	tests := []struct {
+		name  string
+		input Serial
+		want  string
+	}{
+		{
+			name:  "Convert to decimal",
+			input: Serial{num: 0x075BCD15},
+			want:  "123456789",
+		},
+		{
+			name:  "Convert zero",
+			input: Serial{num: 0},
+			want:  "0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.input.Decimal()
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

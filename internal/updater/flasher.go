@@ -213,7 +213,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
 
 	if serialStr != "" {
-		serial, err := serial.FromHex(serialStr)
+		serial, err := serial.FromNum(serialStr)
 		if err != nil {
 			return err
 		}

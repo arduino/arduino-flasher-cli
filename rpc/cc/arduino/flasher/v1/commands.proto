@@ -43,9 +43,8 @@ message FlashRequest {
   string temp_path = 2;
   // Preserve user partition if possible.
   bool preserve_user = 3;
-  // Serial number of the target board to flash, as a hexadecimal string
-  // (e.g. "0004F3A1" or "0x0004F3A1"). Leave empty to target the first
-  // discovered board.
+  // Serial number of the target board to flash, as a decimal integer string.
+  // Leave empty to target the first discovered board.
   string serial = 4;
 }
 

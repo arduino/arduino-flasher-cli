@@ -70,8 +70,14 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
-			if err := validateSerial(serialStr); err != nil {
-				feedback.Fatal(i18n.Tr("invalid --serial value %q: must be a hexadecimal string (e.g. 0004F3A1 or 0x0004F3A1)", serialStr), feedback.ErrBadArgument)
+			if serialStr != "" {
+				s, err := serial.FromHex(serialStr)
+				if err != nil {
+					feedback.Fatal(i18n.Tr("invalid --serial value %q: must be a hexadecimal string (e.g. 0004F3A1 or 0x0004F3A1)", serialStr), feedback.ErrBadArgument)
+				}
+				// The updater and daemon RPC consume the serial as a decimal integer
+				// (see issue #96). Convert the hex CLI input to decimal here.
+				serialStr = s.Decimal()
 			}
 			if len(args) == 0 {
 				interactive.Run(cmd.Context())
@@ -150,14 +156,4 @@ func runFlashCommand(ctx context.Context, args []string, serialStr string, force
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
-}
-
-// validateSerial checks that s is a valid hexadecimal serial (with optional 0x/0X prefix).
-// An empty string is accepted (meaning "no serial specified").
-func validateSerial(s string) error {
-	if s == "" {
-		return nil
-	}
-	_, err := serial.FromHex(s)
-	return err
 }

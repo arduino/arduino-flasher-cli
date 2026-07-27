@@ -30,3 +30,8 @@ func FromHex(hexStr string) (Serial, error) {
 func (s Serial) Hex() string {
 	return fmt.Sprintf("%08X", s.num)
 }
+
+// Decimal returns the serial as a base-10 string.
+func (s Serial) Decimal() string {
+	return strconv.FormatInt(s.num, 10)
+}
