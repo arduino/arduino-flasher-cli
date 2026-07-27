@@ -11,3 +11,9 @@ import (
 
 //go:embed read.xml
 var ReadXML []byte
+
+//go:embed detect.xml
+var DetectXML []byte
+
+//go:embed prog_firehose_ddr.elf
+var ProgElf []byte

@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  GOLANGCI_LINT_VERSION: v2.5.0
+  GOLANGCI_LINT_VERSION: v2.12.2
   GOIMPORTS_VERSION: v0.38.0
   DPRINT_VERSION: 0.50.2
   VERSION: # if version is not passed we hack the semver by encoding the commit as pre-release

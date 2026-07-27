@@ -16,6 +16,11 @@ import (
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
+const (
+	taskExtract = "extract"
+	taskFlash   = "flash"
+)
+
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 
 	// Setup callback functions
@@ -59,7 +64,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion())
+	// TODO: add Ventuno Q support
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), registry.UnoQ, registry.Debian)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
@@ -83,19 +89,20 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	defer func() {
 		_ = extractPath.RemoveAll()
 	}()
-	extractCB(&flasher.TaskProgress{Name: "extract", Message: "Extracting image archive"})
+	extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
 	if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
-		extractCB(&flasher.TaskProgress{Name: "extract", Message: s})
+		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
 		return s
 	}); err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
-	extractCB(&flasher.TaskProgress{Name: "extract", Completed: true})
+	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 
-	flashCB(&flasher.TaskProgress{Name: "flash", Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
+	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
+	// TODO: boardType is hardcoded from now, but we should retrieve it from the request
+	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, registry.UnoQ, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
-			Name:     "flash",
+			Name:     taskFlash,
 			Message:  fe.Log,
 			Progress: int64(fe.Progress),
 			Total:    int64(fe.Total),
@@ -103,7 +110,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}); err != nil {
 		return err
 	}
-	flashCB(&flasher.TaskProgress{Name: "flash", Completed: true})
+	flashCB(&flasher.TaskProgress{Name: taskFlash, Completed: true})
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{
