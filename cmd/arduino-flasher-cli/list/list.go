@@ -32,18 +32,26 @@ func NewListCmd() *cobra.Command {
 func runListCommand(ctx context.Context) {
 	client := registry.NewClient()
 
-	// TODO: add support for Ubuntu images
-	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+	debianManifest, err := client.GetInfoManifest(ctx, registry.Debian)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}
+	ubuntuManifest, err := client.GetInfoManifest(ctx, registry.Ubuntu)
+	if err != nil {
+		// TODO: temporary warning
+		feedback.Warning(i18n.Tr("error retrieving the manifest: %v", err))
+	}
 
-	feedback.PrintResult(listResult{Latest: manifest.Latest, Releases: manifest.Releases})
+	releases := make([]registry.Release, 0)
+	releases = append(releases, debianManifest.Releases...)
+	releases = append(releases, ubuntuManifest.Releases...)
+	feedback.PrintResult(listResult{DebianLatest: debianManifest.Latest, UbuntuLatest: ubuntuManifest.Latest, Releases: releases})
 }
 
 type listResult struct {
-	Latest   registry.Release   `json:"latest"`
-	Releases []registry.Release `json:"releases"`
+	DebianLatest registry.Release   `json:"debian_latest"`
+	UbuntuLatest registry.Release   `json:"ubuntu_latest"`
+	Releases     []registry.Release `json:"releases"`
 }
 
 // Data implements Result interface
@@ -55,11 +63,11 @@ func (lr listResult) Data() interface{} {
 func (lr listResult) String() string {
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"VERSION", "LATEST"})
+	t.AppendHeader(table.Row{"VERSION", "BOARD", "OS DISTRO", "LATEST"})
 
 	for i := len(lr.Releases) - 1; i >= 0; i-- {
-		row := table.Row{lr.Releases[i].Version}
-		if lr.Releases[i].Version == lr.Latest.Version {
+		row := table.Row{lr.Releases[i].Version, lr.Releases[i].Board, lr.Releases[i].OsDistro}
+		if lr.Releases[i].Version == lr.DebianLatest.Version || lr.Releases[i].Version == lr.UbuntuLatest.Version {
 			row = append(row, "✓")
 		}
 		t.AppendRow(row)
