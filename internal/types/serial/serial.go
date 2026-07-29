@@ -9,6 +9,7 @@ package serial
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type Serial struct {
@@ -21,10 +22,16 @@ func FromNum(numStr string) (Serial, error) {
 }
 
 func FromHex(hexStr string) (Serial, error) {
-	num, err := strconv.ParseInt(hexStr, 16, 64)
+	s := strings.TrimPrefix(strings.TrimPrefix(hexStr, "0x"), "0X")
+	num, err := strconv.ParseInt(s, 16, 64)
 	return Serial{num: num}, err
 }
 
 func (s Serial) Hex() string {
 	return fmt.Sprintf("%08X", s.num)
+}
+
+// Decimal returns the serial as a base-10 string.
+func (s Serial) Decimal() string {
+	return strconv.FormatInt(s.num, 10)
 }

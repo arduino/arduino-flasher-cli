@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
@@ -28,6 +29,7 @@ const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
 
 func NewFlashCmd() *cobra.Command {
 	var forceYes, preserveUser bool
+	var serialStr string
 	var tempDir string
 	var rootSizeStr string
 	appCmd := &cobra.Command{
@@ -68,6 +70,15 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
+			if serialStr != "" {
+				s, err := serial.FromHex(serialStr)
+				if err != nil {
+					feedback.Fatal(i18n.Tr("invalid --serial value %q: must be a hexadecimal string (e.g. 0004F3A1 or 0x0004F3A1)", serialStr), feedback.ErrBadArgument)
+				}
+				// The updater and daemon RPC consume the serial as a decimal integer
+				// (see issue #96). Convert the hex CLI input to decimal here.
+				serialStr = s.Decimal()
+			}
 			if len(args) == 0 {
 				interactive.Run(cmd.Context())
 				return
@@ -90,9 +101,10 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args, serialStr, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
+	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
@@ -112,7 +124,7 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, args []string, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
@@ -139,7 +151,7 @@ func runFlashCommand(ctx context.Context, args []string, forceYes bool, preserve
 		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
 	}
 
-	err = updater.Flash(ctx, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
+	err = updater.Flash(ctx, serialStr, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

@@ -164,7 +164,7 @@ func Run(ctx context.Context) {
 	imagePath, _ := paths.New(selectedVersion).Abs()
 
 	// TODO: add support for VENTUNO Q
-	if err := updater.Flash(ctx, imagePath, selectedVersion, registry.UnoQ, registry.Debian, true, preserveUser, "", rootSize, nil); err != nil {
+	if err := updater.Flash(ctx, "", imagePath, selectedVersion, registry.UnoQ, registry.Debian, true, preserveUser, "", rootSize, nil); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))

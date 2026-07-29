@@ -33,7 +33,7 @@ const (
 	yesPrompt         = "yes"
 )
 
-func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType string, os string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version string, boardType string, os string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -82,7 +82,7 @@ func Flash(ctx context.Context, imagePath *paths.Path, version string, boardType
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, "", imagePath, version, boardType, preserveUser, rootSize, nil)
+	return FlashBoard(ctx, serialStr, imagePath, version, boardType, preserveUser, rootSize, nil)
 }
 
 type FlashEvent struct {
