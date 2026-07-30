@@ -51,7 +51,7 @@ func DownloadImage(ctx context.Context, targetVersion, boardType, os string, dow
 		if bar == nil {
 			bar = progressbar.DefaultBytes(
 				total,
-				i18n.Tr("Downloading Debian image version %s", rel.Version),
+				i18n.Tr("Downloading %s image version %s", os, rel.Version),
 			)
 		}
 		_ = bar.Set64(current)
