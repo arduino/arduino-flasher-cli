@@ -20,7 +20,9 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	client := registry.NewClient()
 
 	var releases []*flasher.Release
-	if req.GetBoard() == registry.UnoQ {
+	board := boardToString(req.GetBoard())
+	os := osToString(req.GetOs())
+	if board == registry.UnoQ {
 		manifest, err := client.GetInfoManifest(ctx, registry.Debian)
 		if err != nil {
 			return nil, err
@@ -36,8 +38,8 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 		})
 	}
 
-	if req.GetBoard() == registry.VentunoQ {
-		if req.GetOs() == registry.Debian {
+	if board == registry.VentunoQ {
+		if os == registry.Debian {
 			manifest, err := client.GetInfoManifest(ctx, registry.Debian)
 			if err != nil {
 				return nil, err
@@ -52,7 +54,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 				}
 			})
 		}
-		if req.GetOs() == registry.Ubuntu {
+		if os == registry.Ubuntu {
 			manifest, err := client.GetInfoManifest(ctx, registry.Ubuntu)
 			if err != nil {
 				return nil, err

@@ -24,11 +24,31 @@ service Flasher {
   rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
+// The type of the board that needs to be flashed.
+enum Board {
+  // Default, unspecified board type.
+  BOARD_UNSPECIFIED = 0;
+  // "UNO Q" board.
+  BOARD_UNO_Q = 1;
+  // "VENTUNO Q" board.
+  BOARD_VENTUNO_Q = 2;
+}
+
+// The OS distribution to be flashed on the board.
+enum OS {
+  // Default, unspecified OS distribution.
+  OS_UNSPECIFIED = 0;
+  // "debian" distribution.
+  OS_DEBIAN = 1;
+  // "ubuntu" distribution.
+  OS_UBUNTU = 2;
+}
+
 message ListRequest {
   // The type of the board that needs to be flashed.
-  string board = 1;
+  Board board = 1;
   // The OS distribution to be flashed on the board.
-  string os = 2;
+  OS os = 2;
 }
 
 message ListResponse {
@@ -52,9 +72,9 @@ message FlashRequest {
   // Leave empty to target the first discovered board.
   string serial = 4;
   // The type of the board that needs to be flashed.
-  string board = 5;
+  Board board = 5;
   // The OS distribution to be flashed on the board.
-  string os = 6;
+  OS os = 6;
 }
 
 message FlashResponse {

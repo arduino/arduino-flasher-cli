@@ -64,7 +64,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), req.GetBoard(), req.GetOs())
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), boardToString(req.GetBoard()), osToString(req.GetOs()))
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
@@ -98,7 +98,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
-	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, req.GetBoard(), req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
+	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, boardToString(req.GetBoard()), req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     taskFlash,
 			Message:  fe.Log,
