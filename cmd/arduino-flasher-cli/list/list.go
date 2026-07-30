@@ -7,9 +7,11 @@ package list
 
 import (
 	"context"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+	"go.bug.st/f"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -18,18 +20,20 @@ import (
 )
 
 func NewListCmd() *cobra.Command {
+	var board string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the available Linux images",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			runListCommand(cmd.Context())
+			runListCommand(cmd.Context(), board)
 		},
 	}
+	cmd.Flags().StringVar(&board, "board", "", "Filter by board type (UNO Q or VENTUNO Q)")
 	return cmd
 }
 
-func runListCommand(ctx context.Context) {
+func runListCommand(ctx context.Context, board string) {
 	client := registry.NewClient()
 
 	debianManifest, err := client.GetInfoManifest(ctx, registry.Debian)
@@ -41,10 +45,24 @@ func runListCommand(ctx context.Context) {
 		// TODO: temporary warning
 		feedback.Warning(i18n.Tr("error retrieving the manifest: %v", err))
 	}
-
 	releases := make([]registry.Release, 0)
 	releases = append(releases, debianManifest.Releases...)
 	releases = append(releases, ubuntuManifest.Releases...)
+	if board != "" {
+		board = strings.ToUpper(board)
+		switch board {
+		case "UNO":
+			board = registry.UnoQ
+		case "VENTUNO":
+			board = registry.VentunoQ
+		case registry.UnoQ, registry.VentunoQ:
+		default:
+			feedback.Fatal(i18n.Tr("invalid board type: %s", board), feedback.ErrBadArgument)
+		}
+		releases = f.Filter(releases, func(r registry.Release) bool {
+			return r.Board == board || (board == registry.UnoQ && r.Board == "")
+		})
+	}
 	feedback.PrintResult(listResult{DebianLatest: debianManifest.Latest, UbuntuLatest: ubuntuManifest.Latest, Releases: releases})
 }
 
