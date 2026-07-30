@@ -146,7 +146,7 @@ func runFlashCommand(ctx context.Context, args []string, serialStr string, force
 		}
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
+	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0], serialStr)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
 	}
