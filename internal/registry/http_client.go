@@ -30,11 +30,12 @@ import (
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
 const (
-	pathRelease = "debian-im/Stable"
-	UnoQ        = "UNO Q"
-	VentunoQ    = "VENTUNO Q"
-	Debian      = "debian"
-	Ubuntu      = "ubuntu"
+	pathDebianRelease = "debian-im/Stable"
+	pathUbuntuRelease = "ubuntu-im/custom-image/Stable"
+	UnoQ              = "UNO Q"
+	VentunoQ          = "VENTUNO Q"
+	Debian            = "debian"
+	Ubuntu            = "ubuntu"
 )
 
 type Manifest struct {
@@ -93,13 +94,18 @@ func (c *Client) addHeaders(req *http.Request) {
 	}
 }
 
-// GetInfoManifest fetches and decodes the Debian images info.json.
+// GetInfoManifest fetches and decodes the images info.json for the given OS.
 func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
-	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
-	if os == Ubuntu {
-		// TODO: use the correct manifest URL
-		return Manifest{}, fmt.Errorf("ubuntu images are not supported yet")
+	var releasePath string
+	switch os {
+	case Debian:
+		releasePath = pathDebianRelease
+	case Ubuntu:
+		releasePath = pathUbuntuRelease
+	default:
+		return Manifest{}, fmt.Errorf("unsupported OS: %s", os)
 	}
+	manifestURL := baseURL.JoinPath(releasePath, "info.json").String()
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
