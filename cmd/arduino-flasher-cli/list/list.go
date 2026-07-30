@@ -45,9 +45,8 @@ func runListCommand(ctx context.Context, board string) {
 		// TODO: temporary warning
 		feedback.Warning(i18n.Tr("error retrieving the manifest: %v", err))
 	}
-	releases := make([]registry.Release, 0)
-	releases = append(releases, debianManifest.Releases...)
-	releases = append(releases, ubuntuManifest.Releases...)
+	releases := append(debianManifest.Releases, ubuntuManifest.Releases...)
+
 	if board != "" {
 		board = strings.ToUpper(board)
 		switch board {
