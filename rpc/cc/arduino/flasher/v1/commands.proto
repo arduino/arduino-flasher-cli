@@ -24,7 +24,12 @@ service Flasher {
   rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
-message ListRequest {}
+message ListRequest {
+  // The type of the board that needs to be flashed.
+  string board = 1;
+  // The OS distribution to be flashed on the board.
+  string os = 2;
+}
 
 message ListResponse {
   repeated Release releases = 1;

@@ -19,18 +19,53 @@ import (
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
 	client := registry.NewClient()
 
-	// TODO: add support for Ubuntu images
-	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
-	if err != nil {
-		return nil, err
+	var releases []*flasher.Release
+	if req.GetBoard() == registry.UnoQ {
+		manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+		if err != nil {
+			return nil, err
+		}
+		manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
+			return r.Board == registry.UnoQ || r.Board == ""
+		})
+		releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
+			return &flasher.Release{
+				BuildId: r.Version,
+				Latest:  r.Version == manifest.Latest.Version,
+			}
+		})
 	}
 
-	releases := f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
-		return &flasher.Release{
-			BuildId: r.Version,
-			Latest:  r.Version == manifest.Latest.Version,
+	if req.GetBoard() == registry.VentunoQ {
+		if req.GetOs() == registry.Debian {
+			manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+			if err != nil {
+				return nil, err
+			}
+			manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
+				return r.Board == registry.VentunoQ
+			})
+			releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
+				return &flasher.Release{
+					BuildId: r.Version,
+					Latest:  r.Version == manifest.Latest.Version,
+				}
+			})
 		}
-	})
+		if req.GetOs() == registry.Ubuntu {
+			manifest, err := client.GetInfoManifest(ctx, registry.Ubuntu)
+			if err != nil {
+				return nil, err
+			}
+			releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
+				return &flasher.Release{
+					BuildId: r.Version,
+					Latest:  r.Version == manifest.Latest.Version,
+				}
+			})
+		}
+	}
+
 	slices.SortFunc(releases, func(a, b *flasher.Release) int {
 		if a.Latest {
 			if b.Latest {
