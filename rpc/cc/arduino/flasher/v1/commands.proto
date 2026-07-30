@@ -51,6 +51,10 @@ message FlashRequest {
   // Serial number of the target board to flash, as a decimal integer string.
   // Leave empty to target the first discovered board.
   string serial = 4;
+  // The type of the board that needs to be flashed.
+  string board = 5;
+  // The OS distribution to be flashed on the board.
+  string os = 6;
 }
 
 message FlashResponse {

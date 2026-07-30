@@ -158,18 +158,21 @@ func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardT
 		return Release{}, err
 	}
 
-	// TODO: boardType should be used here to filter Debian releases based on the board type
 	if version == "latest" || version == manifest.Latest.Version {
-		return manifest.Latest, nil
+		if manifest.Latest.Board == boardType || (boardType == UnoQ && manifest.Latest.Board == "") {
+			return manifest.Latest, nil
+		}
 	} else {
 		for _, r := range manifest.Releases {
 			if version == r.Version {
-				return r, nil
+				if r.Board == boardType || (boardType == UnoQ && r.Board == "") {
+					return r, nil
+				}
 			}
 		}
 	}
 
-	return Release{}, fmt.Errorf("could not find %s image %s", os, version)
+	return Release{}, fmt.Errorf("could not find %s image %s available for board type %s", os, version, boardType)
 }
 
 type downloadCallback func(current, total int64)
