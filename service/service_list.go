@@ -28,7 +28,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 			return nil, err
 		}
 		manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
-			return r.Board == registry.UnoQ || r.Board == ""
+			return r.Board == registry.UnoQ
 		})
 		releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
 			return &flasher.Release{

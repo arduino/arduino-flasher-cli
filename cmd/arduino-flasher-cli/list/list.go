@@ -60,7 +60,7 @@ func runListCommand(ctx context.Context, board string) {
 			feedback.Fatal(i18n.Tr("invalid board type: %s", board), feedback.ErrBadArgument)
 		}
 		releases = f.Filter(releases, func(r registry.Release) bool {
-			return r.Board == board || (board == registry.UnoQ && r.Board == "")
+			return r.Board == board
 		})
 	}
 	feedback.PrintResult(listResult{DebianLatest: debianManifest.Latest, UbuntuLatest: ubuntuManifest.Latest, Releases: releases})

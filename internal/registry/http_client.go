@@ -159,13 +159,13 @@ func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardT
 	}
 
 	if version == "latest" || version == manifest.Latest.Version {
-		if manifest.Latest.Board == boardType || (boardType == UnoQ && manifest.Latest.Board == "") {
+		if manifest.Latest.Board == boardType {
 			return manifest.Latest, nil
 		}
 	} else {
 		for _, r := range manifest.Releases {
 			if version == r.Version {
-				if r.Board == boardType || (boardType == UnoQ && r.Board == "") {
+				if r.Board == boardType {
 					return r, nil
 				}
 			}
