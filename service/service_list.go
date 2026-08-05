@@ -22,51 +22,19 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	var releases []*flasher.Release
 	board := boardToString(req.GetBoard())
 	os := osToString(req.GetOs())
-	if board == registry.UnoQ {
-		manifest, err := client.GetInfoManifest(ctx, registry.Debian)
-		if err != nil {
-			return nil, err
-		}
-		manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
-			return r.Board == registry.UnoQ
-		})
-		releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
-			return &flasher.Release{
-				BuildId: r.Version,
-				Latest:  r.Version == manifest.Latest.Version,
-			}
-		})
+	manifest, err := client.GetInfoManifest(ctx, os)
+	if err != nil {
+		return nil, err
 	}
-
-	if board == registry.VentunoQ {
-		if os == registry.Debian {
-			manifest, err := client.GetInfoManifest(ctx, registry.Debian)
-			if err != nil {
-				return nil, err
-			}
-			manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
-				return r.Board == registry.VentunoQ
-			})
-			releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
-				return &flasher.Release{
-					BuildId: r.Version,
-					Latest:  r.Version == manifest.Latest.Version,
-				}
-			})
+	manifest.Releases = f.Filter(manifest.Releases, func(r registry.Release) bool {
+		return r.Board == board
+	})
+	releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
+		return &flasher.Release{
+			BuildId: r.Version,
+			Latest:  r.Version == manifest.Latest.Version,
 		}
-		if os == registry.Ubuntu {
-			manifest, err := client.GetInfoManifest(ctx, registry.Ubuntu)
-			if err != nil {
-				return nil, err
-			}
-			releases = f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
-				return &flasher.Release{
-					BuildId: r.Version,
-					Latest:  r.Version == manifest.Latest.Version,
-				}
-			})
-		}
-	}
+	})
 
 	slices.SortFunc(releases, func(a, b *flasher.Release) int {
 		if a.Latest {
