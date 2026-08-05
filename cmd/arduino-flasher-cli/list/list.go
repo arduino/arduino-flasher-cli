@@ -29,7 +29,7 @@ func NewListCmd() *cobra.Command {
 			runListCommand(cmd.Context(), board)
 		},
 	}
-	cmd.Flags().StringVar(&board, "board", "", "Filter by board type (UNO Q or VENTUNO Q)")
+	cmd.Flags().StringVar(&board, "board", "", "Filter by board type (unoq or ventunoq)")
 	return cmd
 }
 
@@ -49,13 +49,12 @@ func runListCommand(ctx context.Context, board string) {
 	releases = append(releases, ubuntuManifest.Releases...)
 
 	if board != "" {
-		board = strings.ToUpper(board)
+		board = strings.ToLower(board)
 		switch board {
-		case "UNO":
+		case "unoq":
 			board = registry.UnoQ
-		case "VENTUNO":
+		case "ventunoq":
 			board = registry.VentunoQ
-		case registry.UnoQ, registry.VentunoQ:
 		default:
 			feedback.Fatal(i18n.Tr("invalid board type: %s", board), feedback.ErrBadArgument)
 		}
