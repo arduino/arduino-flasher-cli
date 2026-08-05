@@ -48,6 +48,12 @@ func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, s
 		// For now we assume that the board is an UNO Q, but in the future we should detect the board type.
 		boardType = registry.UnoQ
 		os = registry.Debian
+	case paths.New(version).Exist():
+		if strings.Contains(version, "-unoq-") {
+			boardType = registry.UnoQ
+		} else {
+			boardType = registry.VentunoQ
+		}
 	default:
 		return "", "", "", errors.New(i18n.Tr("invalid version: %s", version))
 	}
