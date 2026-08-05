@@ -49,7 +49,7 @@ type Release struct {
 	Sha256   string `json:"sha256"`
 	FileName string `json:"-"`
 	Board    string `json:"board,omitempty"`
-	OsDistro string `json:"os_distro,omitempty"`
+	OS       string `json:"os,omitempty"`
 }
 
 // Client holds the base URL, command name, allows custom HTTP client, and optional headers.

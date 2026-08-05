@@ -84,7 +84,7 @@ func (lr listResult) String() string {
 	t.AppendHeader(table.Row{"VERSION", "BOARD", "OS DISTRO", "LATEST"})
 
 	for i := len(lr.Releases) - 1; i >= 0; i-- {
-		row := table.Row{lr.Releases[i].Version, lr.Releases[i].Board, lr.Releases[i].OsDistro}
+		row := table.Row{lr.Releases[i].Version, lr.Releases[i].Board, lr.Releases[i].OS}
 		if lr.Releases[i].Version == lr.DebianLatest.Version || lr.Releases[i].Version == lr.UbuntuLatest.Version {
 			row = append(row, "✓")
 		}
