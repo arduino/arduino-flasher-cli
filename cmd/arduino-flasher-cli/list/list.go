@@ -84,7 +84,8 @@ func (lr listResult) String() string {
 
 	for i := len(lr.Releases) - 1; i >= 0; i-- {
 		row := table.Row{lr.Releases[i].Version, lr.Releases[i].Board, lr.Releases[i].OS}
-		if lr.Releases[i].Version == lr.DebianLatest.Version || lr.Releases[i].Version == lr.UbuntuLatest.Version {
+		if (lr.Releases[i].Version == lr.DebianLatest.Version && strings.Contains(lr.Releases[i].OS, "Debian")) ||
+			(lr.Releases[i].Version == lr.UbuntuLatest.Version && strings.Contains(lr.Releases[i].OS, "Ubuntu")) {
 			row = append(row, "✓")
 		}
 		t.AppendRow(row)
