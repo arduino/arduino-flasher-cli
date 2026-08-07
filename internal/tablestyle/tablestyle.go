@@ -22,7 +22,6 @@ var (
 		Size: table.SizeOptions{
 			WidthMin: 70,
 		},
-		},
 		Options: table.Options{
 			DrawBorder:      false,
 			SeparateColumns: true,
