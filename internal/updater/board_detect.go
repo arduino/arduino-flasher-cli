@@ -17,30 +17,20 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
-func DetectBoardType(ctx context.Context) (string, error) {
-	qdlPath, cleanup, err := installQdl()
-	if err != nil {
-		return "", err
-	}
-	defer cleanup()
-	detectBinPath := qdlPath.Parent().Join("detect.bin")
+func DetectBoardType(ctx context.Context, qdlPath, flashDir *paths.Path) (string, error) {
+	detectBinPath := flashDir.Join("detect.bin")
 	detectXMLPath := qdlPath.Parent().Join("detect.xml")
-	err = detectXMLPath.WriteFile(artifacts.DetectXML)
-	if err != nil {
-		return "", err
-	}
-	progElfPath := qdlPath.Parent().Join("prog_firehose_ddr.elf")
-	err = progElfPath.WriteFile(artifacts.ProgElf)
-	if err != nil {
+	if err := detectXMLPath.WriteFile(artifacts.DetectXML); err != nil {
 		return "", err
 	}
 	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", detectXMLPath.String())
 	if err != nil {
 		return "", err
 	}
-	cmd.SetDir(qdlPath.Parent().String())
+	cmd.SetDir(flashDir.String())
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return "", err
+		// qdl fails with exit code 1 if the programmer retrieved from the image is not compatible with the board.
+		return "", fmt.Errorf("%w: the provided image might not be compatible with the attached board", err)
 	}
 	if !detectBinPath.Exist() {
 		return "", fmt.Errorf("it was not possible to access the CDT")

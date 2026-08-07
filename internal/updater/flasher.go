@@ -84,17 +84,7 @@ func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version
 		imagePath = temp
 	}
 
-	feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
-	detectedBoardType, err := DetectBoardType(ctx)
-	if err != nil {
-		return err
-	}
-	// TODO: loop until the correct board is detected? Or store the image?
-	if wantedBoard != "" && detectedBoardType != wantedBoard {
-		return fmt.Errorf("the board type detected (%s) does not match the board type specified (%s)", detectedBoardType, wantedBoard)
-	}
-
-	return FlashBoard(ctx, serialStr, imagePath, version, detectedBoardType, preserveUser, rootSize, nil)
+	return FlashBoard(ctx, serialStr, imagePath, version, wantedBoard, preserveUser, rootSize, nil)
 }
 
 type FlashEvent struct {
@@ -127,8 +117,19 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
+	// TODO: should this check be avoided in gRPC mode?
+	feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
+	detectedBoardType, err := DetectBoardType(ctx, qdlPath, flashDir)
+	if err != nil {
+		return err
+	}
+	// TODO: loop until the correct board is detected? Or store the image?
+	if boardType != "" && detectedBoardType != boardType {
+		return fmt.Errorf("the board type detected (%s) does not match the board type specified (%s)", detectedBoardType, boardType)
+	}
+
 	rawProgram := "rawprogram0.xml"
-	if boardType == registry.UnoQ {
+	if detectedBoardType == registry.UnoQ {
 		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
 		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
 		if err != nil {
