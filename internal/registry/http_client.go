@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -36,6 +37,15 @@ const (
 	VentunoQ          = "VENTUNO Q"
 	Debian            = "debian"
 	Ubuntu            = "ubuntu"
+)
+
+var (
+	// ErrManifestNotFound indicates that the manifest endpoint for a given OS is
+	// unavailable (the server responded with HTTP 404).
+	ErrManifestNotFound = errors.New("manifest not found")
+	// ErrReleaseNotFound indicates that a manifest was fetched successfully but it
+	// contains no release matching the requested version and board type.
+	ErrReleaseNotFound = errors.New("release not found")
 )
 
 type Manifest struct {
@@ -117,6 +127,9 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 		return Manifest{}, fmt.Errorf("failed to GET manifest: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return Manifest{}, fmt.Errorf("%w: %s", ErrManifestNotFound, manifestURL)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return Manifest{}, fmt.Errorf("bad http status from %s: %v", manifestURL, resp.Status)
 	}
@@ -153,26 +166,73 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 }
 
 func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardType string, os string) (Release, error) {
+	if os != "" {
+		return c.GetReleaseByVersionAndOs(ctx, version, boardType, os)
+	}
+	if version == "latest" {
+		return c.GetReleaseByVersionAndOs(ctx, version, boardType, Debian)
+	}
+
+	// No OS specified: probe both manifests. A missing manifest (404) or a missing
+	// release for an OS is treated as "not available for that OS" and we fall
+	// through to the other. Any other error (network failure, bad HTTP status,
+	// invalid JSON) is a genuine failure and is propagated to the caller instead
+	// of being masked as a generic "not found"; if both probes fail genuinely,
+	// both errors are surfaced.
+	debRel, debErr := c.GetReleaseByVersionAndOs(ctx, version, boardType, Debian)
+	ubuntuRel, ubuntuErr := c.GetReleaseByVersionAndOs(ctx, version, boardType, Ubuntu)
+
+	var genuineErrs []error
+	if debErr != nil && !isReleaseUnavailable(debErr) {
+		genuineErrs = append(genuineErrs, debErr)
+	}
+	if ubuntuErr != nil && !isReleaseUnavailable(ubuntuErr) {
+		genuineErrs = append(genuineErrs, ubuntuErr)
+	}
+	if len(genuineErrs) > 0 {
+		return Release{}, errors.Join(genuineErrs...)
+	}
+
+	switch {
+	case debErr == nil && ubuntuErr == nil:
+		return Release{}, fmt.Errorf("found both Debian and Ubuntu releases for version %s; please specify the OS", version)
+	case debErr == nil:
+		return debRel, nil
+	case ubuntuErr == nil:
+		return ubuntuRel, nil
+	default:
+		return Release{}, fmt.Errorf("%w: %s for board type %q in Debian or Ubuntu releases", ErrReleaseNotFound, version, boardType)
+	}
+}
+
+// isReleaseUnavailable reports whether err indicates that a release simply is not
+// available for a given OS (either the manifest is missing or it contains no
+// matching release), as opposed to a genuine fetch or parse error.
+func isReleaseUnavailable(err error) bool {
+	return errors.Is(err, ErrReleaseNotFound) || errors.Is(err, ErrManifestNotFound)
+}
+
+func (c *Client) GetReleaseByVersionAndOs(ctx context.Context, version string, boardType string, os string) (Release, error) {
 	manifest, err := c.GetInfoManifest(ctx, os)
 	if err != nil {
 		return Release{}, err
 	}
 
 	if version == "latest" || version == manifest.Latest.Version {
-		if manifest.Latest.Board == boardType {
+		if boardType == "" || manifest.Latest.Board == boardType {
 			return manifest.Latest, nil
 		}
 	} else {
 		for _, r := range manifest.Releases {
 			if version == r.Version {
-				if r.Board == boardType {
+				if boardType == "" || r.Board == boardType {
 					return r, nil
 				}
 			}
 		}
 	}
 
-	return Release{}, fmt.Errorf("could not find %s image %s available for board type %s", os, version, boardType)
+	return Release{}, fmt.Errorf("%w: %s image %s for board type %q", ErrReleaseNotFound, os, version, boardType)
 }
 
 type downloadCallback func(current, total int64)

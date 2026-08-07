@@ -21,6 +21,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
@@ -32,16 +33,18 @@ func NewFlashCmd() *cobra.Command {
 	var serialStr string
 	var tempDir string
 	var rootSizeStr string
+	var board string
+	var distro string
 	appCmd := &cobra.Command{
 		Use:   "flash",
-		Short: "Flash a Debian image on the board",
-		Long: `Flash a Debian image on the board.
+		Short: "Flash an image on the board",
+		Long: `Flash an image on the board.
 
 WARNING: This operation will completely replace the current system on the board.
 Make sure to backup any important data before proceeding.
 
 This command accepts either:
-  - A local file path to a compressed Debian image file (e.g., .tar.zst, .tar.xz) or a decompressed Debian image folder
+  - A local file path to a compressed image file (e.g., .tar.zst, .tar.xz) or a decompressed image folder
   - A version tag to download from the remote repository
 
 When providing a local file path:
@@ -50,7 +53,8 @@ When providing a local file path:
   - The image is flashed into the board
 
 When providing a version tag:
-  - Use 'latest' to download the most recent stable image
+  - If the 'distro' flag is not specified, both Debian and Ubuntu indexes are scanned to find the requested version
+  - Use 'latest' to download the most recent stable image (defaults to Debian if the 'distro' flag is not specified)
   - Use a specific version tag (e.g., '20250915-173') to download that exact version
   - The image will be automatically downloaded (in a temp folder), the sha is verified, and flashed
 
@@ -101,7 +105,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args, serialStr, forceYes, preserveUser, tempDir, rootSize, board, distro)
 		},
 	}
 	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
@@ -109,6 +113,8 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
 	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
+	appCmd.Flags().StringVar(&board, "board", "", "Specify the board type (unoq or ventunoq)")
+	appCmd.Flags().StringVar(&distro, "distro", "", "Specify the operating system distro (debian or ubuntu)")
 
 	return appCmd
 }
@@ -124,7 +130,7 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, args []string, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, board string, distro string) {
 	imagePath, err := paths.New(args[0]).Abs()
 	if err != nil {
 		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
@@ -146,12 +152,29 @@ func runFlashCommand(ctx context.Context, args []string, serialStr string, force
 		}
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	board = strings.ToLower(board)
+	switch board {
+	case "unoq":
+		board = registry.UnoQ
+	case "ventunoq":
+		board = registry.VentunoQ
+	case "":
+	default:
+		feedback.Fatal(i18n.Tr("invalid board type: %s. Supported values are 'unoq' or 'ventunoq'", board), feedback.ErrBadArgument)
 	}
 
-	err = updater.Flash(ctx, serialStr, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
+	distro = strings.ToLower(distro)
+	switch distro {
+	case "debian":
+		distro = registry.Debian
+	case "ubuntu":
+		distro = registry.Ubuntu
+	case "":
+	default:
+		feedback.Fatal(i18n.Tr("invalid distro type: %s. Supported values are 'debian' or 'ubuntu'", distro), feedback.ErrBadArgument)
+	}
+
+	err = updater.Flash(ctx, serialStr, imagePath, args[0], board, distro, forceYes, preserveUser, tempDir, rootSize, nil)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

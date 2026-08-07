@@ -8,57 +8,14 @@ package updater
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
 
-	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
-	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
-
-const latest = "latest"
-
-func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, string, error) {
-	boardType := registry.UnoQ
-	os := registry.Debian
-	switch {
-	case version == latest:
-		var err error
-		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
-		boardType, err = DetectBoardType(ctx)
-		if err != nil {
-			return "", "", "", err
-		}
-	case version == "ventunoq":
-		version = latest
-		boardType = registry.VentunoQ
-		os = registry.Ubuntu
-	case version == "unoq":
-		version = latest
-	case strings.HasPrefix(version, "ubuntu-"):
-		version = strings.TrimPrefix(version, "ubuntu-")
-		boardType = registry.VentunoQ
-		os = registry.Ubuntu
-	case strings.HasPrefix(version, "debian-"):
-		version = strings.TrimPrefix(version, "debian-")
-		// For now we assume that the board is an UNO Q, but in the future we should detect the board type.
-		boardType = registry.UnoQ
-		os = registry.Debian
-	case paths.New(version).Exist():
-		if strings.Contains(version, "-unoq-") {
-			boardType = registry.UnoQ
-		} else {
-			boardType = registry.VentunoQ
-		}
-	default:
-		return "", "", "", errors.New(i18n.Tr("invalid version: %s", version))
-	}
-	return version, boardType, os, nil
-}
 
 func DetectBoardType(ctx context.Context) (string, error) {
 	qdlPath, cleanup, err := installQdl()

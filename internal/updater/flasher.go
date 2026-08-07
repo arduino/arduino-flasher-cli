@@ -33,7 +33,8 @@ const (
 	yesPrompt         = "yes"
 )
 
-func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version string, boardType string, os string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version string, boardFilter string, osFilter string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
+	wantedBoard := ""
 	if !imagePath.Exist() {
 		temp, err := SetTempDir("download-", tempDir)
 		if err != nil {
@@ -50,7 +51,7 @@ func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version
 			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
 		}
 
-		v, err := DownloadAndExtract(ctx, version, boardType, os, temp)
+		v, board, err := DownloadAndExtract(ctx, version, boardFilter, osFilter, temp)
 
 		if err != nil {
 			return fmt.Errorf("could not download and extract the image: %v", err)
@@ -58,6 +59,7 @@ func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version
 
 		version = v
 		imagePath = temp
+		wantedBoard = board
 	} else if !imagePath.IsDir() {
 		temp, err := SetTempDir("extract-", tempDir)
 		if err != nil {
@@ -82,7 +84,17 @@ func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, serialStr, imagePath, version, boardType, preserveUser, rootSize, nil)
+	feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
+	detectedBoardType, err := DetectBoardType(ctx)
+	if err != nil {
+		return err
+	}
+	// TODO: loop until the correct board is detected? Or store the image?
+	if wantedBoard != "" && detectedBoardType != wantedBoard {
+		return fmt.Errorf("the board type detected (%s) does not match the board type specified (%s)", detectedBoardType, wantedBoard)
+	}
+
+	return FlashBoard(ctx, serialStr, imagePath, version, detectedBoardType, preserveUser, rootSize, nil)
 }
 
 type FlashEvent struct {
