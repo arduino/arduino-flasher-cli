@@ -2,6 +2,13 @@
 
 A tool to download and flash Debian images on the board.
 
+## Prepare the hardware
+
+1. Power off the board and disconnect every cable.
+2. Put the board in flashing mode by holding the boot button while plugging the USB-C cable into the host computer.
+3. Keep the button pressed for a few seconds, then release it: the board is now waiting for an image.
+4. Make sure no other tool (IDE, serial monitor) is using the port before flashing.
+
 ## Docs
 
 For a full guide on how to use it, see the [User documentation](https://docs.arduino.cc/tutorials/uno-q/update-image/).
