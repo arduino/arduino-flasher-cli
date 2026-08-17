@@ -25,16 +25,6 @@ per target platform is embedded into the executable. The binaries are not kept
 in this repository; they are downloaded during the build by
 `internal/updater/artifacts/download_resources.sh`.
 
-### Qualcomm Firehose programmer
-
-- File: `internal/updater/artifacts/prog_firehose_ddr.elf`
-- Copyright: QUALCOMM TECHNOLOGIES, INC.
-- License: LicenseRef-QTI-binary-redistribution
-  (`LICENSES/LicenseRef-QTI-binary-redistribution.txt`)
-
-The programmer that is uploaded to the board over EDL before any partition is
-written. Redistributed in binary form only, as required by its terms.
-
 ### Windows driver files
 
 - Files: `cmd/arduino-flasher-cli/drivers/src/unoq.cat`, `unoq.inf`
