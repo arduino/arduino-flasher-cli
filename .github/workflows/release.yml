@@ -70,12 +70,12 @@ jobs:
 
       - name: Prepare Build Artifacts (!windows)
         working-directory: ./${{ env.DIST_DIR }}
-        run: tar -czf ${{ env.RELEASE_NAME }}.tar.gz arduino-flasher-cli -C ../ LICENSE README.md LICENSES
+        run: tar -czf ${{ env.RELEASE_NAME }}.tar.gz arduino-flasher-cli -C ../ LICENSE README.md LICENSES NOTICE.md
         if: matrix.os != 'windows'
 
       - name: Prepare Build Artifacts (windows)
         working-directory: ./${{ env.DIST_DIR }}
-        run: 7z a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe ../LICENSE ../README.md ../LICENSES
+        run: 7z a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe ../LICENSE ../README.md ../LICENSES ../NOTICE.md
         if: matrix.os == 'windows'
 
       - name: Upload artifacts
@@ -127,7 +127,7 @@ jobs:
 
       - name: Prepare Build Artifacts
         run: |
-          ${{ env.SEVENZ_PATH }} a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe LICENSE README.md LICENSES
+          ${{ env.SEVENZ_PATH }} a -tzip ${{ env.RELEASE_NAME }}.zip arduino-flasher-cli.exe LICENSE README.md LICENSES NOTICE.md
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -139,7 +139,7 @@ jobs:
 
       # This step is needed because the self hosted runner does not delete files automatically
       - name: Cleanup
-        run: rm -r ${{ env.RELEASE_NAME }}.zip LICENSE README.md arduino-flasher-cli.exe LICENSES
+        run: rm -r ${{ env.RELEASE_NAME }}.zip LICENSE README.md arduino-flasher-cli.exe LICENSES NOTICE.md
 
   notarize-macos:
     name: Notarize macOS
@@ -256,7 +256,7 @@ jobs:
             +x \
             "${{ env.PROJECT_NAME }}"
 
-          tar -czf ${{ env.PACKAGE_FILENAME }} ${{ env.PROJECT_NAME }} LICENSE README.md LICENSES
+          tar -czf ${{ env.PACKAGE_FILENAME }} ${{ env.PROJECT_NAME }} LICENSE README.md LICENSES NOTICE.md
 
       - name: Replace artifact with notarized build
         uses: actions/upload-artifact@v4
