@@ -131,8 +131,22 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
+	def, err := registry.DefFor(boardType)
+	if err != nil {
+		return err
+	}
+	if !def.PreserveUser {
+		// Silently ignoring these would wipe data the user asked to keep.
+		if preserveUser {
+			return fmt.Errorf("preserving the user partition is not supported on the %s", boardType)
+		}
+		if rootSize > 0 {
+			return fmt.Errorf("choosing the root partition size is not supported on the %s", boardType)
+		}
+	}
+
 	rawProgram := "rawprogram0.xml"
-	if boardType == registry.UnoQ {
+	if def.PreserveUser {
 		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
 		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
 		if err != nil {

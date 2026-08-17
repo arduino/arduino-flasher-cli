@@ -45,14 +45,20 @@ type BoardDef struct {
 	// so it is discoverable by reading the indexes.
 	DefaultOs Os
 	Variants  []Variant
+	// PreserveUser tells whether a flash can keep the user partition. It works by
+	// reading the board's partition table before writing, which is also what
+	// sizing the root partition needs, so a board without it is flashed with the
+	// layout the image ships with.
+	PreserveUser bool
 }
 
 // Supported is every board the flasher knows about.
 var Supported = []BoardDef{
 	{
-		Board:     UnoQ,
-		Alias:     "unoq",
-		DefaultOs: Debian,
+		Board:        UnoQ,
+		Alias:        "unoq",
+		DefaultOs:    Debian,
+		PreserveUser: true,
 		Variants: []Variant{
 			{Label: "UNO Q (2GB RAM, 16GB storage)", Capacity: 16_000_000_000},
 			{Label: "UNO Q (4GB RAM, 32GB storage)", Capacity: 32_000_000_000, DefaultRootSize: 20 * 1024 * 1024 * 1024},
