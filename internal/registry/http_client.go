@@ -40,23 +40,6 @@ func indexPath(os Os) (string, error) {
 	}
 }
 
-// Board is a board the flasher can target.
-type Board string
-
-const (
-	UnoQ     Board = "UNO Q"
-	VentunoQ Board = "VENTUNO Q"
-)
-
-// Os is a Linux distribution images are published for. Images are indexed per
-// OS, not per board.
-type Os string
-
-const (
-	Debian Os = "debian"
-	Ubuntu Os = "ubuntu"
-)
-
 type Manifest struct {
 	Latest   Release   `json:"latest"`
 	Releases []Release `json:"releases"`

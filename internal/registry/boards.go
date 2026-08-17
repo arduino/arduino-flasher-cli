@@ -7,6 +7,25 @@ package registry
 
 import "fmt"
 
+// Board is a board the flasher can target. The name matches the one each release
+// carries in the index.
+type Board string
+
+const (
+	UnoQ     Board = "UNO Q"
+	VentunoQ Board = "VENTUNO Q"
+)
+
+// Os is the distribution family an image belongs to, and picks the index to look
+// in. It is not the manifest's own os field, which spells out the exact release
+// ("Debian GNU/Linux 13 (trixie)").
+type Os string
+
+const (
+	Debian Os = "debian"
+	Ubuntu Os = "ubuntu"
+)
+
 // Variant is one storage configuration of a board.
 type Variant struct {
 	Label string
