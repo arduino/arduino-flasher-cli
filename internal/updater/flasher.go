@@ -6,6 +6,7 @@
 package updater
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -33,56 +34,67 @@ const (
 	yesPrompt         = "yes"
 )
 
-func Flash(ctx context.Context, serialStr string, imagePath *paths.Path, version string, boardType string, os string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, callback FlashCallback) error {
-	if !imagePath.Exist() {
-		temp, err := SetTempDir("download-", tempDir)
+type FlashOptions struct {
+	Serial       string
+	PreserveUser bool
+	TempDir      string
+	RootSize     uint64
+}
+
+// DownloadAndFlash fetches the release and flashes it. It is the composition the
+// CLI needs; the daemon reports progress between the steps and uses them
+// directly instead.
+func DownloadAndFlash(ctx context.Context, ref registry.ImageRef, opts FlashOptions) error {
+	temp, err := SetTempDir("download-", opts.TempDir)
+	if err != nil {
+		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
+	}
+	defer func() { _ = temp.RemoveAll() }()
+
+	if err := checkFreeSpace(temp, DownloadDiskSpace, "download and extraction"); err != nil {
+		return err
+	}
+
+	version, err := DownloadAndExtract(ctx, ref, temp)
+	if err != nil {
+		return fmt.Errorf("could not download and extract the image: %v", err)
+	}
+
+	return FlashBoard(ctx, opts.Serial, temp, version, ref.Board, opts.PreserveUser, opts.RootSize, nil)
+}
+
+// FlashImage flashes an image already on disk, extracting it first when it is an
+// archive.
+func FlashImage(ctx context.Context, imagePath *paths.Path, opts FlashOptions) error {
+	if !imagePath.IsDir() {
+		temp, err := SetTempDir("extract-", opts.TempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}
 		defer func() { _ = temp.RemoveAll() }()
 
-		// Check if there is enough free disk space before downloading and extracting an image
-		d, err := disk.Usage(temp.String())
-		if err != nil {
+		if err := checkFreeSpace(temp, ExtractDiskSpace, "extraction"); err != nil {
 			return err
 		}
-		if d.Free/GiB < DownloadDiskSpace {
-			return fmt.Errorf("download and extraction requires up to %d GiB of free space", DownloadDiskSpace)
-		}
 
-		v, err := DownloadAndExtract(ctx, version, boardType, os, temp)
-
-		if err != nil {
-			return fmt.Errorf("could not download and extract the image: %v", err)
-		}
-
-		version = v
-		imagePath = temp
-	} else if !imagePath.IsDir() {
-		temp, err := SetTempDir("extract-", tempDir)
-		if err != nil {
-			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
-		}
-		defer func() { _ = temp.RemoveAll() }()
-
-		// Check if there is enough free disk space before extracting an image
-		d, err := disk.Usage(temp.String())
-		if err != nil {
-			return err
-		}
-		if d.Free/GiB < ExtractDiskSpace {
-			return fmt.Errorf("extraction requires up to %d GiB of free space", ExtractDiskSpace)
-		}
-
-		err = ExtractImage(ctx, imagePath, temp)
-		if err != nil {
+		if err := ExtractImage(ctx, imagePath, temp); err != nil {
 			return fmt.Errorf("error extracting the archive: %v", err)
 		}
-
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, serialStr, imagePath, version, boardType, preserveUser, rootSize, nil)
+	return FlashBoard(ctx, opts.Serial, imagePath, imagePath.Base(), registry.UnoQ, opts.PreserveUser, opts.RootSize, nil)
+}
+
+func checkFreeSpace(dir *paths.Path, requiredGiB uint64, what string) error {
+	d, err := disk.Usage(dir.String())
+	if err != nil {
+		return err
+	}
+	if d.Free/GiB < requiredGiB {
+		return fmt.Errorf("%s requires up to %d GiB of free space", what, requiredGiB)
+	}
+	return nil
 }
 
 type FlashEvent struct {
@@ -94,7 +106,9 @@ type FlashEvent struct {
 type FlashCallback func(FlashEvent)
 
 const (
-	board16GB            = 16000000000
+	// MinRootSize is a floor for a requested root partition. The rootfs shipped
+	// in the image is around 7.3 GiB, so anything near that cannot hold it.
+	MinRootSize          = 9 * GiB
 	MinUserPartitionSize = 2 * GiB
 	// SystemReservedBytes is the approximate space taken by Qualcomm system
 	// partitions (xbl, abl, boot, tz, ...) before rootfs starts. Used only
@@ -103,7 +117,7 @@ const (
 	SystemReservedBytes uint64 = 1 * GiB
 )
 
-func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardType string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
+func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardType registry.Board, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return err
@@ -127,8 +141,11 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		if rootSize > 0 && rootSize > boardSize-MinUserPartitionSize-SystemReservedBytes {
 			return fmt.Errorf("root size exceeds available space. Max size: %d GiB, requested root size: %d GiB", (boardSize-MinUserPartitionSize-SystemReservedBytes)/GiB, rootSize/GiB)
 		}
-		if rootSize == 0 && boardSize > board16GB && !preserveUser {
-			rootSize = 20 * GiB
+		if rootSize == 0 && !preserveUser {
+			// An unknown capacity just means there is no default to apply.
+			if variant, err := registry.VariantFor(boardType, boardSize); err == nil {
+				rootSize = variant.DefaultRootSize
+			}
 		}
 
 		if preserveUser {
@@ -252,16 +269,19 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	}
 
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			if exitErr.ExitCode() == 1 && runtime.GOOS == "linux" {
-				return fmt.Errorf("exit status %d\nPossible qcserial issue?\nSee https://docs.arduino.cc/tutorials/uno-q/update-image/#fixing-qcserial-issue-linux-only for details", exitErr.ExitCode())
-			}
-		}
-		return err
+		return fmt.Errorf("%w%s", err, qdlExitHint(err))
 	}
 
 	return nil
+}
+
+// qdlExitHint names the known cause of a qdl failure, when there is one.
+func qdlExitHint(err error) string {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 && runtime.GOOS == "linux" {
+		return "\nPossible qcserial issue? See https://docs.arduino.cc/tutorials/uno-q/update-image/#fixing-qcserial-issue-linux-only for details"
+	}
+	return ""
 }
 
 func searchForFlashDir(extractPath *paths.Path) (*paths.Path, error) {
@@ -317,8 +337,11 @@ func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (GptT
 		return GptTable{}, err
 	}
 	cmd.SetDir(flashDir.String())
+	var out bytes.Buffer
+	cmd.RedirectStdoutTo(&out)
+	cmd.RedirectStderrTo(&out)
 	if err := cmd.RunWithinContext(ctx); err != nil {
-		return GptTable{}, err
+		return GptTable{}, fmt.Errorf("could not read the board's partition table: %w%s\n%s", err, qdlExitHint(err), out.String())
 	}
 	if !dumpBinPath.Exist() {
 		return GptTable{}, fmt.Errorf("it was not possible to access the current Debian image GPT table")

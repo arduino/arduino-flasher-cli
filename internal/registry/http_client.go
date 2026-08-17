@@ -29,12 +29,21 @@ import (
 
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
+// Board is a board the flasher can target.
+type Board string
+
 const (
-	pathRelease = "debian-im/Stable"
-	UnoQ        = "UNO Q"
-	VentunoQ    = "VENTUNO Q"
-	Debian      = "debian"
-	Ubuntu      = "ubuntu"
+	UnoQ     Board = "UNO Q"
+	VentunoQ Board = "VENTUNO Q"
+)
+
+// Os is a Linux distribution images are published for. Images are indexed per
+// OS, not per board.
+type Os string
+
+const (
+	Debian Os = "debian"
+	Ubuntu Os = "ubuntu"
 )
 
 type Manifest struct {
@@ -91,13 +100,9 @@ func (c *Client) addHeaders(req *http.Request) {
 	}
 }
 
-// GetInfoManifest fetches and decodes the Debian images info.json.
-func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
-	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
-	if os == Ubuntu {
-		// TODO: use the correct manifest URL
-		return Manifest{}, fmt.Errorf("ubuntu images are not supported yet")
-	}
+// GetInfoManifest fetches and decodes an index's info.json.
+func (c *Client) GetInfoManifest(ctx context.Context, index ImageIndex) (Manifest, error) {
+	manifestURL := baseURL.JoinPath(index.Path, "info.json").String()
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
@@ -144,13 +149,12 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 	return res, nil
 }
 
-func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardType string, os string) (Release, error) {
-	manifest, err := c.GetInfoManifest(ctx, os)
+func (c *Client) GetReleaseByVersion(ctx context.Context, version string, index ImageIndex) (Release, error) {
+	manifest, err := c.GetInfoManifest(ctx, index)
 	if err != nil {
 		return Release{}, err
 	}
 
-	// TODO: boardType should be used here to filter Debian releases based on the board type
 	if version == "latest" || version == manifest.Latest.Version {
 		return manifest.Latest, nil
 	} else {
@@ -161,7 +165,7 @@ func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardT
 		}
 	}
 
-	return Release{}, fmt.Errorf("could not find %s image %s", os, version)
+	return Release{}, fmt.Errorf("could not find %s image %s", index.Os, version)
 }
 
 type downloadCallback func(current, total int64)

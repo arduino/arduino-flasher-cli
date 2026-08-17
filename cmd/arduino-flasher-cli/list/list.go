@@ -32,8 +32,12 @@ func NewListCmd() *cobra.Command {
 func runListCommand(ctx context.Context) {
 	client := registry.NewClient()
 
-	// TODO: add support for Ubuntu images
-	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+	// TODO: list the images of every supported board, not just the UNO Q's
+	index, err := registry.IndexFor(registry.UnoQ, "")
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
+	manifest, err := client.GetInfoManifest(ctx, index)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}

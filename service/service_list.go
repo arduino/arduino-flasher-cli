@@ -19,8 +19,12 @@ import (
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
 	client := registry.NewClient()
 
-	// TODO: add support for Ubuntu images
-	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+	// TODO: list the images of every supported board, not just the UNO Q's
+	index, err := registry.IndexFor(registry.UnoQ, "")
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := client.GetInfoManifest(ctx, index)
 	if err != nil {
 		return nil, err
 	}

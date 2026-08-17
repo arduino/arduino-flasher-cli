@@ -12,12 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetManifestBoardType(t *testing.T) {
-	c := NewClient()
-	_, err := c.GetInfoManifest(context.Background(), Ubuntu)
-	require.Error(t, err)
+func TestGetInfoManifest(t *testing.T) {
+	index, err := IndexFor(UnoQ, "")
+	require.NoError(t, err)
 
-	manifest, err := c.GetInfoManifest(context.Background(), Debian)
+	manifest, err := NewClient().GetInfoManifest(context.Background(), index)
 	require.NoError(t, err)
 	require.NotEmpty(t, manifest.Releases)
 }

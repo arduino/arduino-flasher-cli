@@ -12,20 +12,18 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/arduino/go-paths-helper"
 	runas "github.com/arduino/go-windows-runas"
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/selector"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
-
-const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
 
 func NewFlashCmd() *cobra.Command {
 	var forceYes, preserveUser bool
@@ -42,30 +40,33 @@ Make sure to backup any important data before proceeding.
 
 This command accepts either:
   - A local file path to a compressed Debian image file (e.g., .tar.zst, .tar.xz) or a decompressed Debian image folder
-  - A version tag to download from the remote repository
+  - A selector naming the board, and optionally the OS and the version, to download
 
 When providing a local file path:
   - The path can be relative or absolute
   - The file is extracted in a temp folder (if needed)
   - The image is flashed into the board
 
-When providing a version tag:
-  - Use 'latest' to download the most recent stable image
-  - Use a specific version tag (e.g., '20250915-173') to download that exact version
+When providing a selector:
+  - Name the board to get its most recent image, e.g. 'unoq'
+  - Add the OS when the board publishes more than one, e.g. 'unoq-debian'
+  - Add a version tag to pick an exact image, e.g. 'unoq-debian-20250915-173'
   - The image will be automatically downloaded (in a temp folder), the sha is verified, and flashed
+
+The board has to be named: the connected board cannot be identified on its own.
 
 
 NOTE: On Windows, required drivers are automatically installed with elevated privileges.
 `,
-		Example: " " + os.Args[0] + " flash latest\n" +
-			" " + os.Args[0] + " flash 20250915-173\n" +
+		Example: " " + os.Args[0] + " flash unoq\n" +
+			" " + os.Args[0] + " flash unoq-debian-20250915-173\n" +
 			" " + os.Args[0] + " flash ./my-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
 			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
 			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
-			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n" +
-			" " + os.Args[0] + " flash latest --preserve-user \n" +
-			" " + os.Args[0] + " flash latest --root-size 12GB \n",
+			" " + os.Args[0] + " flash unoq --temp-dir /path/to/custom/tempDir \n" +
+			" " + os.Args[0] + " flash unoq --preserve-user \n" +
+			" " + os.Args[0] + " flash unoq --root-size 12GB \n",
 
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -96,8 +97,8 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 					feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
 				}
 
-				if rootSize < minRootSize {
-					feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
+				if rootSize < updater.MinRootSize {
+					feedback.Fatal(i18n.Tr("root-size must be at least %s", humanize.IBytes(updater.MinRootSize)), feedback.ErrBadArgument)
 				}
 			}
 
@@ -125,9 +126,9 @@ func checkDriversInstalled() {
 }
 
 func runFlashCommand(ctx context.Context, args []string, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
-	imagePath, err := paths.New(args[0]).Abs()
+	imagePath, release, err := selector.Parse(args[0])
 	if err != nil {
-		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
 	if !forceYes && !preserveUser {
@@ -146,12 +147,17 @@ func runFlashCommand(ctx context.Context, args []string, serialStr string, force
 		}
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	opts := updater.FlashOptions{
+		Serial:       serialStr,
+		PreserveUser: preserveUser,
+		TempDir:      tempDir,
+		RootSize:     rootSize,
 	}
-
-	err = updater.Flash(ctx, serialStr, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
+	if imagePath != nil {
+		err = updater.FlashImage(ctx, imagePath, opts)
+	} else {
+		err = updater.DownloadAndFlash(ctx, release, opts)
+	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
