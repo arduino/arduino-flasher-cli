@@ -64,8 +64,12 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	// TODO: add Ventuno Q support
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), registry.UnoQ, registry.Debian)
+	// TODO: take the board from the request instead of assuming an UNO Q
+	def, err := registry.DefFor(registry.UnoQ)
+	if err != nil {
+		return err
+	}
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), def.DefaultOs)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}

@@ -22,26 +22,23 @@ import (
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, targetVersion string, boardType string, os string, temp *paths.Path) (string, error) {
-	tmpZip, version, err := DownloadImage(ctx, targetVersion, boardType, os, temp)
+func DownloadAndExtract(ctx context.Context, index registry.Os, version string, temp *paths.Path) (string, error) {
+	tmpZip, version, err := DownloadImage(ctx, index, version, temp)
 	if err != nil {
 		return "", fmt.Errorf("error downloading the image: %v", err)
 	}
 
-	err = ExtractImage(ctx, tmpZip, temp)
-	if err != nil {
+	if err := ExtractImage(ctx, tmpZip, temp); err != nil {
 		return "", fmt.Errorf("error extracting the image: %v", err)
-	}
-
-	if targetVersion == "latest" {
-		version += "(latest)"
 	}
 	return version, nil
 }
 
-func DownloadImage(ctx context.Context, targetVersion, boardType, os string, downloadPath *paths.Path) (*paths.Path, string, error) {
+// DownloadImage fetches a release from the given index, the most recent one when
+// no version is asked for. It returns the archive and the version it holds.
+func DownloadImage(ctx context.Context, index registry.Os, version string, downloadPath *paths.Path) (*paths.Path, string, error) {
 	client := registry.NewClient()
-	rel, err := client.GetReleaseByVersion(ctx, targetVersion, boardType, os)
+	rel, err := client.GetReleaseByVersion(ctx, version, index)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not get release info: %w", err)
 	}

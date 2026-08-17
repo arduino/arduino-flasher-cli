@@ -21,7 +21,7 @@ import (
 
 const latest = "latest"
 
-func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, string, error) {
+func DetectBoardAndSetOs(ctx context.Context, version string) (string, registry.Board, registry.Os, error) {
 	boardType := registry.UnoQ
 	os := registry.Debian
 	switch version {
@@ -42,7 +42,7 @@ func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, s
 	return version, boardType, os, nil
 }
 
-func DetectBoardType(ctx context.Context) (string, error) {
+func DetectBoardType(ctx context.Context) (registry.Board, error) {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return "", err

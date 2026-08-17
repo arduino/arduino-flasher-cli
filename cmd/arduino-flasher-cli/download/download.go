@@ -8,45 +8,57 @@ package download
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 func NewDownloadCmd() *cobra.Command {
 	var destDir string
+	var osStr string
+	var version string
 	cmd := &cobra.Command{
 		Use:   "download",
 		Short: "Download a Linux image to the specified path",
-		Args:  cobra.ExactArgs(1),
-		Example: " " + os.Args[0] + " download latest\n" +
-			" " + os.Args[0] + " download 20251024-412\n" +
-			" " + os.Args[0] + " download latest --dest-dir /tmp\n",
+		Long: `Download a Linux image to the specified path.
+
+The argument is the board the image is for. The most recent image is downloaded
+unless --version names one, and --os selects the distribution for boards that
+publish more than one.
+`,
+		Args: cobra.ExactArgs(1),
+		Example: " " + os.Args[0] + " download unoq\n" +
+			" " + os.Args[0] + " download unoq --version 20251024-412\n" +
+			" " + os.Args[0] + " download unoq --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(cmd.Context(), args, destDir)
+			runDownloadCommand(cmd.Context(), args[0], destDir, registry.Os(osStr), version)
 		},
 	}
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
+	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, for boards that publish more than one")
+	cmd.Flags().StringVar(&version, "version", "", "Version of the image to download. Leave empty for the most recent")
 
 	return cmd
 }
 
-func runDownloadCommand(ctx context.Context, args []string, destDir string) {
+func runDownloadCommand(ctx context.Context, boardAlias, destDir string, imageOs registry.Os, version string) {
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	def, ok := registry.DefForAlias(boardAlias)
+	if !ok {
+		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardAlias, strings.Join(registry.Aliases(), ", ")), feedback.ErrBadArgument)
 	}
 
-	downloadPath, _, err = updater.DownloadImage(ctx, version, boardType, os, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, def.Index(imageOs), version, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}

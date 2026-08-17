@@ -7,6 +7,8 @@ package list
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
@@ -18,22 +20,40 @@ import (
 )
 
 func NewListCmd() *cobra.Command {
+	var osStr string
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   "list [board]",
 		Short: "List the available Linux images",
-		Args:  cobra.NoArgs,
+		Long: `List the available Linux images.
+
+The argument is the board to list the images of, defaulting to the UNO Q.
+`,
+		Args: cobra.MaximumNArgs(1),
+		Example: " " + os.Args[0] + " list\n" +
+			" " + os.Args[0] + " list unoq\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runListCommand(cmd.Context())
+			boardAlias := "unoq"
+			if len(args) > 0 {
+				boardAlias = args[0]
+			}
+			runListCommand(cmd.Context(), boardAlias, registry.Os(osStr))
 		},
 	}
+	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to list, for boards that publish more than one")
 	return cmd
 }
 
-func runListCommand(ctx context.Context) {
+func runListCommand(ctx context.Context, boardAlias string, imageOs registry.Os) {
+	def, ok := registry.DefForAlias(boardAlias)
+	if !ok {
+		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardAlias, strings.Join(registry.Aliases(), ", ")), feedback.ErrBadArgument)
+	}
+
 	client := registry.NewClient()
 
-	// TODO: add support for Ubuntu images
-	manifest, err := client.GetInfoManifest(ctx, registry.Debian)
+	// The whole index is listed: telling apart the boards inside it needs the
+	// board each release carries, which is not decoded yet.
+	manifest, err := client.GetInfoManifest(ctx, def.Index(imageOs))
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}

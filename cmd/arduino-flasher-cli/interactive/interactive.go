@@ -16,7 +16,6 @@ import (
 
 	"charm.land/huh/v2"
 	"charm.land/huh/v2/spinner"
-	"github.com/arduino/go-paths-helper"
 	"github.com/dustin/go-humanize"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -25,28 +24,34 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-const (
-	rootSizeMin uint64 = 9 * updater.GiB
-
-	board16GBBytes uint64 = 16_000_000_000
-	board32GBBytes uint64 = 32_000_000_000
-)
-
 // Run starts the interactive wizard and performs the flash.
 func Run(ctx context.Context) {
 	client := registry.NewClient()
+
+	// Only the UNO Q for now: a second board would need a step asking which one.
+	def, err := registry.DefFor(registry.UnoQ)
+	if err != nil {
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	}
 
 	var manifest registry.Manifest
 	sp := spinner.New().
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
 			var err error
-			// TODO: add support for Ubuntu images
-			manifest, err = client.GetInfoManifest(ctx, registry.Debian)
+			manifest, err = client.GetInfoManifest(ctx, def.DefaultOs)
 			return err
 		})
 	if err := sp.Run(); err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
+	}
+
+	// The storage size is asked rather than read: reading it needs the programmer
+	// that ships with the image, which is not downloaded yet. The sizes are
+	// checked against the real GPT once it has been extracted.
+	variantOptions := make([]huh.Option[registry.Variant], 0, len(def.Variants))
+	for _, v := range def.Variants {
+		variantOptions = append(variantOptions, huh.NewOption(v.Label, v))
 	}
 
 	versionOptions := make([]huh.Option[string], 0, len(manifest.Releases))
@@ -60,7 +65,7 @@ func Run(ctx context.Context) {
 	}
 
 	var (
-		boardStorage    uint64
+		variant         registry.Variant
 		selectedVersion string
 		preserveUser    bool
 		rootPctStr      string
@@ -70,14 +75,11 @@ func Run(ctx context.Context) {
 	form := huh.NewForm(
 		// Step 1 — pick board variant
 		huh.NewGroup(
-			huh.NewSelect[uint64]().
-				Title(i18n.Tr("Select your board")).
+			huh.NewSelect[registry.Variant]().
+				Title(i18n.Tr("Select your %s", def.Board)).
 				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
-				Options(
-					huh.NewOption(i18n.Tr("UNO Q (2GB RAM, 16GB storage)"), board16GBBytes),
-					huh.NewOption(i18n.Tr("UNO Q (4GB RAM, 32GB storage)"), board32GBBytes),
-				).
-				Value(&boardStorage),
+				Options(variantOptions...).
+				Value(&variant),
 		),
 
 		// Step 2 — pick image
@@ -107,8 +109,8 @@ func Run(ctx context.Context) {
 			huh.NewInput().
 				Title(i18n.Tr("Root partition size (%% of total storage)")).
 				DescriptionFunc(func() string {
-					return buildSplitPreview(boardStorage, rootPctStr)
-				}, []any{&boardStorage, &rootPctStr}).
+					return buildSplitPreview(variant.Capacity, rootPctStr)
+				}, []any{&variant, &rootPctStr}).
 				Placeholder(i18n.Tr("e.g. 50 (leave blank for default)")).
 				Value(&rootPctStr).
 				Validate(func(input string) error {
@@ -122,11 +124,11 @@ func Run(ctx context.Context) {
 					if pct < 1 || pct > 95 {
 						return fmt.Errorf("percentage must be between 1 and 95")
 					}
-					rootSize := rootSizeFromPct(boardStorage, pct)
-					if rootSize < rootSizeMin {
-						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", rootSizeMin/updater.GiB)
+					rootSize := rootSizeFromPct(variant.Capacity, pct)
+					if rootSize < updater.MinRootSize {
+						return fmt.Errorf("root partition must be at least %d GiB (try a higher percentage)", updater.MinRootSize/updater.GiB)
 					}
-					if rootSize+updater.SystemReservedBytes+updater.MinUserPartitionSize >= boardStorage {
+					if rootSize+updater.SystemReservedBytes+updater.MinUserPartitionSize >= variant.Capacity {
 						return fmt.Errorf("percentage too high: no space left for the home partition")
 					}
 					return nil
@@ -138,8 +140,8 @@ func Run(ctx context.Context) {
 			huh.NewConfirm().
 				Title(i18n.Tr("Ready to flash")).
 				DescriptionFunc(func() string {
-					return buildSummary(boardStorage, selectedVersion, preserveUser, parseRootSize(boardStorage, rootPctStr, preserveUser))
-				}, []any{&boardStorage, &selectedVersion, &preserveUser, &rootPctStr}).
+					return buildSummary(variant.Label, selectedVersion, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
+				}, []any{&variant, &selectedVersion, &preserveUser, &rootPctStr}).
 				Affirmative(i18n.Tr("Flash now")).
 				Negative(i18n.Tr("Cancel")).
 				Value(&confirm),
@@ -158,13 +160,10 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	rootSize := parseRootSize(boardStorage, rootPctStr, preserveUser)
+	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
-	// Resolve image path (version string — Flash will download it)
-	imagePath, _ := paths.New(selectedVersion).Abs()
-
-	// TODO: add support for VENTUNO Q
-	if err := updater.Flash(ctx, "", imagePath, selectedVersion, registry.UnoQ, registry.Debian, true, preserveUser, "", rootSize, nil); err != nil {
+	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
+	if err := updater.DownloadAndFlash(ctx, def.Board, def.DefaultOs, selectedVersion, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
@@ -243,7 +242,7 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	return toPadString()
 }
 
-func buildSummary(boardStorage uint64, version string, preserveUser bool, rootSize uint64) string {
+func buildSummary(boardLabel, version string, preserveUser bool, rootSize uint64) string {
 	userPartition := i18n.Tr("will be erased")
 	if preserveUser {
 		userPartition = i18n.Tr("preserved")
@@ -256,7 +255,7 @@ func buildSummary(boardStorage uint64, version string, preserveUser bool, rootSi
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+i18n.Tr("UNO Q (%s storage)", humanize.Bytes(boardStorage)))
+	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+boardLabel)
 	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
 	fmt.Fprintln(w, i18n.Tr("User partition:")+"\t"+userPartition)
 	fmt.Fprintln(w, i18n.Tr("Root size:")+"\t"+rootSizeStr)
