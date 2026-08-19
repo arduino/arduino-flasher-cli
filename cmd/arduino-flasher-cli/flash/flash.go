@@ -6,6 +6,7 @@
 package flash
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -42,18 +43,14 @@ func NewFlashCmd() *cobra.Command {
 WARNING: This operation will completely replace the current system on the board.
 Make sure to backup any important data before proceeding.
 
-The first argument is the board to flash, the second an image already on disk.
-With no argument the interactive wizard is started.
+The first argument is the board to flash, the second an OS image file already on disk.
+Both arguments are optional. If no arguments are specified, the interactive wizard is
+started.
 
-Without an image:
-  - The most recent one is downloaded, unless --version names another
-  - --os selects the distribution, for boards that publish more than one
-  - It is downloaded in a temp folder, the sha is verified, and flashed
-
-With an image:
-  - The path can be relative or absolute
-  - It can be a compressed image (.tar.zst, .tar.xz) or an extracted folder
-  - The compressed image is extracted to a temp folder (if needed) and flashed
+If a board is specified without an OS image file:
+  - The OS image is downloaded in a temp folder, verified with checksum, and flashed
+  - Unless a --version is specified, the most recent OS image will be selected
+  - If more than one distribution is available, it may be specified with --os
 
 NOTE: On Windows, required drivers are automatically installed with elevated privileges.
 `,
@@ -109,13 +106,13 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			runFlashCommand(cmd.Context(), args[0], imageArg, registry.Os(osStr), version, serialStr, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
+	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
+	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
 	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
 	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
-	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, for boards that publish more than one")
-	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for the most recent")
 
 	return appCmd
 }
@@ -145,7 +142,7 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs regi
 
 	if !forceYes && !preserveUser {
 		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
-		target := board.Label
+		target := cmp.Or(version, i18n.Tr("the latest image"))
 		if imagePath != nil {
 			target = imagePath.Base()
 		}

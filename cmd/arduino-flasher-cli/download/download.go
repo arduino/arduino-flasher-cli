@@ -41,9 +41,9 @@ than one is available.
 			runDownloadCommand(cmd.Context(), args[0], destDir, registry.Os(osStr), version)
 		},
 	}
+	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
+	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
-	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, for boards that publish more than one")
-	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for the most recent")
 
 	return cmd
 }
