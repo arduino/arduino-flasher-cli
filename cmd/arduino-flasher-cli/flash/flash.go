@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
+	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
@@ -126,6 +127,8 @@ func checkDriversInstalled() {
 }
 
 func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+	arg, version = argparse.LegacyArg(arg, version)
+
 	board, imagePath, err := resolveArg(arg)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)

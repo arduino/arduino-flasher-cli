@@ -13,6 +13,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
@@ -52,6 +53,8 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs re
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
+
+	boardID, version = argparse.LegacyArg(boardID, version)
 
 	board, ok := registry.BoardByID(registry.BoardID(boardID))
 	if !ok {
