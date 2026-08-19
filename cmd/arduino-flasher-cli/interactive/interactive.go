@@ -30,7 +30,7 @@ import (
 // image is a release together with the index it was found in, which is what the
 // flash needs and the release itself does not carry.
 type image struct {
-	index   registry.Os
+	index   string
 	release registry.Release
 }
 
@@ -66,7 +66,7 @@ func Run(ctx context.Context) {
 			label += " (latest)"
 		}
 		if len(registry.Indexes()) > 1 {
-			label += " — " + string(img.index)
+			label += " — " + img.index
 		}
 		versionOptions = append(versionOptions, huh.NewOption(label, img))
 	}
@@ -183,9 +183,9 @@ func Run(ctx context.Context) {
 
 // fetchImages reads every index and groups what is published by board, newest
 // first. Boards are offered by what exists, so one appears the day its images do.
-func fetchImages(ctx context.Context) map[registry.BoardID][]image {
+func fetchImages(ctx context.Context) map[string][]image {
 	client := registry.NewClient()
-	images := map[registry.BoardID][]image{}
+	images := map[string][]image{}
 
 	var errs []error
 	sp := spinner.New().
@@ -228,14 +228,14 @@ func fetchImages(ctx context.Context) map[registry.BoardID][]image {
 
 // selectBoard asks which board to flash, and reports whether the wizard should
 // go on.
-func selectBoard(ctx context.Context, boardIDs []registry.BoardID, boardID *registry.BoardID) bool {
-	options := make([]huh.Option[registry.BoardID], 0, len(boardIDs))
+func selectBoard(ctx context.Context, boardIDs []string, boardID *string) bool {
+	options := make([]huh.Option[string], 0, len(boardIDs))
 	for _, id := range boardIDs {
 		b, _ := registry.BoardByID(id)
 		options = append(options, huh.NewOption(b.Label, id))
 	}
 	form := huh.NewForm(huh.NewGroup(
-		huh.NewSelect[registry.BoardID]().
+		huh.NewSelect[string]().
 			Title(i18n.Tr("Select your board")).
 			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 			Options(options...).

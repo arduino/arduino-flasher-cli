@@ -71,11 +71,12 @@ func runListCommand(ctx context.Context, boardID, imageOs string) {
 			failed++
 			continue
 		}
-		result.Latest[index] = manifest.Latest
 		for _, r := range manifest.Releases {
 			// An index names a board by its label.
 			if board.ID == "" || r.Board == board.Label {
 				result.Releases = append(result.Releases, r)
+				// Oldest first, so the last one of a board is its most recent.
+				result.Latest[r.Board] = r
 			}
 		}
 	}
@@ -87,8 +88,8 @@ func runListCommand(ctx context.Context, boardID, imageOs string) {
 }
 
 type listResult struct {
-	// Latest is each index's own most recent release, not necessarily the most
-	// recent one for the board asked for.
+	// Latest is the most recent release of each board, which is what "latest"
+	// means now that an index holds several of them.
 	Latest   map[string]registry.Release `json:"latest"`
 	Releases []registry.Release          `json:"releases"`
 	// board is only for the empty-result message.
@@ -110,12 +111,8 @@ func (lr listResult) String() string {
 	}
 
 	isLatest := func(r registry.Release) bool {
-		for _, latest := range lr.Latest {
-			if r.Url != "" && latest.Url == r.Url {
-				return true
-			}
-		}
-		return false
+		latest, ok := lr.Latest[r.Board]
+		return ok && r.Url != "" && latest.Url == r.Url
 	}
 
 	t := table.NewWriter()

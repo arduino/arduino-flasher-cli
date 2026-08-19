@@ -57,8 +57,10 @@ func indexPath(os string) (string, error) {
 	return "", fmt.Errorf("no image index is published for %s yet", os)
 }
 
+// Manifest is what an index publishes. Its releases are listed oldest first,
+// and hold every board the index is built for, so the most recent one is per
+// board rather than per index.
 type Manifest struct {
-	Latest   Release   `json:"latest"`
 	Releases []Release `json:"releases"`
 }
 
@@ -147,12 +149,6 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return Manifest{}, fmt.Errorf("invalid manifest JSON: %w", err)
 	}
-	if sha256Byte, err := hex.DecodeString(res.Latest.Sha256); err != nil {
-		return Manifest{}, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
-	} else if len(sha256Byte) != sha256.Size {
-		return Manifest{}, fmt.Errorf("bad sha256sum in manifest: got %d bytes", len(sha256Byte))
-	}
-
 	getFileName := func(rel Release) (string, error) {
 		url, err := url.Parse(rel.Url)
 		if err != nil {
@@ -160,10 +156,12 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 		}
 		return path.Base(url.Path), nil
 	}
-	if res.Latest.FileName, err = getFileName(res.Latest); err != nil {
-		return Manifest{}, err
-	}
 	for i := range res.Releases {
+		if sha256Byte, err := hex.DecodeString(res.Releases[i].Sha256); err != nil {
+			return Manifest{}, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
+		} else if len(sha256Byte) != sha256.Size {
+			return Manifest{}, fmt.Errorf("bad sha256sum in manifest: got %d bytes", len(sha256Byte))
+		}
 		if name, err := getFileName(res.Releases[i]); err != nil {
 			return Manifest{}, err
 		} else {
@@ -193,11 +191,7 @@ func (c *Client) GetReleaseByVersion(ctx context.Context, version, os, boardID s
 	}
 
 	if version == "" {
-		if matches(manifest.Latest) {
-			return manifest.Latest, nil
-		}
-		// The overall latest is another board's. Oldest first, so the last
-		// match is this board's most recent.
+		// Oldest first, so the last match is this board's most recent.
 		for i := len(manifest.Releases) - 1; i >= 0; i-- {
 			if matches(manifest.Releases[i]) {
 				return manifest.Releases[i], nil
@@ -206,9 +200,6 @@ func (c *Client) GetReleaseByVersion(ctx context.Context, version, os, boardID s
 		return Release{}, fmt.Errorf("no %s image is published for the %s", os, board)
 	}
 
-	if version == manifest.Latest.Version && matches(manifest.Latest) {
-		return manifest.Latest, nil
-	}
 	for _, r := range manifest.Releases {
 		if version == r.Version && matches(r) {
 			return r, nil
