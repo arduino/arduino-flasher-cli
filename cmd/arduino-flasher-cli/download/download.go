@@ -29,9 +29,9 @@ func NewDownloadCmd() *cobra.Command {
 		Short: "Download a Linux image to the specified path",
 		Long: `Download a Linux image to the specified path.
 
-The argument is the board the image is for. The most recent image is downloaded
-unless --version names one, and --os selects the distribution for boards that
-publish more than one.
+The first argument is the board name. The most recent image is downloaded
+unless a --version is specified. The --os flag selects the distribution if more
+than one is available.
 `,
 		Args: cobra.ExactArgs(1),
 		Example: " " + os.Args[0] + " download unoq\n" +
