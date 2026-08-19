@@ -15,11 +15,11 @@ import (
 func TestBoardByID(t *testing.T) {
 	board, ok := BoardByID("unoq")
 	require.True(t, ok)
-	assert.Equal(t, UnoQ, board.ID)
+	assert.Equal(t, UnoQ, board)
 
 	board, ok = BoardByID("ventunoq")
 	require.True(t, ok)
-	assert.Equal(t, VentunoQ, board.ID)
+	assert.Equal(t, VentunoQ, board)
 
 	// A path is not a board, which is what keeps a file named after one from
 	// shadowing it.
@@ -28,38 +28,28 @@ func TestBoardByID(t *testing.T) {
 }
 
 func TestResolveOs(t *testing.T) {
-	unoQ, ok := BoardByID(UnoQ)
-	require.True(t, ok)
-	assert.Equal(t, Debian, unoQ.ResolveOs(""), "falls back to the default of the board")
-	assert.Equal(t, Ubuntu, unoQ.ResolveOs(Ubuntu), "an explicit OS wins over the default")
-
-	ventunoQ, ok := BoardByID(VentunoQ)
-	require.True(t, ok)
-	assert.Equal(t, Ubuntu, ventunoQ.ResolveOs(""))
+	assert.Equal(t, Debian, UnoQ.ResolveOs(""), "falls back to the default of the board")
+	assert.Equal(t, Ubuntu, UnoQ.ResolveOs(Ubuntu), "an explicit OS wins over the default")
+	assert.Equal(t, Ubuntu, VentunoQ.ResolveOs(""))
 }
 
 // A board reports slightly less than its advertised size, so matching has to be
 // by range. The rootfs in the image is ~7.3 GiB, hence these are plausible
 // values rather than the round marketing numbers.
 func TestVariantByCapacity(t *testing.T) {
-	unoQ, ok := BoardByID(UnoQ)
-	require.True(t, ok)
-
-	v, err := unoQ.VariantByCapacity(15_634_268_160)
+	v, err := UnoQ.VariantByCapacity(15_634_268_160)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(16_000_000_000), v.Capacity)
 	assert.Zero(t, v.DefaultRootSize, "the 16 GB variant keeps the size the image ships with")
 
-	v, err = unoQ.VariantByCapacity(31_268_536_320)
+	v, err = UnoQ.VariantByCapacity(31_268_536_320)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(32_000_000_000), v.Capacity)
 	assert.Equal(t, uint64(20*1024*1024*1024), v.DefaultRootSize)
 
-	_, err = unoQ.VariantByCapacity(64_000_000_000)
+	_, err = UnoQ.VariantByCapacity(64_000_000_000)
 	require.ErrorContains(t, err, "no known UNO Q variant can hold")
 
-	ventunoQ, ok := BoardByID(VentunoQ)
-	require.True(t, ok)
-	_, err = ventunoQ.VariantByCapacity(15_634_268_160)
+	_, err = VentunoQ.VariantByCapacity(15_634_268_160)
 	require.ErrorContains(t, err, "no known VENTUNO Q variant can hold")
 }

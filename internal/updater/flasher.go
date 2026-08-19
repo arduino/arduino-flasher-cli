@@ -84,7 +84,7 @@ func FlashImage(ctx context.Context, imagePath *paths.Path, opts FlashOptions) e
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, opts.Serial, imagePath, imagePath.Base(), registry.UnoQ, opts.PreserveUser, opts.RootSize, nil)
+	return FlashBoard(ctx, opts.Serial, imagePath, imagePath.Base(), registry.UnoQ.ID, opts.PreserveUser, opts.RootSize, nil)
 }
 
 func checkFreeSpace(dir *paths.Path, requiredGiB uint64, what string) error {

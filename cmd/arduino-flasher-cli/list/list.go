@@ -32,7 +32,7 @@ The argument is the board to list the images of, defaulting to the UNO Q.
 		Example: " " + os.Args[0] + " list\n" +
 			" " + os.Args[0] + " list unoq\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			boardID := string(registry.UnoQ)
+			boardID := string(registry.UnoQ.ID)
 			if len(args) > 0 {
 				boardID = args[0]
 			}

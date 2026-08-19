@@ -10,11 +10,6 @@ import "fmt"
 // BoardID names a board, both on the command line and in the code.
 type BoardID string
 
-const (
-	UnoQ     BoardID = "unoq"
-	VentunoQ BoardID = "ventunoq"
-)
-
 // Os is the distribution family an image belongs to, and picks the index to look
 // in. It is not the manifest's own os field, which spells out the exact release
 // ("Debian GNU/Linux 13 (trixie)").
@@ -52,10 +47,11 @@ type Board struct {
 	PreserveUser bool
 }
 
-// Supported is every board the flasher knows about.
-var Supported = []Board{
-	{
-		ID:           UnoQ,
+// The boards the flasher knows about. Code that targets one names it here; a
+// board coming from the user is looked up with BoardByID instead.
+var (
+	UnoQ = Board{
+		ID:           "unoq",
 		Label:        "UNO Q",
 		DefaultOs:    Debian,
 		PreserveUser: true,
@@ -63,13 +59,17 @@ var Supported = []Board{
 			{Label: "UNO Q (2GB RAM, 16GB storage)", Capacity: 16_000_000_000},
 			{Label: "UNO Q (4GB RAM, 32GB storage)", Capacity: 32_000_000_000, DefaultRootSize: 20 * 1024 * 1024 * 1024},
 		},
-	},
-	{
-		ID:        VentunoQ,
+	}
+
+	VentunoQ = Board{
+		ID:        "ventunoq",
 		Label:     "VENTUNO Q",
 		DefaultOs: Ubuntu,
-	},
-}
+	}
+)
+
+// Supported is every board the flasher knows about.
+var Supported = []Board{UnoQ, VentunoQ}
 
 // ResolveOs returns the index holding the images of this board: the one asked
 // for, or the default of the board.

@@ -29,10 +29,7 @@ func Run(ctx context.Context) {
 	client := registry.NewClient()
 
 	// Only the UNO Q for now: a second board would need a step asking which one.
-	board, ok := registry.BoardByID(registry.UnoQ)
-	if !ok {
-		feedback.Fatal(i18n.Tr("unknown board %s", registry.UnoQ), feedback.ErrBadArgument)
-	}
+	board := registry.UnoQ
 
 	var manifest registry.Manifest
 	sp := spinner.New().

@@ -8,7 +8,6 @@ package service
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 
 	"go.bug.st/f"
@@ -21,11 +20,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	client := registry.NewClient()
 
 	// TODO: list the images of every supported board, not just the UNO Q's
-	board, ok := registry.BoardByID(registry.UnoQ)
-	if !ok {
-		return nil, fmt.Errorf("unknown board %q", registry.UnoQ)
-	}
-	manifest, err := client.GetInfoManifest(ctx, board.DefaultOs)
+	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ.DefaultOs)
 	if err != nil {
 		return nil, err
 	}

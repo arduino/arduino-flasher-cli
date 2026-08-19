@@ -22,7 +22,6 @@ const (
 )
 
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
-
 	// Setup callback functions
 	var responseCallback func(*flasher.FlashResponse) error
 	if stream != nil {
@@ -65,10 +64,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}()
 
 	// TODO: take the board from the request instead of assuming an UNO Q
-	board, ok := registry.BoardByID(registry.UnoQ)
-	if !ok {
-		return fmt.Errorf("unknown board %q", registry.UnoQ)
-	}
+	board := registry.UnoQ
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.DefaultOs)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
@@ -104,7 +100,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
 	// TODO: the board is hardcoded from now, but we should retrieve it from the request
-	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, registry.UnoQ, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
+	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, board.ID, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     taskFlash,
 			Message:  fe.Log,
