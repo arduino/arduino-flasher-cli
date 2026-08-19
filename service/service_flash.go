@@ -25,9 +25,13 @@ const (
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 	// Both are required: the board cannot be read before flashing it, and the
 	// most recent image is not assumed on the client's behalf.
-	board, ok := registry.BoardByID(req.GetBoard())
+	boardID := boardFromRPC(req.GetBoard())
+	if boardID == "" {
+		return fmt.Errorf("no board requested, it must be one of: %s", strings.Join(registry.BoardIDs(), ", "))
+	}
+	board, ok := registry.BoardByID(boardID)
 	if !ok {
-		return fmt.Errorf("%q is not a board, use one of: %s", req.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
+		return fmt.Errorf("%q is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", "))
 	}
 	if req.GetVersion() == "" {
 		return fmt.Errorf("no image version requested, call List to pick one")
@@ -74,7 +78,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.DefaultOs)
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.ResolveOs(osFromRPC(req.GetOs())), board.ID)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}

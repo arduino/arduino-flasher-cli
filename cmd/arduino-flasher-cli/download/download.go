@@ -61,10 +61,10 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}
 
-	downloadPath, _, err := updater.DownloadImage(ctx, board.ResolveOs(imageOs), version, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, board.ResolveOs(imageOs), board.ID, version, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
 	pathAbs, _ := downloadPath.Abs()
-	feedback.Print(i18n.Tr("\nDebian image successfully downloaded: %s", pathAbs.String()))
+	feedback.Print(i18n.Tr("\nImage successfully downloaded: %s", pathAbs.String()))
 }

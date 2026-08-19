@@ -24,7 +24,33 @@ service Flasher {
   rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
-message ListRequest {}
+// The board an image is built for.
+enum Board {
+  // Default, unspecified board.
+  BOARD_UNSPECIFIED = 0;
+  // "UNO Q" board.
+  BOARD_UNO_Q = 1;
+  // "VENTUNO Q" board.
+  BOARD_VENTUNO_Q = 2;
+}
+
+// The distribution an image belongs to, which picks the index to look in.
+enum OS {
+  // Default, unspecified distribution.
+  OS_UNSPECIFIED = 0;
+  // "debian" distribution.
+  OS_DEBIAN = 1;
+  // "ubuntu" distribution.
+  OS_UBUNTU = 2;
+}
+
+message ListRequest {
+  // Only list images for this board. Leave unspecified for all of them.
+  Board board = 1;
+  // Only list images from this distribution's index. Leave unspecified for all
+  // of them.
+  OS os = 2;
+}
 
 message ListResponse {
   repeated Release releases = 1;
@@ -33,6 +59,8 @@ message ListResponse {
 message Release {
   string build_id = 1;
   bool latest = 2;
+  // The board this release is built for.
+  Board board = 3;
 }
 
 message FlashRequest {
@@ -47,9 +75,11 @@ message FlashRequest {
   // Serial number of the target board to flash, as a decimal integer string.
   // Leave empty to target the first discovered board.
   string serial = 4;
-  // The board to flash, e.g. "unoq". Required: which board is connected cannot
-  // be read before flashing it.
-  string board = 5;
+  // The board to flash. Required: which board is connected cannot be read
+  // before flashing it.
+  Board board = 5;
+  // The distribution to flash. Defaults to the board's own when unspecified.
+  OS os = 6;
 }
 
 message FlashResponse {

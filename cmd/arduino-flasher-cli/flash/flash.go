@@ -6,7 +6,6 @@
 package flash
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -140,12 +139,22 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
+	// Resolved before the prompt, so a board with no published image fails while
+	// the board is still intact, and the prompt can name the version.
+	var target string
+	if imagePath != nil {
+		target = imagePath.Base()
+	} else {
+		rel, err := registry.NewClient().GetReleaseByVersion(ctx, version, board.ResolveOs(imageOs), board.ID)
+		if err != nil {
+			feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
+		}
+		target = i18n.Tr("%s %s for the %s", board.ResolveOs(imageOs), rel.Version, board.Label)
+		version = rel.Version
+	}
+
 	if !forceYes && !preserveUser {
 		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
-		target := cmp.Or(version, i18n.Tr("the latest image"))
-		if imagePath != nil {
-			target = imagePath.Base()
-		}
 		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string

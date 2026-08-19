@@ -20,17 +20,15 @@ type Variant struct {
 // Board is a board the flasher can target.
 type Board struct {
 	ID string
-	// Label is how the board is presented to the user.
+	// Label is how the board is presented to the user, and how each release names
+	// it in an index.
 	Label string
-	// DefaultOs is the index to look in when none is asked for. What is actually
-	// published for a board is not listed here: every release carries its board,
-	// so it is discoverable by reading the indexes.
+	// DefaultOs is the index to look in when none is asked for. What is published
+	// for a board is not listed here: every release carries its own.
 	DefaultOs string
 	Variants  []Variant
-	// PreserveUser tells whether a flash can keep the user partition. It works by
-	// reading the partition table of the board before writing, which is also what
-	// sizing the root partition needs, so a board without it is flashed with the
-	// layout the image ships with.
+	// PreserveUser tells whether a flash can keep the user partition. It needs
+	// the board's partition table, which is also what sizing the root uses.
 	PreserveUser bool
 }
 
@@ -90,6 +88,16 @@ func (b Board) VariantByCapacity(reported uint64) (Variant, error) {
 func BoardByID(id string) (Board, bool) {
 	for _, board := range Supported {
 		if board.ID == id {
+			return board, true
+		}
+	}
+	return Board{}, false
+}
+
+// BoardByLabel returns the board an index named, which it does by label.
+func BoardByLabel(label string) (Board, bool) {
+	for _, board := range Supported {
+		if board.Label == label {
 			return board, true
 		}
 	}

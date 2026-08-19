@@ -43,22 +43,29 @@ func Run(ctx context.Context) {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}
 
-	// The storage size is asked rather than read: reading it needs the programmer
-	// that ships with the image, which is not downloaded yet. The sizes are
-	// checked against the real GPT once it has been extracted.
+	// Asked rather than read: reading needs the programmer that ships with the
+	// image, which is not downloaded yet. Checked against the real GPT later.
 	variantOptions := make([]huh.Option[registry.Variant], 0, len(board.Variants))
 	for _, v := range board.Variants {
 		variantOptions = append(variantOptions, huh.NewOption(v.Label, v))
 	}
 
+	// Newest first, so the first match is this board's latest, which is not
+	// necessarily the index's.
 	versionOptions := make([]huh.Option[string], 0, len(manifest.Releases))
 	for i := len(manifest.Releases) - 1; i >= 0; i-- {
 		r := manifest.Releases[i]
+		if r.Board != board.Label {
+			continue
+		}
 		label := r.Version
-		if r.Version == manifest.Latest.Version {
+		if len(versionOptions) == 0 {
 			label += " (latest)"
 		}
 		versionOptions = append(versionOptions, huh.NewOption(label, r.Version))
+	}
+	if len(versionOptions) == 0 {
+		feedback.Fatal(i18n.Tr("no %s image is published for the %s", board.DefaultOs, board.Label), feedback.ErrGeneric)
 	}
 
 	var (

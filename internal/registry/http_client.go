@@ -29,15 +29,32 @@ import (
 
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
-// indexPath returns where the given OS publishes its images. Each OS has one
-// index, holding the releases of every board it is built for.
-func indexPath(os string) (string, error) {
-	switch os {
-	case "debian":
-		return "debian-im/Stable", nil
-	default:
-		return "", fmt.Errorf("no image index is published for %s yet", os)
+// indexPaths is where each OS publishes its images. Each OS has one index,
+// holding the releases of every board it is built for.
+var indexPaths = []struct {
+	Os   string
+	Path string
+}{
+	{"debian", "debian-im/Stable"},
+	{"ubuntu", "ubuntu-im/custom-image/Stable"},
+}
+
+// Indexes returns every OS an index is known for.
+func Indexes() []string {
+	oses := make([]string, 0, len(indexPaths))
+	for _, i := range indexPaths {
+		oses = append(oses, i.Os)
 	}
+	return oses
+}
+
+func indexPath(os string) (string, error) {
+	for _, i := range indexPaths {
+		if i.Os == os {
+			return i.Path, nil
+		}
+	}
+	return "", fmt.Errorf("no image index is published for %s yet", os)
 }
 
 type Manifest struct {
@@ -46,9 +63,15 @@ type Manifest struct {
 }
 
 type Release struct {
-	Version  string `json:"version"`
-	Url      string `json:"url"`
-	Sha256   string `json:"sha256"`
+	Version string `json:"version"`
+	Url     string `json:"url"`
+	Sha256  string `json:"sha256"`
+	// Board the release is built for: an index holds several. It is the label of
+	// the board, which is how an index names it, not its id.
+	Board string `json:"board,omitempty"`
+	// Distro is the full distribution name ("Debian GNU/Linux 13 (trixie)"), for
+	// display. Use the OS name to pick an index.
+	Distro   string `json:"os,omitempty"`
 	FileName string `json:"-"`
 }
 
@@ -112,6 +135,10 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 		return Manifest{}, fmt.Errorf("failed to GET manifest: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		// Nothing published there yet, which is not the server being unreachable.
+		return Manifest{}, fmt.Errorf("no %s index is published yet (%s)", os, manifestURL)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return Manifest{}, fmt.Errorf("bad http status from %s: %v", manifestURL, resp.Status)
 	}
@@ -147,24 +174,48 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 	return res, nil
 }
 
-func (c *Client) GetReleaseByVersion(ctx context.Context, version, os string) (Release, error) {
+// GetReleaseByVersion finds a release in the given OS's index. An empty board
+// matches any, no version means the most recent one for that board.
+func (c *Client) GetReleaseByVersion(ctx context.Context, version, os, boardID string) (Release, error) {
 	manifest, err := c.GetInfoManifest(ctx, os)
 	if err != nil {
 		return Release{}, err
 	}
 
-	// No version asked for means the most recent one.
-	if version == "" || version == manifest.Latest.Version {
-		return manifest.Latest, nil
-	} else {
-		for _, r := range manifest.Releases {
-			if version == r.Version {
-				return r, nil
+	// An index names a board by its label. An id that is not one of ours is left
+	// as it is: it matches nothing, which is what an unknown board should do.
+	board := boardID
+	if b, ok := BoardByID(boardID); ok {
+		board = b.Label
+	}
+	matches := func(r Release) bool {
+		return board == "" || r.Board == board
+	}
+
+	if version == "" {
+		if matches(manifest.Latest) {
+			return manifest.Latest, nil
+		}
+		// The overall latest is another board's. Oldest first, so the last
+		// match is this board's most recent.
+		for i := len(manifest.Releases) - 1; i >= 0; i-- {
+			if matches(manifest.Releases[i]) {
+				return manifest.Releases[i], nil
 			}
+		}
+		return Release{}, fmt.Errorf("no %s image is published for the %s", os, board)
+	}
+
+	if version == manifest.Latest.Version && matches(manifest.Latest) {
+		return manifest.Latest, nil
+	}
+	for _, r := range manifest.Releases {
+		if version == r.Version && matches(r) {
+			return r, nil
 		}
 	}
 
-	return Release{}, fmt.Errorf("could not find %s image %s", os, version)
+	return Release{}, fmt.Errorf("could not find %s image %s for the %s", os, version, board)
 }
 
 type downloadCallback func(current, total int64)

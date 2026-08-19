@@ -56,7 +56,7 @@ func DownloadAndFlash(ctx context.Context, boardID, index string, imageVersion s
 		return err
 	}
 
-	version, err := DownloadAndExtract(ctx, index, imageVersion, temp)
+	version, err := DownloadAndExtract(ctx, index, boardID, imageVersion, temp)
 	if err != nil {
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}

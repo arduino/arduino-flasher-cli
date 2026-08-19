@@ -22,8 +22,8 @@ import (
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, index, version string, temp *paths.Path) (string, error) {
-	tmpZip, version, err := DownloadImage(ctx, index, version, temp)
+func DownloadAndExtract(ctx context.Context, index, board, version string, temp *paths.Path) (string, error) {
+	tmpZip, version, err := DownloadImage(ctx, index, board, version, temp)
 	if err != nil {
 		return "", fmt.Errorf("error downloading the image: %v", err)
 	}
@@ -34,11 +34,12 @@ func DownloadAndExtract(ctx context.Context, index, version string, temp *paths.
 	return version, nil
 }
 
-// DownloadImage fetches a release from the given index, the most recent one when
-// no version is asked for. It returns the archive and the version it holds.
-func DownloadImage(ctx context.Context, index, version string, downloadPath *paths.Path) (*paths.Path, string, error) {
+// DownloadImage fetches the board's release from the given index, the most
+// recent one when no version is asked for. It returns the archive and the
+// version it holds.
+func DownloadImage(ctx context.Context, index, board, version string, downloadPath *paths.Path) (*paths.Path, string, error) {
 	client := registry.NewClient()
-	rel, err := client.GetReleaseByVersion(ctx, version, index)
+	rel, err := client.GetReleaseByVersion(ctx, version, index, board)
 	if err != nil {
 		return nil, "", fmt.Errorf("could not get release info: %w", err)
 	}
@@ -48,7 +49,7 @@ func DownloadImage(ctx context.Context, index, version string, downloadPath *pat
 		if bar == nil {
 			bar = progressbar.DefaultBytes(
 				total,
-				i18n.Tr("Downloading Debian image version %s", rel.Version),
+				i18n.Tr("Downloading image version %s", rel.Version),
 			)
 		}
 		_ = bar.Set64(current)
