@@ -53,7 +53,7 @@ Without an image:
 With an image:
   - The path can be relative or absolute
   - It can be a compressed image (.tar.zst, .tar.xz) or an extracted folder
-  - The file is extracted in a temp folder (if needed) and flashed
+  - The compressed image is extracted to a temp folder (if needed) and flashed
 
 NOTE: On Windows, required drivers are automatically installed with elevated privileges.
 `,
