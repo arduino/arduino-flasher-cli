@@ -7,13 +7,12 @@ package registry
 
 import "fmt"
 
-// Board is a board the flasher can target. The name matches the one each release
-// carries in the index.
-type Board string
+// BoardID names a board, both on the command line and in the code.
+type BoardID string
 
 const (
-	UnoQ     Board = "UNO Q"
-	VentunoQ Board = "VENTUNO Q"
+	UnoQ     BoardID = "unoq"
+	VentunoQ BoardID = "ventunoq"
 )
 
 // Os is the distribution family an image belongs to, and picks the index to look
@@ -36,27 +35,28 @@ type Variant struct {
 	DefaultRootSize uint64
 }
 
-type BoardDef struct {
-	Board Board
-	// Alias is what the board is called on the command line.
-	Alias string
+// Board is a board the flasher can target.
+type Board struct {
+	ID BoardID
+	// Label is how the board is presented to the user.
+	Label string
 	// DefaultOs is the index to look in when none is asked for. What is actually
 	// published for a board is not listed here: every release carries its board,
 	// so it is discoverable by reading the indexes.
 	DefaultOs Os
 	Variants  []Variant
 	// PreserveUser tells whether a flash can keep the user partition. It works by
-	// reading the board's partition table before writing, which is also what
+	// reading the partition table of the board before writing, which is also what
 	// sizing the root partition needs, so a board without it is flashed with the
 	// layout the image ships with.
 	PreserveUser bool
 }
 
 // Supported is every board the flasher knows about.
-var Supported = []BoardDef{
+var Supported = []Board{
 	{
-		Board:        UnoQ,
-		Alias:        "unoq",
+		ID:           UnoQ,
+		Label:        "UNO Q",
 		DefaultOs:    Debian,
 		PreserveUser: true,
 		Variants: []Variant{
@@ -65,58 +65,27 @@ var Supported = []BoardDef{
 		},
 	},
 	{
-		Board:     VentunoQ,
-		Alias:     "ventunoq",
+		ID:        VentunoQ,
+		Label:     "VENTUNO Q",
 		DefaultOs: Ubuntu,
 	},
 }
 
-// Index returns the index holding this board's images: the one asked for, or the
-// board's default.
-func (d BoardDef) Index(requested Os) Os {
+// ResolveOs returns the index holding the images of this board: the one asked
+// for, or the default of the board.
+func (b Board) ResolveOs(requested Os) Os {
 	if requested == "" {
-		return d.DefaultOs
+		return b.DefaultOs
 	}
 	return requested
 }
 
-// DefForAlias returns the definition of the board named on the command line.
-func DefForAlias(alias string) (BoardDef, bool) {
-	for _, def := range Supported {
-		if def.Alias == alias {
-			return def, true
-		}
-	}
-	return BoardDef{}, false
-}
-
-// Aliases returns the command line names of every supported board.
-func Aliases() []string {
-	aliases := make([]string, 0, len(Supported))
-	for _, def := range Supported {
-		aliases = append(aliases, def.Alias)
-	}
-	return aliases
-}
-
-// DefFor returns the definition of a board.
-func DefFor(board Board) (BoardDef, error) {
-	for _, def := range Supported {
-		if def.Board == board {
-			return def, nil
-		}
-	}
-	return BoardDef{}, fmt.Errorf("unknown board %q", board)
-}
-
-// VariantFor returns the smallest variant that can hold the reported capacity.
-func VariantFor(board Board, reported uint64) (Variant, error) {
-	def, err := DefFor(board)
-	if err != nil {
-		return Variant{}, err
-	}
+// VariantByCapacity returns the smallest variant that can hold the reported
+// capacity. It is how the variant is told apart, since the capacity is read from
+// the partition table of the board itself.
+func (b Board) VariantByCapacity(reported uint64) (Variant, error) {
 	var best Variant
-	for _, v := range def.Variants {
+	for _, v := range b.Variants {
 		if v.Capacity < reported {
 			continue
 		}
@@ -125,7 +94,26 @@ func VariantFor(board Board, reported uint64) (Variant, error) {
 		}
 	}
 	if best.Capacity == 0 {
-		return Variant{}, fmt.Errorf("no known %s variant can hold %d bytes", board, reported)
+		return Variant{}, fmt.Errorf("no known %s variant can hold %d bytes", b.Label, reported)
 	}
 	return best, nil
+}
+
+// BoardByID returns the board with the given id.
+func BoardByID(id BoardID) (Board, bool) {
+	for _, board := range Supported {
+		if board.ID == id {
+			return board, true
+		}
+	}
+	return Board{}, false
+}
+
+// BoardIDs returns the id of every supported board.
+func BoardIDs() []string {
+	ids := make([]string, 0, len(Supported))
+	for _, board := range Supported {
+		ids = append(ids, string(board.ID))
+	}
+	return ids
 }

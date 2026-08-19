@@ -29,9 +29,9 @@ func Run(ctx context.Context) {
 	client := registry.NewClient()
 
 	// Only the UNO Q for now: a second board would need a step asking which one.
-	def, err := registry.DefFor(registry.UnoQ)
-	if err != nil {
-		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
+	board, ok := registry.BoardByID(registry.UnoQ)
+	if !ok {
+		feedback.Fatal(i18n.Tr("unknown board %s", registry.UnoQ), feedback.ErrBadArgument)
 	}
 
 	var manifest registry.Manifest
@@ -39,7 +39,7 @@ func Run(ctx context.Context) {
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
 			var err error
-			manifest, err = client.GetInfoManifest(ctx, def.DefaultOs)
+			manifest, err = client.GetInfoManifest(ctx, board.DefaultOs)
 			return err
 		})
 	if err := sp.Run(); err != nil {
@@ -49,8 +49,8 @@ func Run(ctx context.Context) {
 	// The storage size is asked rather than read: reading it needs the programmer
 	// that ships with the image, which is not downloaded yet. The sizes are
 	// checked against the real GPT once it has been extracted.
-	variantOptions := make([]huh.Option[registry.Variant], 0, len(def.Variants))
-	for _, v := range def.Variants {
+	variantOptions := make([]huh.Option[registry.Variant], 0, len(board.Variants))
+	for _, v := range board.Variants {
 		variantOptions = append(variantOptions, huh.NewOption(v.Label, v))
 	}
 
@@ -76,7 +76,7 @@ func Run(ctx context.Context) {
 		// Step 1 — pick board variant
 		huh.NewGroup(
 			huh.NewSelect[registry.Variant]().
-				Title(i18n.Tr("Select your %s", def.Board)).
+				Title(i18n.Tr("Select your %s", board.Label)).
 				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 				Options(variantOptions...).
 				Value(&variant),
@@ -163,7 +163,7 @@ func Run(ctx context.Context) {
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
 	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
-	if err := updater.DownloadAndFlash(ctx, def.Board, def.DefaultOs, selectedVersion, opts); err != nil {
+	if err := updater.DownloadAndFlash(ctx, board.ID, board.DefaultOs, selectedVersion, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))

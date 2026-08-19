@@ -47,18 +47,18 @@ publish more than one.
 	return cmd
 }
 
-func runDownloadCommand(ctx context.Context, boardAlias, destDir string, imageOs registry.Os, version string) {
+func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs registry.Os, version string) {
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	def, ok := registry.DefForAlias(boardAlias)
+	board, ok := registry.BoardByID(registry.BoardID(boardID))
 	if !ok {
-		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardAlias, strings.Join(registry.Aliases(), ", ")), feedback.ErrBadArgument)
+		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}
 
-	downloadPath, _, err := updater.DownloadImage(ctx, def.Index(imageOs), version, downloadPath)
+	downloadPath, _, err := updater.DownloadImage(ctx, board.ResolveOs(imageOs), version, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}

@@ -126,7 +126,7 @@ func checkDriversInstalled() {
 }
 
 func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
-	def, imagePath, err := resolveArg(arg)
+	board, imagePath, err := resolveArg(arg)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
@@ -156,7 +156,7 @@ func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, versi
 	if imagePath != nil {
 		err = updater.FlashImage(ctx, imagePath, opts)
 	} else {
-		err = updater.DownloadAndFlash(ctx, def.Board, def.Index(imageOs), version, opts)
+		err = updater.DownloadAndFlash(ctx, board.ID, board.ResolveOs(imageOs), version, opts)
 	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
@@ -165,19 +165,19 @@ func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, versi
 }
 
 // resolveArg returns the board the argument names, or the path of the image it
-// points at. A board alias always wins, so a file named after one does not
-// shadow it.
-func resolveArg(arg string) (registry.BoardDef, *paths.Path, error) {
-	if def, ok := registry.DefForAlias(arg); ok {
-		return def, nil, nil
+// points at. A board id always wins, so a file named after one does not shadow
+// it.
+func resolveArg(arg string) (registry.Board, *paths.Path, error) {
+	if board, ok := registry.BoardByID(registry.BoardID(arg)); ok {
+		return board, nil, nil
 	}
 	imagePath, err := paths.New(arg).Abs()
 	if err != nil {
-		return registry.BoardDef{}, nil, fmt.Errorf("could not find image absolute path: %v", err)
+		return registry.Board{}, nil, fmt.Errorf("could not find image absolute path: %v", err)
 	}
 	if !imagePath.Exist() {
-		return registry.BoardDef{}, nil, fmt.Errorf("%s is neither a board (%s) nor an existing image",
-			arg, strings.Join(registry.Aliases(), ", "))
+		return registry.Board{}, nil, fmt.Errorf("%s is neither a board (%s) nor an existing image",
+			arg, strings.Join(registry.BoardIDs(), ", "))
 	}
-	return registry.BoardDef{}, imagePath, nil
+	return registry.Board{}, imagePath, nil
 }

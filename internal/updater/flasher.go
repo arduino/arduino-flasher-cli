@@ -45,7 +45,7 @@ type FlashOptions struct {
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
 // CLI needs; the daemon reports progress between the steps and uses them
 // directly instead.
-func DownloadAndFlash(ctx context.Context, board registry.Board, index registry.Os, imageVersion string, opts FlashOptions) error {
+func DownloadAndFlash(ctx context.Context, boardID registry.BoardID, index registry.Os, imageVersion string, opts FlashOptions) error {
 	temp, err := SetTempDir("download-", opts.TempDir)
 	if err != nil {
 		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
@@ -61,7 +61,7 @@ func DownloadAndFlash(ctx context.Context, board registry.Board, index registry.
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}
 
-	return FlashBoard(ctx, opts.Serial, temp, version, board, opts.PreserveUser, opts.RootSize, nil)
+	return FlashBoard(ctx, opts.Serial, temp, version, boardID, opts.PreserveUser, opts.RootSize, nil)
 }
 
 // FlashImage flashes an image already on disk, extracting it first when it is an
@@ -119,7 +119,7 @@ const (
 	SystemReservedBytes uint64 = 1 * GiB
 )
 
-func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardType registry.Board, preserveUser bool, rootSize uint64, callback FlashCallback) error {
+func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardID registry.BoardID, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return err
@@ -131,22 +131,22 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		return err
 	}
 
-	def, err := registry.DefFor(boardType)
-	if err != nil {
-		return err
+	board, ok := registry.BoardByID(boardID)
+	if !ok {
+		return fmt.Errorf("unknown board %q", boardID)
 	}
-	if !def.PreserveUser {
+	if !board.PreserveUser {
 		// Silently ignoring these would wipe data the user asked to keep.
 		if preserveUser {
-			return fmt.Errorf("preserving the user partition is not supported on the %s", boardType)
+			return fmt.Errorf("preserving the user partition is not supported on the %s", board.Label)
 		}
 		if rootSize > 0 {
-			return fmt.Errorf("choosing the root partition size is not supported on the %s", boardType)
+			return fmt.Errorf("choosing the root partition size is not supported on the %s", board.Label)
 		}
 	}
 
 	rawProgram := "rawprogram0.xml"
-	if def.PreserveUser {
+	if board.PreserveUser {
 		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
 		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
 		if err != nil {
@@ -159,7 +159,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 		}
 		if rootSize == 0 && !preserveUser {
 			// An unknown capacity just means there is no default to apply.
-			if variant, err := registry.VariantFor(boardType, boardSize); err == nil {
+			if variant, err := board.VariantByCapacity(boardSize); err == nil {
 				rootSize = variant.DefaultRootSize
 			}
 		}

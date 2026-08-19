@@ -65,11 +65,11 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}()
 
 	// TODO: take the board from the request instead of assuming an UNO Q
-	def, err := registry.DefFor(registry.UnoQ)
-	if err != nil {
-		return err
+	board, ok := registry.BoardByID(registry.UnoQ)
+	if !ok {
+		return fmt.Errorf("unknown board %q", registry.UnoQ)
 	}
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), def.DefaultOs)
+	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.DefaultOs)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
 	}
@@ -103,7 +103,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
-	// TODO: boardType is hardcoded from now, but we should retrieve it from the request
+	// TODO: the board is hardcoded from now, but we should retrieve it from the request
 	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, registry.UnoQ, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     taskFlash,
