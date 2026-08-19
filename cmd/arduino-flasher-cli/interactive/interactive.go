@@ -7,9 +7,12 @@ package interactive
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -24,23 +27,27 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
+// image is a release together with the index it was found in, which is what the
+// flash needs and the release itself does not carry.
+type image struct {
+	index   registry.Os
+	release registry.Release
+}
+
 // Run starts the interactive wizard and performs the flash.
 func Run(ctx context.Context) {
-	client := registry.NewClient()
+	images := fetchImages(ctx)
 
-	// Only the UNO Q for now: a second board would need a step asking which one.
-	board := registry.UnoQ
-
-	var manifest registry.Manifest
-	sp := spinner.New().
-		Title(i18n.Tr("Fetching available images...")).
-		ActionWithErr(func(ctx context.Context) error {
-			var err error
-			manifest, err = client.GetInfoManifest(ctx, board.DefaultOs)
-			return err
-		})
-	if err := sp.Run(); err != nil {
-		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
+	boardIDs := slices.Sorted(maps.Keys(images))
+	boardID := boardIDs[0]
+	if len(boardIDs) > 1 {
+		if !selectBoard(ctx, boardIDs, &boardID) {
+			return
+		}
+	}
+	board, ok := registry.BoardByID(boardID)
+	if !ok {
+		feedback.Fatal(i18n.Tr("unknown board %s", boardID), feedback.ErrBadArgument)
 	}
 
 	// Asked rather than read: reading needs the programmer that ships with the
@@ -50,66 +57,66 @@ func Run(ctx context.Context) {
 		variantOptions = append(variantOptions, huh.NewOption(v.Label, v))
 	}
 
-	// Newest first, so the first match is this board's latest, which is not
-	// necessarily the index's.
-	versionOptions := make([]huh.Option[string], 0, len(manifest.Releases))
-	for i := len(manifest.Releases) - 1; i >= 0; i-- {
-		r := manifest.Releases[i]
-		if r.Board != board.Label {
-			continue
-		}
-		label := r.Version
-		if len(versionOptions) == 0 {
+	// Newest first, so the first one is this board's latest.
+	boardImages := images[boardID]
+	versionOptions := make([]huh.Option[image], 0, len(boardImages))
+	for i, img := range boardImages {
+		label := img.release.Version
+		if i == 0 {
 			label += " (latest)"
 		}
-		versionOptions = append(versionOptions, huh.NewOption(label, r.Version))
-	}
-	if len(versionOptions) == 0 {
-		feedback.Fatal(i18n.Tr("no %s image is published for the %s", board.DefaultOs, board.Label), feedback.ErrGeneric)
+		if len(registry.Indexes()) > 1 {
+			label += " — " + string(img.index)
+		}
+		versionOptions = append(versionOptions, huh.NewOption(label, img))
 	}
 
 	var (
-		variant         registry.Variant
-		selectedVersion string
-		preserveUser    bool
-		rootPctStr      string
-		confirm         bool
+		variant      registry.Variant
+		selected     image
+		preserveUser bool
+		rootPctStr   string
+		confirm      bool
 	)
 
-	form := huh.NewForm(
-		// Step 1 — pick board variant
-		huh.NewGroup(
+	var groups []*huh.Group
+
+	// Only for a board whose storage configurations are known: without them
+	// there is no capacity to offer, and no root size to compute from it.
+	if len(variantOptions) > 0 {
+		groups = append(groups, huh.NewGroup(
 			huh.NewSelect[registry.Variant]().
 				Title(i18n.Tr("Select your %s", board.Label)).
 				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 				Options(variantOptions...).
 				Value(&variant),
-		),
+		))
+	}
 
-		// Step 2 — pick image
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title(i18n.Tr("Select the image version to flash")).
-				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
-				Options(versionOptions...).
-				Value(&selectedVersion),
-		),
+	groups = append(groups, huh.NewGroup(
+		huh.NewSelect[image]().
+			Title(i18n.Tr("Select the image version to flash")).
+			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+			Options(versionOptions...).
+			Value(&selected),
+	))
 
-		// Step 3 — partition options
-		huh.NewGroup(
+	if board.PreserveUser {
+		groups = append(groups, huh.NewGroup(
 			huh.NewConfirm().
 				Title(i18n.Tr("Preserve user partition?")).
 				Description(i18n.Tr("Keep existing user data on the board")).
 				Affirmative(i18n.Tr("Yes")).
 				Negative(i18n.Tr("No")).
 				Value(&preserveUser),
-		),
+		))
+	}
 
-		// Step 4 — root/home split, expressed as a percentage of total
-		// storage assigned to the root partition. The description is
-		// re-evaluated on every keystroke (huh bindings) so the user sees
-		// the resulting partition sizes live.
-		huh.NewGroup(
+	// The root/home split is a percentage of total storage assigned to root. The
+	// description is re-evaluated on every keystroke (huh bindings) so the sizes
+	// are shown live.
+	if len(variantOptions) > 0 {
+		groups = append(groups, huh.NewGroup(
 			huh.NewInput().
 				Title(i18n.Tr("Root partition size (%% of total storage)")).
 				DescriptionFunc(func() string {
@@ -137,21 +144,22 @@ func Run(ctx context.Context) {
 					}
 					return nil
 				}),
-		).WithHideFunc(func() bool { return preserveUser }),
+		).WithHideFunc(func() bool { return preserveUser }))
+	}
 
-		// Step 5 — summary + confirm (description is recomputed when any binding changes)
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(i18n.Tr("Ready to flash")).
-				DescriptionFunc(func() string {
-					return buildSummary(variant.Label, selectedVersion, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
-				}, []any{&variant, &selectedVersion, &preserveUser, &rootPctStr}).
-				Affirmative(i18n.Tr("Flash now")).
-				Negative(i18n.Tr("Cancel")).
-				Value(&confirm),
-		),
-	)
+	boardLabel := cmp.Or(variant.Label, board.Label)
+	groups = append(groups, huh.NewGroup(
+		huh.NewConfirm().
+			Title(i18n.Tr("Ready to flash")).
+			DescriptionFunc(func() string {
+				return buildSummary(cmp.Or(variant.Label, boardLabel), selected.release.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
+			}, []any{&variant, &selected, &preserveUser, &rootPctStr}).
+			Affirmative(i18n.Tr("Flash now")).
+			Negative(i18n.Tr("Cancel")).
+			Value(&confirm),
+	))
 
+	form := huh.NewForm(groups...)
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
 			feedback.Print(i18n.Tr("Flash canceled."))
@@ -167,10 +175,80 @@ func Run(ctx context.Context) {
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
 	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
-	if err := updater.DownloadAndFlash(ctx, board.ID, board.DefaultOs, selectedVersion, opts); err != nil {
+	if err := updater.DownloadAndFlash(ctx, board.ID, selected.index, selected.release.Version, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
+}
+
+// fetchImages reads every index and groups what is published by board, newest
+// first. Boards are offered by what exists, so one appears the day its images do.
+func fetchImages(ctx context.Context) map[registry.BoardID][]image {
+	client := registry.NewClient()
+	images := map[registry.BoardID][]image{}
+
+	var errs []error
+	sp := spinner.New().
+		Context(ctx).
+		Title(i18n.Tr("Fetching available images...")).
+		ActionWithErr(func(ctx context.Context) error {
+			for _, index := range registry.Indexes() {
+				manifest, err := client.GetInfoManifest(ctx, index)
+				if err != nil {
+					// One index being unreachable should not hide the others.
+					errs = append(errs, err)
+					continue
+				}
+				for _, r := range manifest.Releases {
+					// An index names a board by its label, and can hold releases
+					// of boards this flasher knows nothing about.
+					b, ok := registry.BoardByLabel(r.Board)
+					if !ok {
+						continue
+					}
+					images[b.ID] = append(images[b.ID], image{index: index, release: r})
+				}
+			}
+			if len(images) == 0 {
+				return errors.Join(errs...)
+			}
+			return nil
+		})
+	if err := sp.Run(); err != nil {
+		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
+	}
+
+	for board := range images {
+		slices.SortFunc(images[board], func(a, b image) int {
+			return strings.Compare(b.release.Version, a.release.Version)
+		})
+	}
+	return images
+}
+
+// selectBoard asks which board to flash, and reports whether the wizard should
+// go on.
+func selectBoard(ctx context.Context, boardIDs []registry.BoardID, boardID *registry.BoardID) bool {
+	options := make([]huh.Option[registry.BoardID], 0, len(boardIDs))
+	for _, id := range boardIDs {
+		b, _ := registry.BoardByID(id)
+		options = append(options, huh.NewOption(b.Label, id))
+	}
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[registry.BoardID]().
+			Title(i18n.Tr("Select your board")).
+			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+			Options(options...).
+			Value(boardID),
+	))
+	if err := form.RunWithContext(ctx); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			feedback.Print(i18n.Tr("Flash canceled."))
+			return false
+		}
+		feedback.Fatal(i18n.Tr("error running interactive wizard: %v", err), feedback.ErrBadArgument)
+	}
+	return true
 }
 
 // parsePercentage parses a string like "50" or "50%" as an integer percentage.
