@@ -25,7 +25,7 @@ func NewDownloadCmd() *cobra.Command {
 	var osStr string
 	var version string
 	cmd := &cobra.Command{
-		Use:   "download",
+		Use:   "download [board]",
 		Short: "Download a Linux image to the specified path",
 		Long: `Download a Linux image to the specified path.
 
@@ -43,18 +43,18 @@ publish more than one.
 	}
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
 	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, for boards that publish more than one")
-	cmd.Flags().StringVar(&version, "version", "", "Version of the image to download. Leave empty for the most recent")
+	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for the most recent")
 
 	return cmd
 }
 
 func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs registry.Os, version string) {
+	boardID, _, version = argparse.LegacyArgs(boardID, "", version)
+
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
-
-	boardID, version = argparse.LegacyArg(boardID, version)
 
 	board, ok := registry.BoardByID(registry.BoardID(boardID))
 	if !ok {

@@ -65,8 +65,8 @@ func DownloadAndFlash(ctx context.Context, boardID registry.BoardID, index regis
 }
 
 // FlashImage flashes an image already on disk, extracting it first when it is an
-// archive.
-func FlashImage(ctx context.Context, imagePath *paths.Path, opts FlashOptions) error {
+// archive. The image does not say which board it is for, so the caller tells.
+func FlashImage(ctx context.Context, imagePath *paths.Path, boardID registry.BoardID, opts FlashOptions) error {
 	if !imagePath.IsDir() {
 		temp, err := SetTempDir("extract-", opts.TempDir)
 		if err != nil {
@@ -84,7 +84,7 @@ func FlashImage(ctx context.Context, imagePath *paths.Path, opts FlashOptions) e
 		imagePath = temp
 	}
 
-	return FlashBoard(ctx, opts.Serial, imagePath, imagePath.Base(), registry.UnoQ.ID, opts.PreserveUser, opts.RootSize, nil)
+	return FlashBoard(ctx, opts.Serial, imagePath, imagePath.Base(), boardID, opts.PreserveUser, opts.RootSize, nil)
 }
 
 func checkFreeSpace(dir *paths.Path, requiredGiB uint64, what string) error {

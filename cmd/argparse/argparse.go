@@ -20,30 +20,35 @@ import (
 // legacyVersion matches how an image is published, e.g. 20250915-173.
 var legacyVersion = regexp.MustCompile(`^\d{8}-\d+$`)
 
-// LegacyArg keeps working the argument the commands took before the boards were
-// named: "latest", or the version to use, which both meant the most recent image
-// of the only board there was. It returns the board and the version that mean
-// the same thing today, warning that the spelling is on its way out. Deleting
-// this function and its callers ends the deprecation.
-func LegacyArg(arg, version string) (string, string) {
+// LegacyArgs keeps working the arguments the commands took before the board was
+// named first: "latest" or a version, which both meant the most recent image of
+// the only board there was, and an image on disk, which meant an UNO Q one. It
+// returns the board, the image and the version that mean the same thing today.
+// Deleting this function and its callers ends the deprecation.
+func LegacyArgs(board, image, version string) (string, string, string) {
 	unoQ := string(registry.UnoQ.ID)
 
 	switch {
-	case arg == "latest":
-		warn(i18n.Tr("%q is deprecated and will be removed, use: %s", arg, unoQ))
-		return unoQ, version
+	case board == "latest":
+		warn(i18n.Tr("%q is deprecated and will be removed, use: %s", board, unoQ))
+		return unoQ, image, version
 
-	// An image on disk is not a version, however it is named.
-	case legacyVersion.MatchString(arg) && !paths.New(arg).Exist():
+	case legacyVersion.MatchString(board):
 		if version != "" {
 			feedback.Fatal(i18n.Tr("the version was passed both as %s and as --version %s, keep only the flag",
-				arg, version), feedback.ErrBadArgument)
+				board, version), feedback.ErrBadArgument)
 		}
-		warn(i18n.Tr("%q is deprecated and will be removed, use: %s --version %s", arg, unoQ, arg))
-		return unoQ, arg
+		warn(i18n.Tr("%q is deprecated and will be removed, use: %s --version %s", board, unoQ, board))
+		return unoQ, image, board
+
+	// An image where the board is expected only ever meant an UNO Q one.
+	case image == "" && paths.New(board).Exist():
+		warn(i18n.Tr("flashing an image without naming the board is deprecated and will be removed, use: %s %s",
+			unoQ, board))
+		return unoQ, board, version
 
 	default:
-		return arg, version
+		return board, image, version
 	}
 }
 

@@ -35,39 +35,39 @@ func NewFlashCmd() *cobra.Command {
 	var osStr string
 	var version string
 	appCmd := &cobra.Command{
-		Use:   "flash",
+		Use:   "flash [board] [image]",
 		Short: "Flash a Debian image on the board",
 		Long: `Flash a Debian image on the board.
 
 WARNING: This operation will completely replace the current system on the board.
 Make sure to backup any important data before proceeding.
 
-The argument is either a board to download an image for, or a local image
-already on disk. With no argument the interactive wizard is started.
+The first argument is the board to flash, the second an image already on disk.
+With no argument the interactive wizard is started.
 
-When naming a board:
-  - The most recent image is used unless --version names one
+Without an image:
+  - The most recent one is downloaded, unless --version names another
   - --os selects the distribution, for boards that publish more than one
-  - The image is downloaded in a temp folder, the sha is verified, and flashed
+  - It is downloaded in a temp folder, the sha is verified, and flashed
 
-When providing a local file path:
+With an image:
   - The path can be relative or absolute
   - It can be a compressed image (.tar.zst, .tar.xz) or an extracted folder
   - The file is extracted in a temp folder (if needed) and flashed
 
 NOTE: On Windows, required drivers are automatically installed with elevated privileges.
 `,
-		Example: " " + os.Args[0] + " flash unoq\n" +
+		Example: " " + os.Args[0] + " flash\n" +
+			" " + os.Args[0] + " flash unoq\n" +
 			" " + os.Args[0] + " flash unoq --version 20250915-173\n" +
-			" " + os.Args[0] + " flash ./my-image.tar.zst\n" +
-			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
-			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
-			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
+			" " + os.Args[0] + " flash unoq ./my-image.tar.zst\n" +
+			" " + os.Args[0] + " flash unoq /path/to/debian-image.tar.xz \n" +
+			" " + os.Args[0] + " flash unoq /path/to/arduino-unoq-debian-image-20250915-173 \n" +
 			" " + os.Args[0] + " flash unoq --temp-dir /path/to/custom/tempDir \n" +
 			" " + os.Args[0] + " flash unoq --preserve-user \n" +
 			" " + os.Args[0] + " flash unoq --root-size 12GB \n",
 
-		Args: cobra.MaximumNArgs(1),
+		Args: cobra.MaximumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
 			if serialStr != "" {
@@ -79,9 +79,14 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				// (see issue #96). Convert the hex CLI input to decimal here.
 				serialStr = s.Decimal()
 			}
+			// Flashing needs a board, and the wizard is what asks for one.
 			if len(args) == 0 {
 				interactive.Run(cmd.Context())
 				return
+			}
+			imageArg := ""
+			if len(args) > 1 {
+				imageArg = args[1]
 			}
 
 			rootSize := uint64(0)
@@ -101,7 +106,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args[0], registry.Os(osStr), version, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args[0], imageArg, registry.Os(osStr), version, serialStr, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
 	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
@@ -110,7 +115,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
 	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
 	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, for boards that publish more than one")
-	appCmd.Flags().StringVar(&version, "version", "", "Version of the image to download. Leave empty for the most recent")
+	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for the most recent")
 
 	return appCmd
 }
@@ -126,17 +131,25 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
-	arg, version = argparse.LegacyArg(arg, version)
+func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs registry.Os, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+	boardID, imageArg, version = argparse.LegacyArgs(boardID, imageArg, version)
 
-	board, imagePath, err := resolveArg(arg)
+	board, ok := registry.BoardByID(registry.BoardID(boardID))
+	if !ok {
+		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
+	}
+	imagePath, err := resolveImage(imageArg)
 	if err != nil {
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
 	if !forceYes && !preserveUser {
 		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
-		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", arg)
+		target := board.Label
+		if imagePath != nil {
+			target = imagePath.Base()
+		}
+		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string
 		_, err := fmt.Scanf("%s\n", &yesInput)
@@ -157,7 +170,7 @@ func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, versi
 		RootSize:     rootSize,
 	}
 	if imagePath != nil {
-		err = updater.FlashImage(ctx, imagePath, opts)
+		err = updater.FlashImage(ctx, imagePath, board.ID, opts)
 	} else {
 		err = updater.DownloadAndFlash(ctx, board.ID, board.ResolveOs(imageOs), version, opts)
 	}
@@ -167,20 +180,18 @@ func runFlashCommand(ctx context.Context, arg string, imageOs registry.Os, versi
 	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
 }
 
-// resolveArg returns the board the argument names, or the path of the image it
-// points at. A board id always wins, so a file named after one does not shadow
-// it.
-func resolveArg(arg string) (registry.Board, *paths.Path, error) {
-	if board, ok := registry.BoardByID(registry.BoardID(arg)); ok {
-		return board, nil, nil
+// resolveImage returns the path of the image the argument points at, or nil when
+// there is no argument, which is what asks for one to be downloaded.
+func resolveImage(arg string) (*paths.Path, error) {
+	if arg == "" {
+		return nil, nil
 	}
 	imagePath, err := paths.New(arg).Abs()
 	if err != nil {
-		return registry.Board{}, nil, fmt.Errorf("could not find image absolute path: %v", err)
+		return nil, fmt.Errorf("could not find image absolute path: %v", err)
 	}
 	if !imagePath.Exist() {
-		return registry.Board{}, nil, fmt.Errorf("%s is neither a board (%s) nor an existing image",
-			arg, strings.Join(registry.BoardIDs(), ", "))
+		return nil, fmt.Errorf("there is no image at %s", arg)
 	}
-	return registry.Board{}, imagePath, nil
+	return imagePath, nil
 }
