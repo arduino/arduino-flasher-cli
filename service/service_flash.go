@@ -7,6 +7,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
@@ -22,6 +23,16 @@ const (
 )
 
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
+	// Both are required: the board cannot be read before flashing it, and the
+	// most recent image is not assumed on the client's behalf.
+	board, ok := registry.BoardByID(registry.BoardID(req.GetBoard()))
+	if !ok {
+		return fmt.Errorf("%q is not a board, use one of: %s", req.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
+	}
+	if req.GetVersion() == "" {
+		return fmt.Errorf("no image version requested, call List to pick one")
+	}
+
 	// Setup callback functions
 	var responseCallback func(*flasher.FlashResponse) error
 	if stream != nil {
@@ -63,8 +74,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	// TODO: take the board from the request instead of assuming an UNO Q
-	board := registry.UnoQ
 	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.DefaultOs)
 	if err != nil {
 		return fmt.Errorf("could not get release info: %w", err)
@@ -99,7 +108,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
-	// TODO: the board is hardcoded from now, but we should retrieve it from the request
 	if err := updater.FlashBoard(ctx, req.Serial, extractPath, rel.Version, board.ID, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     taskFlash,
