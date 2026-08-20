@@ -73,10 +73,12 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 	result := listResult{board: board}
 	for _, r := range all.Filter(imageOs, board.ID) {
 		result.Releases = append(result.Releases, listRelease{
-			Image:  listImage{Version: r.Version, Board: r.Board, Os: r.OS},
-			Latest: r.Latest,
-			Url:    r.Url,
-			Sha256: r.Sha256,
+			Version: r.Version,
+			Board:   r.Board,
+			Os:      r.OS,
+			Latest:  r.Latest,
+			Url:     r.Url,
+			Sha256:  r.Sha256,
 		})
 	}
 
@@ -91,23 +93,19 @@ type listResult struct {
 	board registry.Board
 }
 
+// All three of version, board and os are needed to identify an image: the same
+// version can name a different one on another board or distribution.
 type listRelease struct {
-	Image listImage `json:"image"`
+	Version string `json:"version"`
+	Board   string `json:"board"`
+	// Os is the distribution as the index named it. Empty when it named none.
+	Os string `json:"os,omitempty"`
 	// Latest is whether this is the most recent of its board and distribution.
 	Latest bool `json:"latest"`
 	// Url and Sha256 are where the archive is published, to fetch it without
 	// going through the flash command.
 	Url    string `json:"url"`
 	Sha256 string `json:"sha256"`
-}
-
-// listImage identifies one image: all three parts are needed, since the same
-// version can name a different image on another board or distribution.
-type listImage struct {
-	Version string `json:"version"`
-	Board   string `json:"board"`
-	// Os is the distribution as the index named it. Empty when it named none.
-	Os string `json:"os,omitempty"`
 }
 
 // Data implements Result interface
@@ -130,7 +128,7 @@ func (lr listResult) String() string {
 	type line struct{ board, os string }
 	groups := map[line][]listRelease{}
 	for _, r := range lr.Releases {
-		key := line{r.Image.Board, r.Image.Os}
+		key := line{r.Board, r.Os}
 		groups[key] = append(groups[key], r)
 	}
 	// By name rather than by which line has the newest image, so that publishing
@@ -156,7 +154,7 @@ func (lr listResult) String() string {
 				mark = "✓"
 			}
 			// Named on every row: a row is what the flash arguments are read off.
-			t.AppendRow(table.Row{key.board, key.os, r.Image.Version, mark})
+			t.AppendRow(table.Row{key.board, key.os, r.Version, mark})
 		}
 	}
 	return t.Render()

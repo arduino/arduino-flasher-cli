@@ -38,12 +38,10 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	releases := make([]*flasher.Release, 0, len(matched))
 	for _, r := range matched {
 		releases = append(releases, &flasher.Release{
-			Image: &flasher.ImageRef{
-				Version: r.Version,
-				Board:   r.Board,
-				Os:      r.OS,
-			},
-			Latest: r.Latest,
+			BuildId: r.Version,
+			Latest:  r.Latest,
+			Board:   r.Board,
+			Os:      r.OS,
 		})
 	}
 

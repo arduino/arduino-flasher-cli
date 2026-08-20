@@ -39,28 +39,23 @@ message ListResponse {
 
 // Identifies one published image. All three parts are needed: the same version
 // can name a different image on another board or another distribution.
-message ImageRef {
-  // The version of the image, a build date and number: "20250807-136".
-  string version = 1;
-  // The board the image is built for: "unoq", "ventunoq".
-  string board = 2;
-  // The distribution the image is built for ("debian"). Empty when the index
-  // named none.
-  string os = 3;
-}
-
 message Release {
-  // What the image is, and what Flash takes to select it.
-  ImageRef image = 1;
+  // The version of the image, a build date and number: "20250807-136".
+  string build_id = 1;
   // Whether this is the most recent image of its board and distribution. Of
   // both, since a response may span several of either.
   bool latest = 2;
+  // The board the image is built for: "unoq", "ventunoq".
+  string board = 3;
+  // The distribution the image is built for ("debian"). Empty when the index
+  // named none.
+  string os = 4;
 }
 
 message FlashRequest {
-  // The image to flash, as List reported it. Required in full: nothing about
-  // which image goes on a board is assumed for the caller.
-  ImageRef image = 1;
+  // The version of the image to flash. Required: the most recent image is not
+  // assumed, call List to pick one.
+  string version = 1;
   // The path in which the image will be downloaded and extracted.
   // If an image file is already present, it will not be downloaded again.
   string temp_path = 2;
@@ -69,9 +64,12 @@ message FlashRequest {
   // Serial number of the target board to flash, as a decimal integer string.
   // Leave empty to target the first discovered board.
   string serial = 4;
-
-  // Were the version, the board and the distribution, now an ImageRef.
-  reserved 5, 6;
+  // The board to flash, e.g. "unoq". Required: which board is connected cannot
+  // be read before flashing it.
+  string board = 5;
+  // The distribution to flash, e.g. "debian". Required alongside the version
+  // and the board: a version alone can be a different image on another board.
+  string os = 6;
 }
 
 message FlashResponse {

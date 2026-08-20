@@ -26,18 +26,17 @@ const (
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 	// An image is a version of one board for one distribution, so all three are
 	// required: List reports them, and the board cannot be read before flashing.
-	image := req.GetImage()
-	if image.GetBoard() == "" {
+	if req.GetBoard() == "" {
 		return fmt.Errorf("no board requested, it must be one of: %s", strings.Join(registry.BoardIDs(), ", "))
 	}
-	board, ok := registry.BoardByID(image.GetBoard())
+	board, ok := registry.BoardByID(req.GetBoard())
 	if !ok {
-		return fmt.Errorf("%q is not a board, use one of: %s", image.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
+		return fmt.Errorf("%q is not a board, use one of: %s", req.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
 	}
-	if image.GetVersion() == "" {
+	if req.GetVersion() == "" {
 		return fmt.Errorf("no image version requested, call List to pick one")
 	}
-	if image.GetOs() == "" {
+	if req.GetOs() == "" {
 		return fmt.Errorf("no image distribution requested, call List to pick one")
 	}
 
@@ -83,7 +82,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 	}()
 
 	releases, fetchErr := client.Fetch(ctx)
-	rel, err := releases.Resolve(image.GetOs(), board.ID, image.GetVersion())
+	rel, err := releases.Resolve(req.GetOs(), board.ID, req.GetVersion())
 	if err != nil {
 		// An index that could not be read may be the one holding it.
 		return fmt.Errorf("could not get release info: %w", errors.Join(err, fetchErr))
