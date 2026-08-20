@@ -11,12 +11,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/url"
-	"path"
+	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/arduino/go-paths-helper"
@@ -27,193 +30,55 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
-var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
-
-// indexPaths is where each OS publishes its images. Each OS has one index,
-// holding the releases of every board it is built for.
-var indexPaths = []struct {
-	Os   string
-	Path string
-}{
-	{"debian", "debian-im/Stable"},
-	{"ubuntu", "ubuntu-im/custom-image/Stable"},
-}
-
-// Indexes returns every OS an index is known for.
-func Indexes() []string {
-	oses := make([]string, 0, len(indexPaths))
-	for _, i := range indexPaths {
-		oses = append(oses, i.Os)
-	}
-	return oses
-}
-
-func indexPath(os string) (string, error) {
-	for _, i := range indexPaths {
-		if i.Os == os {
-			return i.Path, nil
-		}
-	}
-	return "", fmt.Errorf("no image index is published for %s yet", os)
-}
-
-// Manifest is what an index publishes. Its releases are listed oldest first,
-// and hold every board the index is built for, so the most recent one is per
-// board rather than per index.
-type Manifest struct {
-	Releases []Release `json:"releases"`
-}
-
-type Release struct {
-	Version string `json:"version"`
-	Url     string `json:"url"`
-	Sha256  string `json:"sha256"`
-	// Board the release is built for: an index holds several. It is the label of
-	// the board, which is how an index names it, not its id.
-	Board string `json:"board,omitempty"`
-	// Distro is the full distribution name ("Debian GNU/Linux 13 (trixie)"), for
-	// display. Use the OS name to pick an index.
-	Distro   string `json:"os,omitempty"`
-	FileName string `json:"-"`
-}
-
-// Client holds the base URL, command name, allows custom HTTP client, and optional headers.
+// Client reads the indexes and downloads what they publish.
 type Client struct {
-	HTTPClient *http.Client
-	Headers    map[string]string // Optional headers to add to each request
+	httpClient *http.Client
+	headers    map[string]string
 }
 
-// Option is a functional option for configuring Client.
-type Option func(*Client)
-
-// WithHeaders sets custom headers for the Client.
-func WithHeaders(headers map[string]string) Option {
-	return func(c *Client) {
-		c.Headers = headers
-	}
-}
-
-// WithHTTPClient sets a custom HTTP client for the Client.
-func WithHTTPClient(client *http.Client) Option {
-	return func(c *Client) {
-		c.HTTPClient = client
+// NewClient returns a client for the published indexes, and for any the
+// environment adds.
+func NewClient() *Client {
+	return &Client{
+		httpClient: http.DefaultClient,
+		headers:    additionalHeaders(),
 	}
 }
 
-// NewClient creates a new Client with optional configuration.
-func NewClient(opts ...Option) *Client {
-	c := &Client{
-		HTTPClient: http.DefaultClient,
-		Headers:    nil,
-	}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
-}
-
-// addHeaders adds custom headers to the request if present.
-func (c *Client) addHeaders(req *http.Request) {
-	for k, v := range c.Headers {
-		req.Header.Set(k, v)
-	}
-}
-
-// GetInfoManifest fetches and decodes the info.json of the given OS's index.
-func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
-	indexDir, err := indexPath(os)
-	if err != nil {
-		return Manifest{}, err
-	}
-	manifestURL := baseURL.JoinPath(indexDir, "info.json").String()
-	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
-	}
-	c.addHeaders(req)
-	// #nosec G107 -- manifestURL is constructed from trusted config and parameters
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("failed to GET manifest: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		// Nothing published there yet, which is not the server being unreachable.
-		return Manifest{}, fmt.Errorf("no %s index is published yet (%s)", os, manifestURL)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return Manifest{}, fmt.Errorf("bad http status from %s: %v", manifestURL, resp.Status)
-	}
-
-	var res Manifest
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return Manifest{}, fmt.Errorf("invalid manifest JSON: %w", err)
-	}
-	getFileName := func(rel Release) (string, error) {
-		url, err := url.Parse(rel.Url)
+// Fetch reads every index, newest release first. It is the only call that hits
+// the network.
+//
+// One index failing does not hide the rest: its error is returned alongside the
+// releases that could be read, so a caller should look at the releases first and
+// treat the error as a warning. No releases and no error means nothing is
+// published yet.
+func (c *Client) Fetch(ctx context.Context) (Releases, error) {
+	var res Releases
+	var errs []error
+	for _, index := range indexURLs() {
+		releases, err := c.load(ctx, index)
+		if errors.Is(err, errNotPublished) {
+			continue
+		}
 		if err != nil {
-			return "", fmt.Errorf("invalid URL in manifest for release %s: %w", rel.Version, err)
+			// Added here so load has only to say what went wrong.
+			errs = append(errs, fmt.Errorf("could not read the image index at %s: %w", index, err))
+			continue
 		}
-		return path.Base(url.Path), nil
-	}
-	for i := range res.Releases {
-		if sha256Byte, err := hex.DecodeString(res.Releases[i].Sha256); err != nil {
-			return Manifest{}, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
-		} else if len(sha256Byte) != sha256.Size {
-			return Manifest{}, fmt.Errorf("bad sha256sum in manifest: got %d bytes", len(sha256Byte))
-		}
-		if name, err := getFileName(res.Releases[i]); err != nil {
-			return Manifest{}, err
-		} else {
-			res.Releases[i].FileName = name
-		}
+		res = append(res, releases...)
 	}
 
-	return res, nil
+	// Each index is sorted already, but a snapshot spans all of them, and so
+	// does a line of releases: which is the latest is only known once merged.
+	res.sortNewestFirst()
+	res.markLatest()
+
+	return res, errors.Join(errs...)
 }
 
-// GetReleaseByVersion finds a release in the given OS's index. An empty board
-// matches any, no version means the most recent one for that board.
-func (c *Client) GetReleaseByVersion(ctx context.Context, version, os, boardID string) (Release, error) {
-	manifest, err := c.GetInfoManifest(ctx, os)
-	if err != nil {
-		return Release{}, err
-	}
-
-	// An index names a board by its label. An id that is not one of ours is left
-	// as it is: it matches nothing, which is what an unknown board should do.
-	board := boardID
-	if b, ok := BoardByID(boardID); ok {
-		board = b.Label
-	}
-	matches := func(r Release) bool {
-		return board == "" || r.Board == board
-	}
-
-	if version == "" {
-		// Oldest first, so the last match is this board's most recent.
-		for i := len(manifest.Releases) - 1; i >= 0; i-- {
-			if matches(manifest.Releases[i]) {
-				return manifest.Releases[i], nil
-			}
-		}
-		return Release{}, fmt.Errorf("no %s image is published for the %s", os, board)
-	}
-
-	for _, r := range manifest.Releases {
-		if version == r.Version && matches(r) {
-			return r, nil
-		}
-	}
-
-	return Release{}, fmt.Errorf("could not find %s image %s for the %s", os, version, board)
-}
-
-type downloadCallback func(current, total int64)
-
-// DownloadFile downloads a file from a URL into the specified path. An optional config and options may be passed (or nil to use the defaults).
-// A DownloadProgressCB callback function must be passed to monitor download progress.
-// If a not empty queryParameter is passed, it is appended to the URL for analysis purposes.
+// DownloadFile downloads the archive of a release into basePath, under the name
+// the release carries, and checks it against the release's checksum. The
+// callback is told how much has arrived, and of how much.
 func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Release, cb downloadCallback) (*paths.Path, error) {
 	f.Assert(basePath.IsDir(), "path must be a directory")
 
@@ -225,8 +90,8 @@ func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Rel
 
 	filePath := basePath.Join(rel.FileName)
 	d, err := downloader.DownloadWithConfigAndContext(ctx, filePath.String(), rel.Url, downloader.Config{
-		HttpClient:   *c.HTTPClient,
-		ExtraHeaders: maps.Clone(c.Headers),
+		HttpClient:   *c.httpClient,
+		ExtraHeaders: maps.Clone(c.headers),
 		AcceptFunc: func(head *http.Response) error {
 			if head.ContentLength > int64(dk.Free) { // nolint: gosec
 				return fmt.Errorf("not enough disk space: need %d bytes, have %d bytes", head.ContentLength, dk.Free)
@@ -271,3 +136,100 @@ func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Rel
 
 	return filePath, nil
 }
+
+// indexes is where images are published. An index holds the releases of any
+// number of boards and distributions, and which of them a release is for is the
+// release's own business: where it was fetched from says nothing. Nothing
+// outside this file picks one either, they are fetched as a set.
+var indexes = []*url.URL{
+	f.Must(url.Parse("https://downloads.arduino.cc/debian-im/Stable/info.json")),
+	f.Must(url.Parse("https://downloads.arduino.cc/ubuntu-im/custom-image/Stable/info.json")),
+}
+
+// Indexes beyond the published ones, separated by commas or newlines, for
+// testing one before it is published. Alongside and not instead: what is
+// published stays visible.
+const additionalURLsEnv = "ARDUINO_FLASHER_ADDITIONAL_URLS"
+
+// indexURLs is every index to read.
+func indexURLs() []*url.URL {
+	out := slices.Clone(indexes)
+	for _, field := range strings.FieldsFunc(os.Getenv(additionalURLsEnv), func(r rune) bool {
+		return r == ',' || r == '\n'
+	}) {
+		if field = strings.TrimSpace(field); field == "" {
+			continue
+		}
+		// Not checked beyond parsing: one that cannot be read is reported by
+		// [Client.Fetch] like any other, which is louder than dropping it here.
+		if u, err := url.Parse(field); err == nil {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// Headers added to every index request and to the downloads they point at, one
+// "Name: value" per line. Newlines rather than commas: a header value can hold
+// one. Whatever a host asks to be let in with is its own business, so this
+// flasher carries no credential of its own.
+const additionalHeadersEnv = "ARDUINO_FLASHER_ADDITIONAL_HEADERS"
+
+// additionalHeaders are the headers the environment asks for. A line with no
+// name is skipped rather than sent empty.
+func additionalHeaders() map[string]string {
+	var out map[string]string
+	for _, line := range strings.Split(os.Getenv(additionalHeadersEnv), "\n") {
+		name, value, ok := strings.Cut(line, ":")
+		if name = strings.TrimSpace(name); !ok || name == "" {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[name] = strings.TrimSpace(value)
+	}
+	return out
+}
+
+// errNotPublished is an index that is not there yet, which is ordinary rather
+// than a failure, so [Client.Fetch] passes over it in silence.
+var errNotPublished = errors.New("not published yet")
+
+// addHeaders adds custom headers to the request if present.
+func (c *Client) addHeaders(req *http.Request) {
+	for k, v := range c.headers {
+		req.Header.Set(k, v)
+	}
+}
+
+// load fetches and decodes a single index. What one holds is [index]; what it
+// becomes is [index.parse].
+func (c *Client) load(ctx context.Context, u *url.URL) (Releases, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.addHeaders(req)
+	// #nosec G107 -- the index URL is a constant, not user input
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		// Nothing there, as opposed to the server being unreachable.
+		return nil, errNotPublished
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %s", resp.Status)
+	}
+
+	var idx index
+	if err := json.NewDecoder(resp.Body).Decode(&idx); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+	return idx.parse(), nil
+}
+
+type downloadCallback func(current, total int64)

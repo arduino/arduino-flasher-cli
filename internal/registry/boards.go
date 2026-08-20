@@ -23,8 +23,8 @@ type Board struct {
 	// Label is how the board is presented to the user, and how each release names
 	// it in an index.
 	Label string
-	// DefaultOs is the index to look in when none is asked for. What is published
-	// for a board is not listed here: every release carries its own.
+	// DefaultOs is the distribution to use when none is asked for. What is
+	// published for a board is not listed here: every release carries its own.
 	DefaultOs string
 	Variants  []Variant
 	// PreserveUser tells whether a flash can keep the user partition. It needs
@@ -53,17 +53,8 @@ var (
 	}
 )
 
-// Supported is every board the flasher knows about.
-var Supported = []Board{UnoQ, VentunoQ}
-
-// ResolveOs returns the index holding the images of this board: the one asked
-// for, or the default of the board.
-func (b Board) ResolveOs(requested string) string {
-	if requested == "" {
-		return b.DefaultOs
-	}
-	return requested
-}
+// supported is every board the flasher knows about.
+var supported = []Board{UnoQ, VentunoQ}
 
 // VariantByCapacity returns the smallest variant that can hold the reported
 // capacity. It is how the variant is told apart, since the capacity is read from
@@ -86,18 +77,8 @@ func (b Board) VariantByCapacity(reported uint64) (Variant, error) {
 
 // BoardByID returns the board with the given id.
 func BoardByID(id string) (Board, bool) {
-	for _, board := range Supported {
+	for _, board := range supported {
 		if board.ID == id {
-			return board, true
-		}
-	}
-	return Board{}, false
-}
-
-// BoardByLabel returns the board an index named, which it does by label.
-func BoardByLabel(label string) (Board, bool) {
-	for _, board := range Supported {
-		if board.Label == label {
 			return board, true
 		}
 	}
@@ -106,8 +87,8 @@ func BoardByLabel(label string) (Board, bool) {
 
 // BoardIDs returns the id of every supported board.
 func BoardIDs() []string {
-	ids := make([]string, 0, len(Supported))
-	for _, board := range Supported {
+	ids := make([]string, 0, len(supported))
+	for _, board := range supported {
 		ids = append(ids, board.ID)
 	}
 	return ids

@@ -27,12 +27,6 @@ func TestBoardByID(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestResolveOs(t *testing.T) {
-	assert.Equal(t, "debian", UnoQ.ResolveOs(""), "falls back to the default of the board")
-	assert.Equal(t, "ubuntu", UnoQ.ResolveOs("ubuntu"), "an explicit OS wins over the default")
-	assert.Equal(t, "ubuntu", VentunoQ.ResolveOs(""))
-}
-
 // A board reports slightly less than its advertised size, so matching has to be
 // by range. The rootfs in the image is ~7.3 GiB, hence these are plausible
 // values rather than the round marketing numbers.
