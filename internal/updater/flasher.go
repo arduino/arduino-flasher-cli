@@ -118,7 +118,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	rawProgram := "rawprogram0.xml"
 	if boardType == registry.UnoQ {
 		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
-		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
+		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir, serialStr)
 		if err != nil {
 			return err
 		}
@@ -305,14 +305,22 @@ func installQdl() (*paths.Path, func(), error) {
 }
 
 // readBoardGPTTable reads the GPT table of the board performing a qdl read
-func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (GptTable, error) {
+func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path, serialStr string) (GptTable, error) {
 	dumpBinPath := flashDir.Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
 		return GptTable{}, err
 	}
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
+	args := []string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}
+	if serialStr != "" {
+		serial, err := serial.FromNum(serialStr)
+		if err != nil {
+			return GptTable{}, err
+		}
+		args = append(args, "--serial", serial.Hex())
+	}
+	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return GptTable{}, err
 	}

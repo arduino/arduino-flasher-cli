@@ -16,19 +16,20 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
 const latest = "latest"
 
-func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, string, error) {
+func DetectBoardAndSetOs(ctx context.Context, version string, serialStr string) (string, string, string, error) {
 	boardType := registry.UnoQ
 	os := registry.Debian
 	switch version {
 	case latest:
 		var err error
 		feedback.Print(i18n.Tr("Detecting board type. Please connect the board in EDL mode."))
-		boardType, err = DetectBoardType(ctx)
+		boardType, err = DetectBoardType(ctx, serialStr)
 		if err != nil {
 			return "", "", "", err
 		}
@@ -42,7 +43,7 @@ func DetectBoardAndSetOs(ctx context.Context, version string) (string, string, s
 	return version, boardType, os, nil
 }
 
-func DetectBoardType(ctx context.Context) (string, error) {
+func DetectBoardType(ctx context.Context, serialStr string) (string, error) {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return "", err
@@ -59,7 +60,17 @@ func DetectBoardType(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", detectXMLPath.String())
+	args := []string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", detectXMLPath.String()}
+
+	if serialStr != "" {
+		serial, err := serial.FromNum(serialStr)
+		if err != nil {
+			return "", err
+		}
+		args = append(args, "--serial", serial.Hex())
+	}
+
+	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return "", err
 	}
