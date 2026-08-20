@@ -6,11 +6,15 @@
 package list
 
 import (
+	"cmp"
 	"context"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -26,8 +30,8 @@ func NewListCmd() *cobra.Command {
 		Short: "List the available Linux images",
 		Long: `List the available Linux images.
 
-Every index is listed. The argument narrows the result to one board, and --os to
-one distribution.
+Everything published is listed, grouped by board and distribution. The argument
+narrows the result to one board, and --os to one distribution.
 `,
 		Args: cobra.MaximumNArgs(1),
 		Example: " " + os.Args[0] + " list\n" +
@@ -46,7 +50,7 @@ one distribution.
 	return cmd
 }
 
-func runListCommand(ctx context.Context, boardID, imageOs string) {
+func runListCommand(ctx context.Context, boardID string, imageOs string) {
 	var board registry.Board
 	if boardID != "" {
 		var ok bool
@@ -55,45 +59,55 @@ func runListCommand(ctx context.Context, boardID, imageOs string) {
 		}
 	}
 
-	indexes := registry.Indexes()
-	if imageOs != "" {
-		indexes = []string{imageOs}
+	// One fetch, then filtered: nothing is cached, so asking per distribution
+	// would only be more round trips for releases already in hand.
+	all, err := registry.NewClient().Fetch(ctx)
+	if err != nil {
+		// One index failing should not hide the ones that did not.
+		feedback.Warning(err.Error())
+		if len(all) == 0 {
+			feedback.Fatal(i18n.Tr("no image index could be read"), feedback.ErrGeneric)
+		}
 	}
 
-	client := registry.NewClient()
-	result := listResult{Latest: map[string]registry.Release{}, board: board}
-	failed := 0
-	for _, index := range indexes {
-		manifest, err := client.GetInfoManifest(ctx, index)
-		if err != nil {
-			// One index being unreachable should not hide the others.
-			feedback.Warning(i18n.Tr("error retrieving the %s manifest: %v", index, err))
-			failed++
-			continue
-		}
-		for _, r := range manifest.Releases {
-			// An index names a board by its label.
-			if board.ID == "" || r.Board == board.Label {
-				result.Releases = append(result.Releases, r)
-				// Oldest first, so the last one of a board is its most recent.
-				result.Latest[r.Board] = r
-			}
-		}
-	}
-	if failed == len(indexes) {
-		feedback.Fatal(i18n.Tr("no image index could be retrieved"), feedback.ErrGeneric)
+	result := listResult{board: board}
+	for _, r := range all.Filter(imageOs, board.ID) {
+		result.Releases = append(result.Releases, listRelease{
+			Image:  listImage{Version: r.Version, Board: r.Board, Os: r.OS},
+			Latest: r.Latest,
+			Url:    r.Url,
+			Sha256: r.Sha256,
+		})
 	}
 
 	feedback.PrintResult(result)
 }
 
+// The reported shape mirrors the daemon's List, so the two describe an image the
+// same way.
 type listResult struct {
-	// Latest is the most recent release of each board, which is what "latest"
-	// means now that an index holds several of them.
-	Latest   map[string]registry.Release `json:"latest"`
-	Releases []registry.Release          `json:"releases"`
+	Releases []listRelease `json:"releases"`
 	// board is only for the empty-result message.
 	board registry.Board
+}
+
+type listRelease struct {
+	Image listImage `json:"image"`
+	// Latest is whether this is the most recent of its board and distribution.
+	Latest bool `json:"latest"`
+	// Url and Sha256 are where the archive is published, to fetch it without
+	// going through the flash command.
+	Url    string `json:"url"`
+	Sha256 string `json:"sha256"`
+}
+
+// listImage identifies one image: all three parts are needed, since the same
+// version can name a different image on another board or distribution.
+type listImage struct {
+	Version string `json:"version"`
+	Board   string `json:"board"`
+	// Os is the distribution as the index named it. Empty when it named none.
+	Os string `json:"os,omitempty"`
 }
 
 // Data implements Result interface
@@ -110,22 +124,40 @@ func (lr listResult) String() string {
 		return i18n.Tr("No images are published yet.")
 	}
 
-	isLatest := func(r registry.Release) bool {
-		latest, ok := lr.Latest[r.Board]
-		return ok && r.Url != "" && latest.Url == r.Url
+	// Grouped per board and distribution, since that is the line a version
+	// belongs to. Named the way flash and download take them, so a row reads
+	// back into the next command.
+	type line struct{ board, os string }
+	groups := map[line][]listRelease{}
+	for _, r := range lr.Releases {
+		key := line{r.Image.Board, r.Image.Os}
+		groups[key] = append(groups[key], r)
 	}
+	// By name rather than by which line has the newest image, so that publishing
+	// one does not reshuffle the table.
+	order := slices.SortedFunc(maps.Keys(groups), func(a, b line) int {
+		return cmp.Or(strings.Compare(a.board, b.board), strings.Compare(a.os, b.os))
+	})
 
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"VERSION", "BOARD", "DISTRIBUTION", "LATEST"})
-
-	for i := len(lr.Releases) - 1; i >= 0; i-- {
-		r := lr.Releases[i]
-		row := table.Row{r.Version, r.Board, r.Distro}
-		if isLatest(r) {
-			row = append(row, "✓")
+	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "LATEST"})
+	// The style centers cells, which leaves names of different lengths ragged.
+	// These are read off to be retyped, so they line up instead.
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{Name: "BOARD", Align: text.AlignLeft},
+		{Name: "OS", Align: text.AlignLeft},
+		{Name: "VERSION", Align: text.AlignLeft},
+	})
+	for _, key := range order {
+		for _, r := range groups[key] {
+			mark := ""
+			if r.Latest {
+				mark = "✓"
+			}
+			// Named on every row: a row is what the flash arguments are read off.
+			t.AppendRow(table.Row{key.board, key.os, r.Image.Version, mark})
 		}
-		t.AppendRow(row)
 	}
 	return t.Render()
 }
