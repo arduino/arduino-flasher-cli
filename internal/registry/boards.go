@@ -7,19 +7,6 @@ package registry
 
 import "fmt"
 
-// BoardID names a board, both on the command line and in the code.
-type BoardID string
-
-// Os is the distribution family an image belongs to, and picks the index to look
-// in. It is not the manifest's own os field, which spells out the exact release
-// ("Debian GNU/Linux 13 (trixie)").
-type Os string
-
-const (
-	Debian Os = "debian"
-	Ubuntu Os = "ubuntu"
-)
-
 // Variant is one storage configuration of a board.
 type Variant struct {
 	Label string
@@ -32,13 +19,13 @@ type Variant struct {
 
 // Board is a board the flasher can target.
 type Board struct {
-	ID BoardID
+	ID string
 	// Label is how the board is presented to the user.
 	Label string
 	// DefaultOs is the index to look in when none is asked for. What is actually
 	// published for a board is not listed here: every release carries its board,
 	// so it is discoverable by reading the indexes.
-	DefaultOs Os
+	DefaultOs string
 	Variants  []Variant
 	// PreserveUser tells whether a flash can keep the user partition. It works by
 	// reading the partition table of the board before writing, which is also what
@@ -53,7 +40,7 @@ var (
 	UnoQ = Board{
 		ID:           "unoq",
 		Label:        "UNO Q",
-		DefaultOs:    Debian,
+		DefaultOs:    "debian",
 		PreserveUser: true,
 		Variants: []Variant{
 			{Label: "UNO Q (2GB RAM, 16GB storage)", Capacity: 16_000_000_000},
@@ -64,7 +51,7 @@ var (
 	VentunoQ = Board{
 		ID:        "ventunoq",
 		Label:     "VENTUNO Q",
-		DefaultOs: Ubuntu,
+		DefaultOs: "ubuntu",
 	}
 )
 
@@ -73,7 +60,7 @@ var Supported = []Board{UnoQ, VentunoQ}
 
 // ResolveOs returns the index holding the images of this board: the one asked
 // for, or the default of the board.
-func (b Board) ResolveOs(requested Os) Os {
+func (b Board) ResolveOs(requested string) string {
 	if requested == "" {
 		return b.DefaultOs
 	}
@@ -100,7 +87,7 @@ func (b Board) VariantByCapacity(reported uint64) (Variant, error) {
 }
 
 // BoardByID returns the board with the given id.
-func BoardByID(id BoardID) (Board, bool) {
+func BoardByID(id string) (Board, bool) {
 	for _, board := range Supported {
 		if board.ID == id {
 			return board, true
@@ -113,7 +100,7 @@ func BoardByID(id BoardID) (Board, bool) {
 func BoardIDs() []string {
 	ids := make([]string, 0, len(Supported))
 	for _, board := range Supported {
-		ids = append(ids, string(board.ID))
+		ids = append(ids, board.ID)
 	}
 	return ids
 }

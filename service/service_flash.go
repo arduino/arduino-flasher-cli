@@ -25,7 +25,7 @@ const (
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
 	// Both are required: the board cannot be read before flashing it, and the
 	// most recent image is not assumed on the client's behalf.
-	board, ok := registry.BoardByID(registry.BoardID(req.GetBoard()))
+	board, ok := registry.BoardByID(req.GetBoard())
 	if !ok {
 		return fmt.Errorf("%q is not a board, use one of: %s", req.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
 	}

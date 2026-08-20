@@ -31,9 +31,9 @@ var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
 // indexPath returns where the given OS publishes its images. Each OS has one
 // index, holding the releases of every board it is built for.
-func indexPath(os Os) (string, error) {
+func indexPath(os string) (string, error) {
 	switch os {
-	case Debian:
+	case "debian":
 		return "debian-im/Stable", nil
 	default:
 		return "", fmt.Errorf("no image index is published for %s yet", os)
@@ -95,7 +95,7 @@ func (c *Client) addHeaders(req *http.Request) {
 }
 
 // GetInfoManifest fetches and decodes the info.json of the given OS's index.
-func (c *Client) GetInfoManifest(ctx context.Context, os Os) (Manifest, error) {
+func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
 	indexDir, err := indexPath(os)
 	if err != nil {
 		return Manifest{}, err
@@ -147,7 +147,7 @@ func (c *Client) GetInfoManifest(ctx context.Context, os Os) (Manifest, error) {
 	return res, nil
 }
 
-func (c *Client) GetReleaseByVersion(ctx context.Context, version string, os Os) (Release, error) {
+func (c *Client) GetReleaseByVersion(ctx context.Context, version, os string) (Release, error) {
 	manifest, err := c.GetInfoManifest(ctx, os)
 	if err != nil {
 		return Release{}, err

@@ -10,7 +10,6 @@ import (
 	"regexp"
 
 	"github.com/arduino/go-paths-helper"
-	"github.com/fatih/color"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -27,14 +26,14 @@ var legacyVersion = regexp.MustCompile(`^\d{8}-\d+$`)
 // Deleting this function and its callers ends the deprecation.
 func LegacyArgs(board, image, version string) (string, string, string) {
 	// A board id always wins, so a file named after one does not shadow it.
-	if _, ok := registry.BoardByID(registry.BoardID(board)); ok {
+	if _, ok := registry.BoardByID(board); ok {
 		return board, image, version
 	}
-	unoQ := string(registry.UnoQ.ID)
+	unoQ := registry.UnoQ.ID
 
 	switch {
 	case board == "latest":
-		warn(i18n.Tr("%q is deprecated and will be removed, use: %s", board, unoQ))
+		feedback.Warning(i18n.Tr("%q is deprecated and will be removed, use: %s", board, unoQ))
 		return unoQ, image, version
 
 	case legacyVersion.MatchString(board):
@@ -42,20 +41,16 @@ func LegacyArgs(board, image, version string) (string, string, string) {
 			feedback.Fatal(i18n.Tr("the version was passed both as %s and as --version %s, keep only the flag",
 				board, version), feedback.ErrBadArgument)
 		}
-		warn(i18n.Tr("%q is deprecated and will be removed, use: %s --version %s", board, unoQ, board))
+		feedback.Warning(i18n.Tr("%q is deprecated and will be removed, use: %s --version %s", board, unoQ, board))
 		return unoQ, image, board
 
 	// An image where the board is expected only ever meant an UNO Q one.
 	case image == "" && paths.New(board).Exist():
-		warn(i18n.Tr("flashing an image without naming the board is deprecated and will be removed, use: %s %s",
+		feedback.Warning(i18n.Tr("flashing an image without naming the board is deprecated and will be removed, use: %s %s",
 			unoQ, board))
 		return unoQ, board, version
 
 	default:
 		return board, image, version
 	}
-}
-
-func warn(message string) {
-	feedback.Print(color.YellowString("WARNING: " + message))
 }

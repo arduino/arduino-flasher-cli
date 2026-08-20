@@ -45,7 +45,7 @@ type FlashOptions struct {
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
 // CLI needs; the daemon reports progress between the steps and uses them
 // directly instead.
-func DownloadAndFlash(ctx context.Context, boardID registry.BoardID, index registry.Os, imageVersion string, opts FlashOptions) error {
+func DownloadAndFlash(ctx context.Context, boardID, index string, imageVersion string, opts FlashOptions) error {
 	temp, err := SetTempDir("download-", opts.TempDir)
 	if err != nil {
 		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
@@ -66,7 +66,7 @@ func DownloadAndFlash(ctx context.Context, boardID registry.BoardID, index regis
 
 // FlashImage flashes an image already on disk, extracting it first when it is an
 // archive. The image does not say which board it is for, so the caller tells.
-func FlashImage(ctx context.Context, imagePath *paths.Path, boardID registry.BoardID, opts FlashOptions) error {
+func FlashImage(ctx context.Context, imagePath *paths.Path, boardID string, opts FlashOptions) error {
 	if !imagePath.IsDir() {
 		temp, err := SetTempDir("extract-", opts.TempDir)
 		if err != nil {
@@ -119,7 +119,7 @@ const (
 	SystemReservedBytes uint64 = 1 * GiB
 )
 
-func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardID registry.BoardID, preserveUser bool, rootSize uint64, callback FlashCallback) error {
+func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *paths.Path, version string, boardID string, preserveUser bool, rootSize uint64, callback FlashCallback) error {
 	qdlPath, cleanup, err := installQdl()
 	if err != nil {
 		return err

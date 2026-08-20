@@ -32,19 +32,19 @@ The argument is the board to list the images of, defaulting to the UNO Q.
 		Example: " " + os.Args[0] + " list\n" +
 			" " + os.Args[0] + " list unoq\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			boardID := string(registry.UnoQ.ID)
+			boardID := registry.UnoQ.ID
 			if len(args) > 0 {
 				boardID = args[0]
 			}
-			runListCommand(cmd.Context(), boardID, registry.Os(osStr))
+			runListCommand(cmd.Context(), boardID, osStr)
 		},
 	}
 	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to list, for boards that publish more than one")
 	return cmd
 }
 
-func runListCommand(ctx context.Context, boardID string, imageOs registry.Os) {
-	board, ok := registry.BoardByID(registry.BoardID(boardID))
+func runListCommand(ctx context.Context, boardID string, imageOs string) {
+	board, ok := registry.BoardByID(boardID)
 	if !ok {
 		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}

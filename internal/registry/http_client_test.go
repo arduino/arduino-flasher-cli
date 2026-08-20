@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetInfoManifest(t *testing.T) {
-	manifest, err := NewClient().GetInfoManifest(context.Background(), Debian)
+	manifest, err := NewClient().GetInfoManifest(context.Background(), "debian")
 	require.NoError(t, err)
 	require.NotEmpty(t, manifest.Releases)
 }

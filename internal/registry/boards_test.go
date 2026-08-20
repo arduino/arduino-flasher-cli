@@ -28,9 +28,9 @@ func TestBoardByID(t *testing.T) {
 }
 
 func TestResolveOs(t *testing.T) {
-	assert.Equal(t, Debian, UnoQ.ResolveOs(""), "falls back to the default of the board")
-	assert.Equal(t, Ubuntu, UnoQ.ResolveOs(Ubuntu), "an explicit OS wins over the default")
-	assert.Equal(t, Ubuntu, VentunoQ.ResolveOs(""))
+	assert.Equal(t, "debian", UnoQ.ResolveOs(""), "falls back to the default of the board")
+	assert.Equal(t, "ubuntu", UnoQ.ResolveOs("ubuntu"), "an explicit OS wins over the default")
+	assert.Equal(t, "ubuntu", VentunoQ.ResolveOs(""))
 }
 
 // A board reports slightly less than its advertised size, so matching has to be

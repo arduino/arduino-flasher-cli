@@ -38,7 +38,7 @@ than one is available.
 			" " + os.Args[0] + " download unoq --version 20251024-412\n" +
 			" " + os.Args[0] + " download unoq --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(cmd.Context(), args[0], destDir, registry.Os(osStr), version)
+			runDownloadCommand(cmd.Context(), args[0], destDir, osStr, version)
 		},
 	}
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
@@ -48,7 +48,7 @@ than one is available.
 	return cmd
 }
 
-func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs registry.Os, version string) {
+func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs string, version string) {
 	boardID, _, version = argparse.LegacyArgs(boardID, "", version)
 
 	downloadPath := paths.New(destDir)
@@ -56,7 +56,7 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs re
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	board, ok := registry.BoardByID(registry.BoardID(boardID))
+	board, ok := registry.BoardByID(boardID)
 	if !ok {
 		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}

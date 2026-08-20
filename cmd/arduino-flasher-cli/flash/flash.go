@@ -103,7 +103,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args[0], imageArg, registry.Os(osStr), version, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
 	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
@@ -128,10 +128,10 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs registry.Os, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
 	boardID, imageArg, version = argparse.LegacyArgs(boardID, imageArg, version)
 
-	board, ok := registry.BoardByID(registry.BoardID(boardID))
+	board, ok := registry.BoardByID(boardID)
 	if !ok {
 		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}
