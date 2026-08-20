@@ -36,7 +36,8 @@ message Release {
 }
 
 message FlashRequest {
-  // The version of the Debian image to download.
+  // The version of the image to download. Required: the most recent image is
+  // not assumed, call List to pick one.
   string version = 1;
   // The path in which the image will be downloaded and extracted.
   // If an image file is already present, it will not be downloaded again.
@@ -46,6 +47,9 @@ message FlashRequest {
   // Serial number of the target board to flash, as a decimal integer string.
   // Leave empty to target the first discovered board.
   string serial = 4;
+  // The board to flash, e.g. "unoq". Required: which board is connected cannot
+  // be read before flashing it.
+  string board = 5;
 }
 
 message FlashResponse {

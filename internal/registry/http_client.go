@@ -29,13 +29,16 @@ import (
 
 var baseURL = f.Must(url.Parse("https://downloads.arduino.cc"))
 
-const (
-	pathRelease = "debian-im/Stable"
-	UnoQ        = "UNO Q"
-	VentunoQ    = "VENTUNO Q"
-	Debian      = "debian"
-	Ubuntu      = "ubuntu"
-)
+// indexPath returns where the given OS publishes its images. Each OS has one
+// index, holding the releases of every board it is built for.
+func indexPath(os string) (string, error) {
+	switch os {
+	case "debian":
+		return "debian-im/Stable", nil
+	default:
+		return "", fmt.Errorf("no image index is published for %s yet", os)
+	}
+}
 
 type Manifest struct {
 	Latest   Release   `json:"latest"`
@@ -91,13 +94,13 @@ func (c *Client) addHeaders(req *http.Request) {
 	}
 }
 
-// GetInfoManifest fetches and decodes the Debian images info.json.
+// GetInfoManifest fetches and decodes the info.json of the given OS's index.
 func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, error) {
-	manifestURL := baseURL.JoinPath(pathRelease, "info.json").String()
-	if os == Ubuntu {
-		// TODO: use the correct manifest URL
-		return Manifest{}, fmt.Errorf("ubuntu images are not supported yet")
+	indexDir, err := indexPath(os)
+	if err != nil {
+		return Manifest{}, err
 	}
+	manifestURL := baseURL.JoinPath(indexDir, "info.json").String()
 	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("failed to create request: %w", err)
@@ -144,14 +147,14 @@ func (c *Client) GetInfoManifest(ctx context.Context, os string) (Manifest, erro
 	return res, nil
 }
 
-func (c *Client) GetReleaseByVersion(ctx context.Context, version string, boardType string, os string) (Release, error) {
+func (c *Client) GetReleaseByVersion(ctx context.Context, version, os string) (Release, error) {
 	manifest, err := c.GetInfoManifest(ctx, os)
 	if err != nil {
 		return Release{}, err
 	}
 
-	// TODO: boardType should be used here to filter Debian releases based on the board type
-	if version == "latest" || version == manifest.Latest.Version {
+	// No version asked for means the most recent one.
+	if version == "" || version == manifest.Latest.Version {
 		return manifest.Latest, nil
 	} else {
 		for _, r := range manifest.Releases {

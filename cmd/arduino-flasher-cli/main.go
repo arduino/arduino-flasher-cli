@@ -32,7 +32,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "arduino-flasher-cli",
 		Short: "A CLI to update your Arduino UNO Q board, by downloading and flashing the latest Arduino Linux image",
-		Example: " " + os.Args[0] + " flash latest\n" +
+		Example: " " + os.Args[0] + " flash unoq\n" +
 			" " + os.Args[0] + " list\n",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			format, ok := feedback.ParseOutputFormat(format)

@@ -6,6 +6,7 @@
 package flash
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -19,55 +20,51 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
+	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
-
-const minRootSize uint64 = 9 * 1024 * 1024 * 1024 // 9GiB
 
 func NewFlashCmd() *cobra.Command {
 	var forceYes, preserveUser bool
 	var serialStr string
 	var tempDir string
 	var rootSizeStr string
+	var osStr string
+	var version string
 	appCmd := &cobra.Command{
-		Use:   "flash",
+		Use:   "flash [board] [image]",
 		Short: "Flash a Debian image on the board",
 		Long: `Flash a Debian image on the board.
 
 WARNING: This operation will completely replace the current system on the board.
 Make sure to backup any important data before proceeding.
 
-This command accepts either:
-  - A local file path to a compressed Debian image file (e.g., .tar.zst, .tar.xz) or a decompressed Debian image folder
-  - A version tag to download from the remote repository
+The first argument is the board to flash, the second an OS image file already on disk.
+Both arguments are optional. If no arguments are specified, the interactive wizard is
+started.
 
-When providing a local file path:
-  - The path can be relative or absolute
-  - The file is extracted in a temp folder (if needed)
-  - The image is flashed into the board
-
-When providing a version tag:
-  - Use 'latest' to download the most recent stable image
-  - Use a specific version tag (e.g., '20250915-173') to download that exact version
-  - The image will be automatically downloaded (in a temp folder), the sha is verified, and flashed
-
+If a board is specified without an OS image file:
+  - The OS image is downloaded in a temp folder, verified with checksum, and flashed
+  - Unless a --version is specified, the most recent OS image will be selected
+  - If more than one distribution is available, it may be specified with --os
 
 NOTE: On Windows, required drivers are automatically installed with elevated privileges.
 `,
-		Example: " " + os.Args[0] + " flash latest\n" +
-			" " + os.Args[0] + " flash 20250915-173\n" +
-			" " + os.Args[0] + " flash ./my-image.tar.zst\n" +
-			" " + os.Args[0] + " flash /path/to/debian-image.tar.zst\n" +
-			" " + os.Args[0] + " flash /path/to/debian-image.tar.xz \n" +
-			" " + os.Args[0] + " flash /path/to/arduino-unoq-debian-image-20250915-173 \n" +
-			" " + os.Args[0] + " flash latest --temp-dir /path/to/custom/tempDir \n" +
-			" " + os.Args[0] + " flash latest --preserve-user \n" +
-			" " + os.Args[0] + " flash latest --root-size 12GB \n",
+		Example: " " + os.Args[0] + " flash\n" +
+			" " + os.Args[0] + " flash unoq\n" +
+			" " + os.Args[0] + " flash unoq --version 20250915-173\n" +
+			" " + os.Args[0] + " flash unoq ./my-image.tar.zst\n" +
+			" " + os.Args[0] + " flash unoq /path/to/debian-image.tar.xz \n" +
+			" " + os.Args[0] + " flash unoq /path/to/arduino-unoq-debian-image-20250915-173 \n" +
+			" " + os.Args[0] + " flash unoq --temp-dir /path/to/custom/tempDir \n" +
+			" " + os.Args[0] + " flash unoq --preserve-user \n" +
+			" " + os.Args[0] + " flash unoq --root-size 12GB \n",
 
-		Args: cobra.MaximumNArgs(1),
+		Args: cobra.MaximumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
 			if serialStr != "" {
@@ -79,9 +76,14 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				// (see issue #96). Convert the hex CLI input to decimal here.
 				serialStr = s.Decimal()
 			}
+			// Flashing needs a board, and the wizard is what asks for one.
 			if len(args) == 0 {
 				interactive.Run(cmd.Context())
 				return
+			}
+			imageArg := ""
+			if len(args) > 1 {
+				imageArg = args[1]
 			}
 
 			rootSize := uint64(0)
@@ -96,14 +98,16 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 					feedback.Fatal(i18n.Tr("invalid root-size value: %v", err), feedback.ErrBadArgument)
 				}
 
-				if rootSize < minRootSize {
-					feedback.Fatal(i18n.Tr("root-size must be at least 10GB"), feedback.ErrBadArgument)
+				if rootSize < updater.MinRootSize {
+					feedback.Fatal(i18n.Tr("root-size must be at least %s", humanize.IBytes(updater.MinRootSize)), feedback.ErrBadArgument)
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize)
 		},
 	}
+	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
+	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
 	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
@@ -124,15 +128,25 @@ func checkDriversInstalled() {
 	}
 }
 
-func runFlashCommand(ctx context.Context, args []string, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
-	imagePath, err := paths.New(args[0]).Abs()
+func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+	boardID, imageArg, version = argparse.LegacyArgs(boardID, imageArg, version)
+
+	board, ok := registry.BoardByID(boardID)
+	if !ok {
+		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
+	}
+	imagePath, err := resolveImage(imageArg)
 	if err != nil {
-		feedback.Fatal(i18n.Tr("could not find image absolute path: %v", err), feedback.ErrBadArgument)
+		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
 	if !forceYes && !preserveUser {
 		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
-		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", args[0])
+		target := cmp.Or(version, i18n.Tr("the latest image"))
+		if imagePath != nil {
+			target = imagePath.Base()
+		}
+		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string
 		_, err := fmt.Scanf("%s\n", &yesInput)
@@ -146,14 +160,35 @@ func runFlashCommand(ctx context.Context, args []string, serialStr string, force
 		}
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0])
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	opts := updater.FlashOptions{
+		Serial:       serialStr,
+		PreserveUser: preserveUser,
+		TempDir:      tempDir,
+		RootSize:     rootSize,
 	}
-
-	err = updater.Flash(ctx, serialStr, imagePath, version, boardType, os, forceYes, preserveUser, tempDir, rootSize, nil)
+	if imagePath != nil {
+		err = updater.FlashImage(ctx, imagePath, board.ID, opts)
+	} else {
+		err = updater.DownloadAndFlash(ctx, board.ID, board.ResolveOs(imageOs), version, opts)
+	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper.")
+}
+
+// resolveImage returns the path of the image the argument points at, or nil when
+// there is no argument, which is what asks for one to be downloaded.
+func resolveImage(arg string) (*paths.Path, error) {
+	if arg == "" {
+		return nil, nil
+	}
+	imagePath, err := paths.New(arg).Abs()
+	if err != nil {
+		return nil, fmt.Errorf("could not find image absolute path: %v", err)
+	}
+	if !imagePath.Exist() {
+		return nil, fmt.Errorf("there is no image at %s", arg)
+	}
+	return imagePath, nil
 }

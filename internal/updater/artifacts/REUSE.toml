@@ -4,14 +4,6 @@ version = 1
 path = [
   ".gitignore",
   "read.xml",
-  "detect.xml",
 ]
 SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
 SPDX-License-Identifier = "GPL-3.0-or-later"
-
-[[annotations]]
-path = [
-  "prog_firehose_ddr.elf"
-]
-SPDX-FileCopyrightText = "QUALCOMM TECHNOLOGIES, INC."
-SPDX-License-Identifier = "LicenseRef-QTI-binary-redistribution"

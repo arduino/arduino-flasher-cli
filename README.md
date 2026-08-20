@@ -11,8 +11,8 @@ For a full guide on how to use it, see the [User documentation](https://docs.ard
 Build it with `task build` and run:
 
 ```sh
-# Flash the latest release of the Debian image
-./build/arduino-flasher-cli flash latest
+# Flash the most recent Debian image for the UNO Q
+./build/arduino-flasher-cli flash unoq
 
 # Flash a local image. It works with either an archived or extracted image
 ./build/arduino-flasher-cli flash path/to/downloaded/image
