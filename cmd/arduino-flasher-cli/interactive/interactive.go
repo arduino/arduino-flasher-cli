@@ -27,13 +27,6 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
-// image is a release together with the index it was found in, which is what the
-// flash needs and the release itself does not carry.
-type image struct {
-	index   string
-	release registry.Release
-}
-
 // Run starts the interactive wizard and performs the flash.
 func Run(ctx context.Context) {
 	images := fetchImages(ctx)
@@ -57,23 +50,29 @@ func Run(ctx context.Context) {
 		variantOptions = append(variantOptions, huh.NewOption(v.Label, v))
 	}
 
-	// Newest first, so the first one is this board's latest.
+	// Asked only when the board has images of more than one, so what follows is
+	// a single distribution and its newest image is simply the first.
 	boardImages := images[boardID]
-	versionOptions := make([]huh.Option[image], 0, len(boardImages))
-	for i, img := range boardImages {
-		label := img.release.Version
+	if oses := slices.Sorted(slices.Values(boardImages.OSes())); len(oses) > 1 {
+		var imageOs string
+		if !selectOs(ctx, oses, &imageOs) {
+			return
+		}
+		boardImages = boardImages.Filter(imageOs, "")
+	}
+
+	versionOptions := make([]huh.Option[registry.Release], 0, len(boardImages))
+	for i, rel := range boardImages {
+		label := rel.Version
 		if i == 0 {
 			label += " (latest)"
 		}
-		if len(registry.Indexes()) > 1 {
-			label += " — " + img.index
-		}
-		versionOptions = append(versionOptions, huh.NewOption(label, img))
+		versionOptions = append(versionOptions, huh.NewOption(label, rel))
 	}
 
 	var (
 		variant      registry.Variant
-		selected     image
+		selected     registry.Release
 		preserveUser bool
 		rootPctStr   string
 		confirm      bool
@@ -94,7 +93,7 @@ func Run(ctx context.Context) {
 	}
 
 	groups = append(groups, huh.NewGroup(
-		huh.NewSelect[image]().
+		huh.NewSelect[registry.Release]().
 			Title(i18n.Tr("Select the image version to flash")).
 			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 			Options(versionOptions...).
@@ -151,8 +150,13 @@ func Run(ctx context.Context) {
 	groups = append(groups, huh.NewGroup(
 		huh.NewConfirm().
 			Title(i18n.Tr("Ready to flash")).
+			// A group fixes its height when built, before DescriptionFunc has
+			// run, so the summary is also given statically for it to measure:
+			// without it the buttons fall outside the viewport. Before the func,
+			// which Description would otherwise clear.
+			Description(buildSummary(board, boardLabel, "", false, 0)).
 			DescriptionFunc(func() string {
-				return buildSummary(cmp.Or(variant.Label, boardLabel), selected.release.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
+				return buildSummary(board, cmp.Or(variant.Label, boardLabel), selected.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
 			}, []any{&variant, &selected, &preserveUser, &rootPctStr}).
 			Affirmative(i18n.Tr("Flash now")).
 			Negative(i18n.Tr("Cancel")).
@@ -175,55 +179,54 @@ func Run(ctx context.Context) {
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
 	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
-	if err := updater.DownloadAndFlash(ctx, board.ID, selected.index, selected.release.Version, opts); err != nil {
+	if err := updater.DownloadAndFlash(ctx, board.ID, selected, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
 }
 
-// fetchImages reads every index and groups what is published by board, newest
-// first. Boards are offered by what exists, so one appears the day its images do.
-func fetchImages(ctx context.Context) map[string][]image {
-	client := registry.NewClient()
-	images := map[string][]image{}
-
-	var errs []error
+// fetchImages reads every index once and groups what is published by board,
+// newest first, so a board appears the day its images do.
+func fetchImages(ctx context.Context) map[string]registry.Releases {
+	var all registry.Releases
+	var partial error
 	sp := spinner.New().
 		Context(ctx).
 		Title(i18n.Tr("Fetching available images...")).
 		ActionWithErr(func(ctx context.Context) error {
-			for _, index := range registry.Indexes() {
-				manifest, err := client.GetInfoManifest(ctx, index)
-				if err != nil {
-					// One index being unreachable should not hide the others.
-					errs = append(errs, err)
-					continue
-				}
-				for _, r := range manifest.Releases {
-					// An index names a board by its label, and can hold releases
-					// of boards this flasher knows nothing about.
-					b, ok := registry.BoardByLabel(r.Board)
-					if !ok {
-						continue
-					}
-					images[b.ID] = append(images[b.ID], image{index: index, release: r})
-				}
+			releases, err := registry.NewClient().Fetch(ctx)
+			if len(releases) == 0 {
+				// Only fails when no index at all could be read.
+				return err
 			}
-			if len(images) == 0 {
-				return errors.Join(errs...)
-			}
+			all, partial = releases, err
 			return nil
 		})
 	if err := sp.Run(); err != nil {
 		feedback.Fatal(i18n.Tr("error retrieving the manifest: %v", err), feedback.ErrBadArgument)
 	}
+	// After the spinner has the line back, so what is on offer is not silently
+	// short of an index.
+	if partial != nil {
+		feedback.Warning(partial.Error())
+	}
 
-	for board := range images {
-		slices.SortFunc(images[board], func(a, b image) int {
-			return strings.Compare(b.release.Version, a.release.Version)
-		})
+	// Already newest first, so each board keeps that order.
+	images := map[string]registry.Releases{}
+	for _, r := range all {
+		images[r.Board] = append(images[r.Board], r)
 	}
 	return images
+}
+
+// selectOs asks which distribution to flash, and reports whether the wizard
+// should go on.
+func selectOs(ctx context.Context, oses []string, imageOs *string) bool {
+	options := make([]huh.Option[string], 0, len(oses))
+	for _, o := range oses {
+		options = append(options, huh.NewOption(o, o))
+	}
+	return runSelect(ctx, i18n.Tr("Select the distribution to flash"), options, imageOs)
 }
 
 // selectBoard asks which board to flash, and reports whether the wizard should
@@ -234,12 +237,17 @@ func selectBoard(ctx context.Context, boardIDs []string, boardID *string) bool {
 		b, _ := registry.BoardByID(id)
 		options = append(options, huh.NewOption(b.Label, id))
 	}
+	return runSelect(ctx, i18n.Tr("Select your board"), options, boardID)
+}
+
+// runSelect puts one choice to the user, and reports whether to go on.
+func runSelect(ctx context.Context, title string, options []huh.Option[string], into *string) bool {
 	form := huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
-			Title(i18n.Tr("Select your board")).
+			Title(title).
 			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 			Options(options...).
-			Value(boardID),
+			Value(into),
 	))
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
@@ -324,23 +332,26 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	return toPadString()
 }
 
-func buildSummary(boardLabel, version string, preserveUser bool, rootSize uint64) string {
-	userPartition := i18n.Tr("will be erased")
-	if preserveUser {
-		userPartition = i18n.Tr("preserved")
-	}
-
-	rootSizeStr := i18n.Tr("auto-detect")
-	if rootSize > 0 {
-		rootSizeStr = humanize.IBytes(rootSize)
-	}
-
+func buildSummary(board registry.Board, boardLabel, version string, preserveUser bool, rootSize uint64) string {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+boardLabel)
 	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
-	fmt.Fprintln(w, i18n.Tr("User partition:")+"\t"+userPartition)
-	fmt.Fprintln(w, i18n.Tr("Root size:")+"\t"+rootSizeStr)
+	// Both come off the board's partition table, so a board without one was
+	// asked neither and is reported neither.
+	if board.PreserveUser {
+		userPartition := i18n.Tr("will be erased")
+		if preserveUser {
+			userPartition = i18n.Tr("preserved")
+		}
+		fmt.Fprintln(w, i18n.Tr("User partition:")+"\t"+userPartition)
+
+		rootSizeStr := i18n.Tr("auto-detect")
+		if rootSize > 0 {
+			rootSizeStr = humanize.IBytes(rootSize)
+		}
+		fmt.Fprintln(w, i18n.Tr("Root size:")+"\t"+rootSizeStr)
+	}
 	_ = w.Flush()
 
 	if !preserveUser {
