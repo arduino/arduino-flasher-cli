@@ -24,49 +24,43 @@ service Flasher {
   rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
-// The board an image is built for.
-enum Board {
-  // Default, unspecified board.
-  BOARD_UNSPECIFIED = 0;
-  // "UNO Q" board.
-  BOARD_UNO_Q = 1;
-  // "VENTUNO Q" board.
-  BOARD_VENTUNO_Q = 2;
-}
-
-// The distribution an image belongs to, which picks the index to look in.
-enum OS {
-  // Default, unspecified distribution.
-  OS_UNSPECIFIED = 0;
-  // "debian" distribution.
-  OS_DEBIAN = 1;
-  // "ubuntu" distribution.
-  OS_UBUNTU = 2;
-}
-
 message ListRequest {
-  // Only list images for this board. Leave unspecified for all of them.
-  Board board = 1;
-  // Only list images from this distribution's index. Leave unspecified for all
-  // of them.
-  OS os = 2;
+  // Only list images for this board ("unoq"). Empty lists every board there
+  // are images for, which is how to discover them.
+  string board = 1;
+  // Only list images of this distribution ("debian"). Empty lists all of them.
+  string os = 2;
 }
 
 message ListResponse {
+  // The images matching the request, most recent first.
   repeated Release releases = 1;
 }
 
+// Identifies one published image. All three parts are needed: the same version
+// can name a different image on another board or another distribution.
+message ImageRef {
+  // The version of the image, a build date and number: "20250807-136".
+  string version = 1;
+  // The board the image is built for: "unoq", "ventunoq".
+  string board = 2;
+  // The distribution the image is built for ("debian"). Empty when the index
+  // named none.
+  string os = 3;
+}
+
 message Release {
-  string build_id = 1;
+  // What the image is, and what Flash takes to select it.
+  ImageRef image = 1;
+  // Whether this is the most recent image of its board and distribution. Of
+  // both, since a response may span several of either.
   bool latest = 2;
-  // The board this release is built for.
-  Board board = 3;
 }
 
 message FlashRequest {
-  // The version of the image to download. Required: the most recent image is
-  // not assumed, call List to pick one.
-  string version = 1;
+  // The image to flash, as List reported it. Required in full: nothing about
+  // which image goes on a board is assumed for the caller.
+  ImageRef image = 1;
   // The path in which the image will be downloaded and extracted.
   // If an image file is already present, it will not be downloaded again.
   string temp_path = 2;
@@ -75,11 +69,9 @@ message FlashRequest {
   // Serial number of the target board to flash, as a decimal integer string.
   // Leave empty to target the first discovered board.
   string serial = 4;
-  // The board to flash. Required: which board is connected cannot be read
-  // before flashing it.
-  Board board = 5;
-  // The distribution to flash. Defaults to the board's own when unspecified.
-  OS os = 6;
+
+  // Were the version, the board and the distribution, now an ImageRef.
+  reserved 5, 6;
 }
 
 message FlashResponse {
