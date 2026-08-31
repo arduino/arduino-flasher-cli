@@ -61,14 +61,8 @@ func Run(ctx context.Context) {
 		boardImages = boardImages.Filter(imageOs, "")
 	}
 
-	versionOptions := make([]huh.Option[registry.Release], 0, len(boardImages))
-	for i, rel := range boardImages {
-		label := rel.Version
-		if i == 0 {
-			label += " (latest)"
-		}
-		versionOptions = append(versionOptions, huh.NewOption(label, rel))
-	}
+	// Newest first, so the first one is this board's latest.
+	versionOptions := imageOptions(boardImages)
 
 	var (
 		variant      registry.Variant
@@ -226,37 +220,102 @@ func selectOs(ctx context.Context, oses []string, imageOs *string) bool {
 	for _, o := range oses {
 		options = append(options, huh.NewOption(o, o))
 	}
-	return runSelect(ctx, i18n.Tr("Select the distribution to flash"), options, imageOs)
+	return runCancelable(ctx, huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title(i18n.Tr("Select the distribution to flash")).
+			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+			Options(options...).
+			Value(imageOs),
+	)), i18n.Tr("Flash canceled."))
+}
+
+// SelectBoard asks which of the boards with a published image to use, for a
+// command that was not told one. A single board is taken without asking, and
+// false means the user canceled.
+func SelectBoard(ctx context.Context) (registry.Board, bool) {
+	boardIDs := slices.Sorted(maps.Keys(fetchImages(ctx)))
+	if len(boardIDs) == 0 {
+		feedback.Fatal(i18n.Tr("no image is published yet"), feedback.ErrGeneric)
+	}
+	boardID := boardIDs[0]
+	if len(boardIDs) > 1 && !runCancelable(ctx, boardForm(boardIDs, &boardID), i18n.Tr("Canceled.")) {
+		return registry.Board{}, false
+	}
+	board, _ := registry.BoardByID(boardID)
+	return board, true
+}
+
+// SelectImage asks which of the images published for a board to use, and returns
+// the distribution holding it with its version. False means the user canceled.
+func SelectImage(ctx context.Context, boardID string) (string, string, bool) {
+	images := fetchImages(ctx)[boardID]
+	if len(images) == 0 {
+		feedback.Fatal(i18n.Tr("no image is published for the %s yet", boardID), feedback.ErrGeneric)
+	}
+
+	var selected registry.Release
+	if !runCancelable(ctx, huh.NewForm(huh.NewGroup(
+		huh.NewSelect[registry.Release]().
+			Title(i18n.Tr("Select the image version")).
+			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+			Options(imageOptions(images)...).
+			Value(&selected),
+	)), i18n.Tr("Canceled.")) {
+		return "", "", false
+	}
+	return selected.OS, selected.Version, true
 }
 
 // selectBoard asks which board to flash, and reports whether the wizard should
 // go on.
 func selectBoard(ctx context.Context, boardIDs []string, boardID *string) bool {
-	options := make([]huh.Option[string], 0, len(boardIDs))
-	for _, id := range boardIDs {
-		b, _ := registry.BoardByID(id)
-		options = append(options, huh.NewOption(b.Label, id))
-	}
-	return runSelect(ctx, i18n.Tr("Select your board"), options, boardID)
+	return runCancelable(ctx, boardForm(boardIDs, boardID), i18n.Tr("Flash canceled."))
 }
 
-// runSelect puts one choice to the user, and reports whether to go on.
-func runSelect(ctx context.Context, title string, options []huh.Option[string], into *string) bool {
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewSelect[string]().
-			Title(title).
-			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
-			Options(options...).
-			Value(into),
-	))
+// runCancelable shows a form, and reports whether the caller should go on.
+func runCancelable(ctx context.Context, form *huh.Form, canceled string) bool {
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
-			feedback.Print(i18n.Tr("Flash canceled."))
+			feedback.Print(canceled)
 			return false
 		}
 		feedback.Fatal(i18n.Tr("error running interactive wizard: %v", err), feedback.ErrBadArgument)
 	}
 	return true
+}
+
+// boardForm asks which board, among those that have a published image.
+func boardForm(boardIDs []string, boardID *string) *huh.Form {
+	options := make([]huh.Option[string], 0, len(boardIDs))
+	for _, id := range boardIDs {
+		b, _ := registry.BoardByID(id)
+		options = append(options, huh.NewOption(b.Label, id))
+	}
+	return huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title(i18n.Tr("Select your board")).
+			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+			Options(options...).
+			Value(boardID),
+	))
+}
+
+// imageOptions lists images newest first, saying which one is the latest and,
+// when the board has more than one distribution, which one it comes from.
+func imageOptions(images registry.Releases) []huh.Option[registry.Release] {
+	oses := images.OSes()
+	options := make([]huh.Option[registry.Release], 0, len(images))
+	for i, rel := range images {
+		label := rel.Version
+		if i == 0 {
+			label += " (latest)"
+		}
+		if len(oses) > 1 {
+			label += " — " + rel.OS
+		}
+		options = append(options, huh.NewOption(label, rel))
+	}
+	return options
 }
 
 // parsePercentage parses a string like "50" or "50%" as an integer percentage.

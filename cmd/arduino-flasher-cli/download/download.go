@@ -14,6 +14,7 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -30,16 +31,21 @@ func NewDownloadCmd() *cobra.Command {
 		Short: "Download a Linux image to the specified path",
 		Long: `Download a Linux image to the specified path.
 
-The first argument is the board name. The most recent image is downloaded
-unless a --version is specified. The --os flag selects the distribution if more
-than one is available.
+The first argument is the board name, asked for interactively when it is
+missing. The most recent image is downloaded unless a --version is specified.
+The --os flag selects the distribution if more than one is available.
 `,
-		Args: cobra.ExactArgs(1),
-		Example: " " + os.Args[0] + " download unoq\n" +
+		Args: cobra.MaximumNArgs(1),
+		Example: " " + os.Args[0] + " download\n" +
+			" " + os.Args[0] + " download unoq\n" +
 			" " + os.Args[0] + " download unoq --version 20251024-412\n" +
 			" " + os.Args[0] + " download unoq --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(cmd.Context(), args[0], destDir, osStr, version)
+			boardID := ""
+			if len(args) > 0 {
+				boardID = args[0]
+			}
+			runDownloadCommand(cmd.Context(), boardID, destDir, osStr, version)
 		},
 	}
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
@@ -57,9 +63,24 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	board, ok := registry.BoardByID(boardID)
-	if !ok {
-		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
+	// A board that was not named is asked for, and so is the image, since there
+	// is a form up anyway.
+	var board registry.Board
+	if boardID == "" {
+		var ok bool
+		if board, ok = interactive.SelectBoard(ctx); !ok {
+			return
+		}
+		if version == "" {
+			if imageOs, version, ok = interactive.SelectImage(ctx, board.ID); !ok {
+				return
+			}
+		}
+	} else {
+		var ok bool
+		if board, ok = registry.BoardByID(boardID); !ok {
+			feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
+		}
 	}
 
 	releases, err := registry.NewClient().Fetch(ctx)
