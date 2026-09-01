@@ -143,7 +143,7 @@ func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Rel
 // outside this file picks one either, they are fetched as a set.
 var indexes = []*url.URL{
 	f.Must(url.Parse("https://downloads.arduino.cc/debian-im/Stable/info.json")),
-	f.Must(url.Parse("https://downloads.arduino.cc/ubuntu-im/custom-image/Stable/info.json")),
+	f.Must(url.Parse("https://downloads.arduino.cc/ubuntu-im/Stable/info.json")),
 }
 
 // Indexes beyond the published ones, separated by commas or newlines, for
