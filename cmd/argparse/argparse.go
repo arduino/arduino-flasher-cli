@@ -25,6 +25,10 @@ var legacyVersion = regexp.MustCompile(`^\d{8}-\d+$`)
 // returns the board, the image and the version that mean the same thing today.
 // Deleting this function and its callers ends the deprecation.
 func LegacyArgs(board, image, version string) (string, string, string) {
+	// Nothing to translate when the board was not named.
+	if board == "" {
+		return board, image, version
+	}
 	// A board id always wins, so a file named after one does not shadow it.
 	if _, ok := registry.BoardByID(board); ok {
 		return board, image, version
