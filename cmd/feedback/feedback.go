@@ -12,6 +12,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/fatih/color"
+
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 )
 
@@ -142,10 +144,13 @@ func Print(v string) {
 	fmt.Fprintln(feedbackOut, v)
 }
 
-// Warning outputs a warning message.
+// Warning outputs a warning message: something worth knowing that did not stop
+// the command. In text mode it goes to stderr, marked and colored so it is not
+// mistaken for output; in JSON mode it joins the warnings of the result, plain,
+// since the marker is only there for someone reading a terminal.
 func Warning(msg string) {
 	if format == Text {
-		fmt.Fprintln(feedbackErr, msg)
+		fmt.Fprintln(feedbackErr, color.YellowString("WARNING: "+msg))
 	} else {
 		bufferWarnings = append(bufferWarnings, msg)
 	}
