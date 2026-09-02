@@ -10,6 +10,9 @@ lint:
     - COMMENT_FIELD
     - COMMENT_RPC
     - COMMENT_SERVICE
+  # The service is named after its package, so a "Service" suffix only stutters.
+  except:
+    - SERVICE_SUFFIX
 modules:
   - path: rpc
     name: buf.build/arduino/arduino-flasher-cli
