@@ -24,20 +24,37 @@ service Flasher {
   rpc GetAvailableFreeSpace(GetAvailableFreeSpaceRequest) returns (GetAvailableFreeSpaceResponse) {}
 }
 
-message ListRequest {}
+message ListRequest {
+  // Only list images for this board ("unoq"). Empty lists every board there
+  // are images for, which is how to discover them.
+  string board = 1;
+  // Only list images of this distribution ("debian"). Empty lists all of them.
+  string os = 2;
+}
 
 message ListResponse {
+  // The images matching the request, most recent first.
   repeated Release releases = 1;
 }
 
+// Identifies one published image. All three parts are needed: the same version
+// can name a different image on another board or another distribution.
 message Release {
+  // The version of the image, a build date and number: "20250807-136".
   string build_id = 1;
+  // Whether this is the most recent image of its board and distribution. Of
+  // both, since a response may span several of either.
   bool latest = 2;
+  // The board the image is built for: "unoq", "ventunoq".
+  string board = 3;
+  // The distribution the image is built for ("debian"). Empty when the index
+  // named none.
+  string os = 4;
 }
 
 message FlashRequest {
-  // The version of the image to download. Required: the most recent image is
-  // not assumed, call List to pick one.
+  // The version of the image to flash. Required: the most recent image is not
+  // assumed, call List to pick one.
   string version = 1;
   // The path in which the image will be downloaded and extracted.
   // If an image file is already present, it will not be downloaded again.
@@ -50,6 +67,9 @@ message FlashRequest {
   // The board to flash, e.g. "unoq". Required: which board is connected cannot
   // be read before flashing it.
   string board = 5;
+  // The distribution to flash, e.g. "debian". Required alongside the version
+  // and the board: a version alone can be a different image on another board.
+  string os = 6;
 }
 
 message FlashResponse {

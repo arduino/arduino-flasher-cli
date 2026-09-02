@@ -6,42 +6,44 @@
 package service
 
 import (
-	"cmp"
 	"context"
-	"slices"
-
-	"go.bug.st/f"
+	"fmt"
+	"strings"
 
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
 func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) (*flasher.ListResponse, error) {
-	client := registry.NewClient()
+	// Filtering by a board that is not one of ours returns nothing, which reads
+	// as nothing being published.
+	if board := req.GetBoard(); board != "" {
+		if _, ok := registry.BoardByID(board); !ok {
+			return nil, fmt.Errorf("%q is not a board, use one of: %s", board, strings.Join(registry.BoardIDs(), ", "))
+		}
+	}
 
-	// TODO: list the images of every supported board, not just the UNO Q's
-	manifest, err := client.GetInfoManifest(ctx, registry.UnoQ.DefaultOs)
-	if err != nil {
+	// One fetch, then filtered: nothing is cached, so asking again is a round
+	// trip for what is already in hand.
+	all, err := registry.NewClient().Fetch(ctx)
+	if err != nil && len(all) == 0 {
+		// Nothing could be read, as opposed to nothing being published.
 		return nil, err
 	}
 
-	releases := f.Map(manifest.Releases, func(r registry.Release) *flasher.Release {
-		return &flasher.Release{
+	// An unnamed board or distribution matches any. Already most recent first,
+	// which is the order the response promises.
+	matched := all.Filter(req.GetOs(), req.GetBoard())
+
+	releases := make([]*flasher.Release, 0, len(matched))
+	for _, r := range matched {
+		releases = append(releases, &flasher.Release{
 			BuildId: r.Version,
-			Latest:  r.Version == manifest.Latest.Version,
-		}
-	})
-	slices.SortFunc(releases, func(a, b *flasher.Release) int {
-		if a.Latest {
-			if b.Latest {
-				return 0
-			}
-			return -1
-		} else if b.Latest {
-			return 1
-		}
-		return cmp.Compare(b.BuildId, a.BuildId)
-	})
+			Latest:  r.Latest,
+			Board:   r.Board,
+			Os:      r.OS,
+		})
+	}
 
 	return &flasher.ListResponse{Releases: releases}, nil
 }

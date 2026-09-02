@@ -6,6 +6,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -23,14 +24,20 @@ const (
 )
 
 func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
-	// Both are required: the board cannot be read before flashing it, and the
-	// most recent image is not assumed on the client's behalf.
+	// An image is a version of one board for one distribution, so all three are
+	// required: List reports them, and the board cannot be read before flashing.
+	if req.GetBoard() == "" {
+		return fmt.Errorf("no board requested, it must be one of: %s", strings.Join(registry.BoardIDs(), ", "))
+	}
 	board, ok := registry.BoardByID(req.GetBoard())
 	if !ok {
 		return fmt.Errorf("%q is not a board, use one of: %s", req.GetBoard(), strings.Join(registry.BoardIDs(), ", "))
 	}
 	if req.GetVersion() == "" {
 		return fmt.Errorf("no image version requested, call List to pick one")
+	}
+	if req.GetOs() == "" {
+		return fmt.Errorf("no image distribution requested, call List to pick one")
 	}
 
 	// Setup callback functions
@@ -74,9 +81,11 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		}
 	}()
 
-	rel, err := client.GetReleaseByVersion(ctx, req.GetVersion(), board.DefaultOs)
+	releases, fetchErr := client.Fetch(ctx)
+	rel, err := releases.Resolve(req.GetOs(), board.ID, req.GetVersion())
 	if err != nil {
-		return fmt.Errorf("could not get release info: %w", err)
+		// An index that could not be read may be the one holding it.
+		return fmt.Errorf("could not get release info: %w", errors.Join(err, fetchErr))
 	}
 
 	downloadCB.Start(rel.Url, rel.Version)

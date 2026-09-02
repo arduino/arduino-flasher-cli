@@ -22,42 +22,38 @@ import (
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, index, version string, temp *paths.Path) (string, error) {
-	tmpZip, version, err := DownloadImage(ctx, index, version, temp)
+func DownloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path) error {
+	tmpZip, err := DownloadImage(ctx, rel, temp)
 	if err != nil {
-		return "", fmt.Errorf("error downloading the image: %v", err)
+		return fmt.Errorf("error downloading the image: %v", err)
 	}
 
 	if err := ExtractImage(ctx, tmpZip, temp); err != nil {
-		return "", fmt.Errorf("error extracting the image: %v", err)
+		return fmt.Errorf("error extracting the image: %v", err)
 	}
-	return version, nil
+	return nil
 }
 
-// DownloadImage fetches a release from the given index, the most recent one when
-// no version is asked for. It returns the archive and the version it holds.
-func DownloadImage(ctx context.Context, index, version string, downloadPath *paths.Path) (*paths.Path, string, error) {
+// DownloadImage fetches a release that was already found in an index, and
+// returns the archive holding it.
+func DownloadImage(ctx context.Context, rel registry.Release, downloadPath *paths.Path) (*paths.Path, error) {
 	client := registry.NewClient()
-	rel, err := client.GetReleaseByVersion(ctx, version, index)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not get release info: %w", err)
-	}
 
 	var bar *progressbar.ProgressBar
 	callback := func(current, total int64) {
 		if bar == nil {
 			bar = progressbar.DefaultBytes(
 				total,
-				i18n.Tr("Downloading Debian image version %s", rel.Version),
+				i18n.Tr("Downloading image version %s", rel.Version),
 			)
 		}
 		_ = bar.Set64(current)
 	}
-	if tmpZip, err := client.DownloadFile(ctx, downloadPath, rel, callback); err != nil {
-		return nil, "", fmt.Errorf("could not download Debian image: %w", err)
-	} else {
-		return tmpZip, rel.Version, nil
+	tmpZip, err := client.DownloadFile(ctx, downloadPath, rel, callback)
+	if err != nil {
+		return nil, fmt.Errorf("could not download Debian image: %w", err)
 	}
+	return tmpZip, nil
 }
 
 func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {

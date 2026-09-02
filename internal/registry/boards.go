@@ -20,17 +20,15 @@ type Variant struct {
 // Board is a board the flasher can target.
 type Board struct {
 	ID string
-	// Label is how the board is presented to the user.
+	// Label is how the board is presented to the user, and how each release names
+	// it in an index.
 	Label string
-	// DefaultOs is the index to look in when none is asked for. What is actually
-	// published for a board is not listed here: every release carries its board,
-	// so it is discoverable by reading the indexes.
+	// DefaultOs is the distribution to use when none is asked for. What is
+	// published for a board is not listed here: every release carries its own.
 	DefaultOs string
 	Variants  []Variant
-	// PreserveUser tells whether a flash can keep the user partition. It works by
-	// reading the partition table of the board before writing, which is also what
-	// sizing the root partition needs, so a board without it is flashed with the
-	// layout the image ships with.
+	// PreserveUser tells whether a flash can keep the user partition. It needs
+	// the board's partition table, which is also what sizing the root uses.
 	PreserveUser bool
 }
 
@@ -55,17 +53,8 @@ var (
 	}
 )
 
-// Supported is every board the flasher knows about.
-var Supported = []Board{UnoQ, VentunoQ}
-
-// ResolveOs returns the index holding the images of this board: the one asked
-// for, or the default of the board.
-func (b Board) ResolveOs(requested string) string {
-	if requested == "" {
-		return b.DefaultOs
-	}
-	return requested
-}
+// supported is every board the flasher knows about.
+var supported = []Board{UnoQ, VentunoQ}
 
 // VariantByCapacity returns the smallest variant that can hold the reported
 // capacity. It is how the variant is told apart, since the capacity is read from
@@ -88,7 +77,7 @@ func (b Board) VariantByCapacity(reported uint64) (Variant, error) {
 
 // BoardByID returns the board with the given id.
 func BoardByID(id string) (Board, bool) {
-	for _, board := range Supported {
+	for _, board := range supported {
 		if board.ID == id {
 			return board, true
 		}
@@ -98,8 +87,8 @@ func BoardByID(id string) (Board, bool) {
 
 // BoardIDs returns the id of every supported board.
 func BoardIDs() []string {
-	ids := make([]string, 0, len(Supported))
-	for _, board := range Supported {
+	ids := make([]string, 0, len(supported))
+	for _, board := range supported {
 		ids = append(ids, board.ID)
 	}
 	return ids

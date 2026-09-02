@@ -6,6 +6,7 @@
 package download
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"strings"
@@ -61,10 +62,21 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 		feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
 	}
 
-	downloadPath, _, err := updater.DownloadImage(ctx, board.ResolveOs(imageOs), version, downloadPath)
+	releases, err := registry.NewClient().Fetch(ctx)
+	if err != nil {
+		// May be the index holding the image, which the lookup below finds out.
+		feedback.Warning(err.Error())
+	}
+
+	imageOs = cmp.Or(imageOs, board.DefaultOs)
+	rel, err := releases.Resolve(imageOs, board.ID, version)
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
+	}
+	downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
 	pathAbs, _ := downloadPath.Abs()
-	feedback.Print(i18n.Tr("\nDebian image successfully downloaded: %s", pathAbs.String()))
+	feedback.Print(i18n.Tr("\nImage successfully downloaded: %s", pathAbs.String()))
 }

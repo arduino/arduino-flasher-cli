@@ -140,12 +140,28 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 		feedback.Fatal(err.Error(), feedback.ErrBadArgument)
 	}
 
-	if !forceYes && !preserveUser {
-		feedback.Print(color.RedString("\nWARNING: flashing a new Linux image will erase any existing data that you have on the board.\n"))
-		target := cmp.Or(version, i18n.Tr("the latest image"))
-		if imagePath != nil {
-			target = imagePath.Base()
+	// Resolved before the prompt, so a board with no published image fails while
+	// the board is still intact, the prompt can name the version, and the
+	// download does not have to look the index up again.
+	var rel registry.Release
+	target := ""
+	if imagePath != nil {
+		target = imagePath.Base()
+	} else {
+		releases, err := registry.NewClient().Fetch(ctx)
+		if err != nil {
+			// May be the index holding the image, which the lookup below finds out.
+			feedback.Warning(err.Error())
 		}
+		imageOs = cmp.Or(imageOs, board.DefaultOs)
+		if rel, err = releases.Resolve(imageOs, board.ID, version); err != nil {
+			feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
+		}
+		target = i18n.Tr("%s %s for the %s", imageOs, rel.Version, board.Label)
+	}
+
+	if !forceYes && !preserveUser {
+		feedback.Warning("\n" + color.RedString(i18n.Tr("flashing a new Linux image will erase any existing data that you have on the board.")))
 		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string
@@ -169,7 +185,7 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 	if imagePath != nil {
 		err = updater.FlashImage(ctx, imagePath, board.ID, opts)
 	} else {
-		err = updater.DownloadAndFlash(ctx, board.ID, board.ResolveOs(imageOs), version, opts)
+		err = updater.DownloadAndFlash(ctx, board.ID, rel, opts)
 	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)

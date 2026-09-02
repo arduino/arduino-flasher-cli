@@ -45,7 +45,7 @@ type FlashOptions struct {
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
 // CLI needs; the daemon reports progress between the steps and uses them
 // directly instead.
-func DownloadAndFlash(ctx context.Context, boardID, index string, imageVersion string, opts FlashOptions) error {
+func DownloadAndFlash(ctx context.Context, boardID string, rel registry.Release, opts FlashOptions) error {
 	temp, err := SetTempDir("download-", opts.TempDir)
 	if err != nil {
 		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
@@ -56,12 +56,11 @@ func DownloadAndFlash(ctx context.Context, boardID, index string, imageVersion s
 		return err
 	}
 
-	version, err := DownloadAndExtract(ctx, index, imageVersion, temp)
-	if err != nil {
+	if err := DownloadAndExtract(ctx, rel, temp); err != nil {
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}
 
-	return FlashBoard(ctx, opts.Serial, temp, version, boardID, opts.PreserveUser, opts.RootSize, nil)
+	return FlashBoard(ctx, opts.Serial, temp, rel.Version, boardID, opts.PreserveUser, opts.RootSize, nil)
 }
 
 // FlashImage flashes an image already on disk, extracting it first when it is an
