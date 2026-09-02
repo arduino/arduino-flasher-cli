@@ -34,7 +34,8 @@ func Run(ctx context.Context) {
 	boardIDs := slices.Sorted(maps.Keys(images))
 	boardID := boardIDs[0]
 	if len(boardIDs) > 1 {
-		if !selectBoard(ctx, boardIDs, &boardID) {
+		form := huh.NewForm(huh.NewGroup(boardSelect(boardIDs, &boardID)))
+		if !runCancelable(ctx, form, i18n.Tr("Flash canceled.")) {
 			return
 		}
 	}
@@ -179,6 +180,42 @@ func Run(ctx context.Context) {
 	feedback.Print(i18n.Tr("\nThe board has been successfully flashed. You can now power-cycle the board (unplug and re-plug). Remember to remove the jumper."))
 }
 
+// SelectImage asks which board to use and, when withVersion, which of its
+// images. One form holds both, so the user can go back. False means canceled.
+func SelectImage(ctx context.Context, withVersion bool) (registry.Board, string, string, bool) {
+	images := fetchImages(ctx)
+	boardIDs := slices.Sorted(maps.Keys(images))
+	if len(boardIDs) == 0 {
+		feedback.Fatal(i18n.Tr("no image is published yet"), feedback.ErrGeneric)
+	}
+
+	boardID := boardIDs[0]
+	var groups []*huh.Group
+	if len(boardIDs) > 1 {
+		groups = append(groups, huh.NewGroup(boardSelect(boardIDs, &boardID)))
+	}
+
+	var selected registry.Release
+	if withVersion {
+		// Bound to the board, so going back relists the images.
+		groups = append(groups, huh.NewGroup(
+			huh.NewSelect[registry.Release]().
+				Title(i18n.Tr("Select the image version")).
+				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+				OptionsFunc(func() []huh.Option[registry.Release] {
+					return imageOptions(images[boardID])
+				}, &boardID).
+				Value(&selected),
+		))
+	}
+
+	if len(groups) > 0 && !runCancelable(ctx, huh.NewForm(groups...), i18n.Tr("Canceled.")) {
+		return registry.Board{}, "", "", false
+	}
+	board, _ := registry.BoardByID(boardID)
+	return board, selected.OS, selected.Version, true
+}
+
 // fetchImages reads every index once and groups what is published by board,
 // newest first, so a board appears the day its images do.
 func fetchImages(ctx context.Context) map[string]registry.Releases {
@@ -229,49 +266,6 @@ func selectOs(ctx context.Context, oses []string, imageOs *string) bool {
 	)), i18n.Tr("Flash canceled."))
 }
 
-// SelectBoard asks which of the boards with a published image to use, for a
-// command that was not told one. A single board is taken without asking, and
-// false means the user canceled.
-func SelectBoard(ctx context.Context) (registry.Board, bool) {
-	boardIDs := slices.Sorted(maps.Keys(fetchImages(ctx)))
-	if len(boardIDs) == 0 {
-		feedback.Fatal(i18n.Tr("no image is published yet"), feedback.ErrGeneric)
-	}
-	boardID := boardIDs[0]
-	if len(boardIDs) > 1 && !runCancelable(ctx, boardForm(boardIDs, &boardID), i18n.Tr("Canceled.")) {
-		return registry.Board{}, false
-	}
-	board, _ := registry.BoardByID(boardID)
-	return board, true
-}
-
-// SelectImage asks which of the images published for a board to use, and returns
-// the distribution holding it with its version. False means the user canceled.
-func SelectImage(ctx context.Context, boardID string) (string, string, bool) {
-	images := fetchImages(ctx)[boardID]
-	if len(images) == 0 {
-		feedback.Fatal(i18n.Tr("no image is published for the %s yet", boardID), feedback.ErrGeneric)
-	}
-
-	var selected registry.Release
-	if !runCancelable(ctx, huh.NewForm(huh.NewGroup(
-		huh.NewSelect[registry.Release]().
-			Title(i18n.Tr("Select the image version")).
-			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
-			Options(imageOptions(images)...).
-			Value(&selected),
-	)), i18n.Tr("Canceled.")) {
-		return "", "", false
-	}
-	return selected.OS, selected.Version, true
-}
-
-// selectBoard asks which board to flash, and reports whether the wizard should
-// go on.
-func selectBoard(ctx context.Context, boardIDs []string, boardID *string) bool {
-	return runCancelable(ctx, boardForm(boardIDs, boardID), i18n.Tr("Flash canceled."))
-}
-
 // runCancelable shows a form, and reports whether the caller should go on.
 func runCancelable(ctx context.Context, form *huh.Form, canceled string) bool {
 	if err := form.RunWithContext(ctx); err != nil {
@@ -284,20 +278,18 @@ func runCancelable(ctx context.Context, form *huh.Form, canceled string) bool {
 	return true
 }
 
-// boardForm asks which board, among those that have a published image.
-func boardForm(boardIDs []string, boardID *string) *huh.Form {
+// boardSelect asks which board, among those that have a published image.
+func boardSelect(boardIDs []string, boardID *string) *huh.Select[string] {
 	options := make([]huh.Option[string], 0, len(boardIDs))
 	for _, id := range boardIDs {
 		b, _ := registry.BoardByID(id)
 		options = append(options, huh.NewOption(b.Label, id))
 	}
-	return huh.NewForm(huh.NewGroup(
-		huh.NewSelect[string]().
-			Title(i18n.Tr("Select your board")).
-			Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
-			Options(options...).
-			Value(boardID),
-	))
+	return huh.NewSelect[string]().
+		Title(i18n.Tr("Select your board")).
+		Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
+		Options(options...).
+		Value(boardID)
 }
 
 // imageOptions lists images newest first, saying which one is the latest and,

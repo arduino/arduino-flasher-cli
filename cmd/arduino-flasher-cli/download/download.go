@@ -67,15 +67,12 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 	// is a form up anyway.
 	var board registry.Board
 	if boardID == "" {
-		var ok bool
-		if board, ok = interactive.SelectBoard(ctx); !ok {
+		selBoard, selOs, selVersion, ok := interactive.SelectImage(ctx, version == "")
+		if !ok {
 			return
 		}
-		if version == "" {
-			if imageOs, version, ok = interactive.SelectImage(ctx, board.ID); !ok {
-				return
-			}
-		}
+		// Only what was asked overrides the flags.
+		board, imageOs, version = selBoard, cmp.Or(selOs, imageOs), cmp.Or(selVersion, version)
 	} else {
 		var ok bool
 		if board, ok = registry.BoardByID(boardID); !ok {
