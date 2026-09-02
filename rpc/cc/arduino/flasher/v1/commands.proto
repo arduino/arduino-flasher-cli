@@ -12,7 +12,7 @@ import "cc/arduino/flasher/v1/common.proto";
 option go_package = "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1;flasher";
 
 // Provides RPCs to flash Arduino images onto selected boards.
-service Flasher {
+service FlasherService {
   // Retrieves the images available for flashing
   rpc List(ListRequest) returns (ListResponse) {}
 

@@ -23,7 +23,7 @@ const (
 	taskFlash   = "flash"
 )
 
-func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flasher_FlashServer) (outErr error) {
+func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.FlasherService_FlashServer) (outErr error) {
 	// An image is a version of one board for one distribution, so all three are
 	// required: List reports them, and the board cannot be read before flashing.
 	if req.GetBoard() == "" {
