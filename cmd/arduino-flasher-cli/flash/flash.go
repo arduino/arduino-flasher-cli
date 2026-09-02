@@ -161,7 +161,7 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 	}
 
 	if !forceYes && !preserveUser {
-		feedback.Warning(color.RedString(i18n.Tr("\nflashing a new Linux image will erase any existing data that you have on the board.")))
+		feedback.Warning("\n" + color.RedString(i18n.Tr("flashing a new Linux image will erase any existing data that you have on the board.")))
 		feedback.Printf("Do you want to proceed and flash %s on the board? (yes/no)", target)
 
 		var yesInput string
