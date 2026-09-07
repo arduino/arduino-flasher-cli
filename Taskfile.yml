@@ -50,17 +50,22 @@ tasks:
   lint:
     desc: Run the linters
     cmds:
+      - task: protoc:check
       - ${PWD}/.bin/golangci-lint run --fix -v --timeout 300s {{ .CLI_ARGS }}
 
   fmt:
     desc: Run format
     cmds:
-      - goimports -l -w .
+      - task: protoc:format
+      # Generated files are left alone: goimports regroups their imports and buf
+      # generate puts them back.
+      - find . -name '*.go' -not -name '*.pb.go' -exec goimports -l -w {} +
       - ${PWD}/.bin/dprint fmt
 
   fmt-check:
     desc: Check format
     cmds:
+      - task: protoc:format-check
       - ${PWD}/.bin/dprint check
 
   build:
@@ -162,3 +167,8 @@ tasks:
     desc: Perform formatting of the protobuf definitions
     cmds:
       - buf format --write
+
+  protoc:format-check:
+    desc: Check formatting of the protobuf definitions
+    cmds:
+      - buf format --diff --exit-code

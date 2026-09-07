@@ -15,10 +15,12 @@ var (
 		Name: "CustomClean",
 		Box:  table.BoxStyle{PaddingRight: " "},
 		Format: table.FormatOptions{
-			Footer:   text.FormatUpper,
-			Header:   text.FormatUpper,
-			Row:      text.FormatDefault,
-			RowAlign: text.AlignCenter,
+			Footer: text.FormatUpper,
+			Header: text.FormatUpper,
+			Row:    text.FormatDefault,
+		},
+		Size: table.SizeOptions{
+			WidthMin: 70,
 		},
 		Options: table.Options{
 			DrawBorder:      false,

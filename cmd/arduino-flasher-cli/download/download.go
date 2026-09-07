@@ -6,50 +6,95 @@
 package download
 
 import (
+	"cmp"
 	"context"
 	"os"
+	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
+	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 func NewDownloadCmd() *cobra.Command {
 	var destDir string
+	var osStr string
+	var version string
 	cmd := &cobra.Command{
-		Use:   "download",
+		Use:   "download [board]",
 		Short: "Download a Linux image to the specified path",
-		Args:  cobra.ExactArgs(1),
-		Example: " " + os.Args[0] + " download latest\n" +
-			" " + os.Args[0] + " download 20251024-412\n" +
-			" " + os.Args[0] + " download latest --dest-dir /tmp\n",
+		Long: `Download a Linux image to the specified path.
+
+The first argument is the board name, asked for interactively when it is
+missing. The most recent image is downloaded unless a --version is specified.
+The --os flag selects the distribution if more than one is available.
+`,
+		Args: cobra.MaximumNArgs(1),
+		Example: " " + os.Args[0] + " download\n" +
+			" " + os.Args[0] + " download unoq\n" +
+			" " + os.Args[0] + " download unoq --version 20251024-412\n" +
+			" " + os.Args[0] + " download unoq --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			runDownloadCommand(cmd.Context(), args, destDir)
+			boardID := ""
+			if len(args) > 0 {
+				boardID = args[0]
+			}
+			runDownloadCommand(cmd.Context(), boardID, destDir, osStr, version)
 		},
 	}
+	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
+	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
 	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
 
 	return cmd
 }
 
-func runDownloadCommand(ctx context.Context, args []string, destDir string) {
+func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs string, version string) {
+	boardID, _, version = argparse.LegacyArgs(boardID, "", version)
+
 	downloadPath := paths.New(destDir)
 	if !downloadPath.IsDir() {
 		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
 	}
 
-	version, boardType, os, err := updater.DetectBoardAndSetOs(ctx, args[0], "")
-	if err != nil {
-		feedback.Fatal(i18n.Tr("error detecting the board type: %v", err), feedback.ErrBadArgument)
+	// A board that was not named is asked for, and so is the image, since there
+	// is a form up anyway.
+	var board registry.Board
+	if boardID == "" {
+		selBoard, selOs, selVersion, ok := interactive.SelectImage(ctx, version == "")
+		if !ok {
+			return
+		}
+		// Only what was asked overrides the flags.
+		board, imageOs, version = selBoard, cmp.Or(selOs, imageOs), cmp.Or(selVersion, version)
+	} else {
+		var ok bool
+		if board, ok = registry.BoardByID(boardID); !ok {
+			feedback.Fatal(i18n.Tr("%s is not a board, use one of: %s", boardID, strings.Join(registry.BoardIDs(), ", ")), feedback.ErrBadArgument)
+		}
 	}
 
-	downloadPath, _, err = updater.DownloadImage(ctx, version, boardType, os, downloadPath)
+	releases, err := registry.NewClient().Fetch(ctx)
+	if err != nil {
+		// May be the index holding the image, which the lookup below finds out.
+		feedback.Warning(err.Error())
+	}
+
+	imageOs = cmp.Or(imageOs, board.DefaultOs)
+	rel, err := releases.Resolve(imageOs, board.ID, version)
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
+	}
+	downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
 	pathAbs, _ := downloadPath.Abs()
-	feedback.Print(i18n.Tr("\nDebian image successfully downloaded: %s", pathAbs.String()))
+	feedback.Print(i18n.Tr("\nImage successfully downloaded: %s", pathAbs.String()))
 }
