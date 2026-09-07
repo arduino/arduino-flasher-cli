@@ -242,15 +242,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	if err != nil {
 		return err
 	}
-	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
-
-	if serialStr != "" {
-		serial, err := serial.FromNum(serialStr)
-		if err != nil {
-			return err
-		}
-		args = append(args, "--serial", serial.Hex())
-	}
+	args := appendBoardSerial([]string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}, serialStr)
 
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
@@ -347,14 +339,7 @@ func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path, seria
 	if err != nil {
 		return GptTable{}, err
 	}
-	args := []string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}
-	if serialStr != "" {
-		serial, err := serial.FromNum(serialStr)
-		if err != nil {
-			return GptTable{}, err
-		}
-		args = append(args, "--serial", serial.Hex())
-	}
+	args := appendBoardSerial([]string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}, serialStr)
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return GptTable{}, err
@@ -390,4 +375,15 @@ func checkUserPartitionPreservation(gpt GptTable) error {
 func getBoardSize(gpt GptTable) uint64 {
 	return (gpt.Header.LastLBA + 1) * 512
 
+}
+
+func appendBoardSerial(args []string, serialStr string) []string {
+	if serialStr != "" {
+		serial, err := serial.FromNum(serialStr)
+		if err != nil {
+			return args
+		}
+		args = append(args, "--serial", serial.Hex())
+	}
+	return args
 }
