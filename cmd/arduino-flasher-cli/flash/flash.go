@@ -58,7 +58,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			" " + os.Args[0] + " flash unoq\n" +
 			" " + os.Args[0] + " flash unoq --version 20250915-173\n" +
 			" " + os.Args[0] + " flash unoq ./my-image.tar.zst\n" +
-			" " + os.Args[0] + " flash unoq /path/to/debian-image.tar.xz \n" +
+			" " + os.Args[0] + " flash unoq /path/to/debian-image.tar.zst \n" +
 			" " + os.Args[0] + " flash unoq /path/to/arduino-unoq-debian-image-20250915-173 \n" +
 			" " + os.Args[0] + " flash unoq --temp-dir /path/to/custom/tempDir \n" +
 			" " + os.Args[0] + " flash unoq --preserve-user \n" +
