@@ -114,6 +114,82 @@ func TestSerialFromHex(t *testing.T) {
 	}
 }
 
+func TestSerialParse(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    Serial
+		wantErr bool
+	}{
+		{
+			name:    "Decimal serial",
+			input:   "123456789",
+			want:    Serial{num: 123456789},
+			wantErr: false,
+		},
+		{
+			name:    "Hex serial with 0x prefix",
+			input:   "0x1A2B3C4D",
+			want:    Serial{num: 0x1A2B3C4D},
+			wantErr: false,
+		},
+		{
+			name:    "Hex serial with 0X prefix",
+			input:   "0X1A2B3C4D",
+			want:    Serial{num: 0x1A2B3C4D},
+			wantErr: false,
+		},
+		{
+			name:    "Decimal-looking value parsed as decimal",
+			input:   "123456789",
+			want:    Serial{num: 123456789},
+			wantErr: false,
+		},
+		{
+			name:    "Decimal-looking value with 0x prefix parsed as hex",
+			input:   "0x123456789",
+			want:    Serial{num: 0x123456789},
+			wantErr: false,
+		},
+		{
+			name:    "Decimal-looking value with 0X prefix parsed as hex",
+			input:   "0X123456789",
+			want:    Serial{num: 0x123456789},
+			wantErr: false,
+		},
+		{
+			name:    "Hex letters without prefix",
+			input:   "1A2B3C4D",
+			want:    Serial{num: 0x1A2B3C4D},
+			wantErr: false,
+		},
+		{
+			name:    "Invalid serial",
+			input:   "not-a-serial",
+			want:    Serial{},
+			wantErr: true,
+		},
+		{
+			name:    "Empty string",
+			input:   "",
+			want:    Serial{},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := Parse(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, s)
+			}
+		})
+	}
+}
+
 func TestSerialHex(t *testing.T) {
 	tests := []struct {
 		name  string

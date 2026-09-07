@@ -27,6 +27,22 @@ func FromHex(hexStr string) (Serial, error) {
 	return Serial{num: num}, err
 }
 
+// Parse converts a serial passed as a decimal or hexadecimal integer.
+//
+// A 0x/0X prefix forces hexadecimal. Otherwise the value is parsed as decimal,
+// falling back to hexadecimal when it is not a valid decimal integer (e.g.
+// 1A2B3C4D). Note that a value made only of digits is inherently ambiguous and
+// is always interpreted as decimal; use the 0x prefix to force hexadecimal.
+func Parse(str string) (Serial, error) {
+	if strings.HasPrefix(str, "0x") || strings.HasPrefix(str, "0X") {
+		return FromHex(str)
+	}
+	if s, err := FromNum(str); err == nil {
+		return s, nil
+	}
+	return FromHex(str)
+}
+
 func (s Serial) Hex() string {
 	return fmt.Sprintf("%08X", s.num)
 }
