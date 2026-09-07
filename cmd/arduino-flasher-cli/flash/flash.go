@@ -37,8 +37,8 @@ func NewFlashCmd() *cobra.Command {
 	var version string
 	appCmd := &cobra.Command{
 		Use:   "flash [board] [image]",
-		Short: "Flash a Debian image on the board",
-		Long: `Flash a Debian image on the board.
+		Short: "Flash a Linux image on the board",
+		Long: `Flash a Linux image on the board.
 
 WARNING: This operation will completely replace the current system on the board.
 Make sure to backup any important data before proceeding.
