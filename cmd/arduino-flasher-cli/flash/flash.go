@@ -68,12 +68,12 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 		Run: func(cmd *cobra.Command, args []string) {
 			checkDriversInstalled()
 			if serialStr != "" {
-				s, err := serial.FromHex(serialStr)
+				s, err := serial.Parse(serialStr)
 				if err != nil {
-					feedback.Fatal(i18n.Tr("invalid --serial value %q: must be a hexadecimal string (e.g. 0004F3A1 or 0x0004F3A1)", serialStr), feedback.ErrBadArgument)
+					feedback.Fatal(i18n.Tr("invalid --serial value %q: must be a decimal integer (e.g. 123456789) or a hexadecimal integer (e.g. 0x1A2B3C4D). Prefix with 0x to force hexadecimal for digit-only values", serialStr), feedback.ErrBadArgument)
 				}
 				// The updater and daemon RPC consume the serial as a decimal integer
-				// (see issue #96). Convert the hex CLI input to decimal here.
+				// (see issue #96). Normalize the CLI input to decimal here.
 				serialStr = s.Decimal()
 			}
 			// Flashing needs a board, and the wizard is what asks for one.
@@ -108,7 +108,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 	}
 	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
 	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
-	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial port of the board as hexadecimal string (e.g., 0x12345678). If not specified, the first board found will be used")
+	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial number of the board as a decimal integer (e.g., 123456789) or a hexadecimal integer (e.g., 0x1A2B3C4D). Digit-only values are treated as decimal; prefix with 0x to force hexadecimal")
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")

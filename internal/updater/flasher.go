@@ -147,7 +147,7 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	rawProgram := "rawprogram0.xml"
 	if board.PreserveUser {
 		feedback.Print(i18n.Tr("Checking board size and image version. Please connect the board in EDL mode."))
-		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir)
+		boardGPT, err := readBoardGPTTable(ctx, qdlPath, flashDir, serialStr)
 		if err != nil {
 			return err
 		}
@@ -242,14 +242,9 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	if err != nil {
 		return err
 	}
-	args := []string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}
-
-	if serialStr != "" {
-		serial, err := serial.FromNum(serialStr)
-		if err != nil {
-			return err
-		}
-		args = append(args, "--serial", serial.Hex())
+	args, err := appendBoardSerial([]string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}, serialStr)
+	if err != nil {
+		return err
 	}
 
 	cmd, err := paths.NewProcess(nil, args...)
@@ -340,14 +335,18 @@ func installQdl() (*paths.Path, func(), error) {
 }
 
 // readBoardGPTTable reads the GPT table of the board performing a qdl read
-func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path) (GptTable, error) {
+func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path, serialStr string) (GptTable, error) {
 	dumpBinPath := flashDir.Join("dump.bin")
 	readXMLPath := qdlPath.Parent().Join("read.xml")
 	err := readXMLPath.WriteFile(artifacts.ReadXML)
 	if err != nil {
 		return GptTable{}, err
 	}
-	cmd, err := paths.NewProcess(nil, qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String())
+	args, err := appendBoardSerial([]string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}, serialStr)
+	if err != nil {
+		return GptTable{}, err
+	}
+	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return GptTable{}, err
 	}
@@ -382,4 +381,15 @@ func checkUserPartitionPreservation(gpt GptTable) error {
 func getBoardSize(gpt GptTable) uint64 {
 	return (gpt.Header.LastLBA + 1) * 512
 
+}
+
+func appendBoardSerial(args []string, serialStr string) ([]string, error) {
+	if serialStr != "" {
+		serial, err := serial.FromNum(serialStr)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--serial", serial.Hex())
+	}
+	return args, nil
 }
