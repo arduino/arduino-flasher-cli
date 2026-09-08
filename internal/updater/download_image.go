@@ -51,14 +51,14 @@ func DownloadImage(ctx context.Context, rel registry.Release, downloadPath *path
 	}
 	tmpZip, err := client.DownloadFile(ctx, downloadPath, rel, callback)
 	if err != nil {
-		return nil, fmt.Errorf("could not download Debian image: %w", err)
+		return nil, fmt.Errorf("could not download the image: %w", err)
 	}
 	return tmpZip, nil
 }
 
 func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {
-	// Unzip the Debian image
-	feedback.Print(i18n.Tr("Unzipping Debian image"))
+	// Unzip the image
+	feedback.Print(i18n.Tr("Unzipping image"))
 	tmpZipFile, err := archive.Open()
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
