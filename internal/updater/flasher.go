@@ -242,7 +242,10 @@ func FlashBoard(ctx context.Context, serialStr string, downloadedImagePath *path
 	if err != nil {
 		return err
 	}
-	args := appendBoardSerial([]string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}, serialStr)
+	args, err := appendBoardSerial([]string{qdlPath.String(), "--allow-missing", "--storage", "emmc", "prog_firehose_ddr.elf", rawProgram, "patch0.xml"}, serialStr)
+	if err != nil {
+		return err
+	}
 
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
@@ -339,7 +342,10 @@ func readBoardGPTTable(ctx context.Context, qdlPath, flashDir *paths.Path, seria
 	if err != nil {
 		return GptTable{}, err
 	}
-	args := appendBoardSerial([]string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}, serialStr)
+	args, err := appendBoardSerial([]string{qdlPath.String(), "--storage", "emmc", "prog_firehose_ddr.elf", readXMLPath.String()}, serialStr)
+	if err != nil {
+		return GptTable{}, err
+	}
 	cmd, err := paths.NewProcess(nil, args...)
 	if err != nil {
 		return GptTable{}, err
@@ -377,13 +383,13 @@ func getBoardSize(gpt GptTable) uint64 {
 
 }
 
-func appendBoardSerial(args []string, serialStr string) []string {
+func appendBoardSerial(args []string, serialStr string) ([]string, error) {
 	if serialStr != "" {
 		serial, err := serial.FromNum(serialStr)
 		if err != nil {
-			return args
+			return nil, err
 		}
 		args = append(args, "--serial", serial.Hex())
 	}
-	return args
+	return args, nil
 }
