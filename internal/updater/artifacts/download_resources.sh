@@ -10,7 +10,7 @@ set -e
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 REPO="arduino/qdl-packing"
-TAG="v2.4-26"
+TAG="v2.6-31"
 
 # Work with paths relative to this script's directory: on Windows an absolute
 # path contains a drive letter (e.g. D:\a\...) and tar interprets everything
