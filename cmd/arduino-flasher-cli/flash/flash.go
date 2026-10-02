@@ -19,6 +19,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/drivers"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/interactive"
 	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -121,10 +122,43 @@ func checkDriversInstalled() {
 	if runtime.GOOS != "windows" {
 		return
 	}
-	cmd, _ := os.Executable()
-	pwd, _ := os.Getwd()
-	if _, err := runas.RunElevated(cmd, pwd, []string{"install-drivers"}, true); err != nil {
+
+	// If the process is already elevated there is no need for a UAC round-trip:
+	// install the drivers in-process so the output is shown directly.
+	if admin, _ := runas.IsAdminProcess(); admin {
+		if err := drivers.InstallDrivers(""); err != nil {
+			feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
+		}
+		return
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
 		feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
+	}
+	pwd, _ := os.Getwd()
+
+	// The elevated child runs with a hidden console, so its stdout/stderr are
+	// lost. Have it mirror its output to a log file we can read back and show.
+	logFile, err := paths.MkTempFile(nil, "arduino-flasher-drivers-*.log")
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
+	}
+	logPath := logFile.Name()
+	logFile.Close()
+	defer os.Remove(logPath)
+
+	exitCode, err := runas.RunElevated(exe, pwd, []string{"install-drivers", "--log-file", logPath}, true)
+	if err != nil {
+		feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
+	}
+
+	if exitCode != 0 {
+		// Surface whatever the hidden elevated child logged.
+		if data, readErr := os.ReadFile(logPath); readErr == nil && len(data) > 0 {
+			feedback.Print(string(data))
+		}
+		feedback.Fatal(i18n.Tr("driver installation failed (exit code %d)", exitCode), feedback.ErrGeneric)
 	}
 }
 

@@ -13,14 +13,16 @@ import (
 )
 
 func NewInstallDriversCmd() *cobra.Command {
+	var logFile string
 	cmd := &cobra.Command{
 		Use:    "install-drivers",
 		Hidden: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := installDrivers(); err != nil {
+			if err := InstallDrivers(logFile); err != nil {
 				feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
 			}
 		},
 	}
+	cmd.Flags().StringVar(&logFile, "log-file", "", "Path to a file where the installation output is mirrored")
 	return cmd
 }
