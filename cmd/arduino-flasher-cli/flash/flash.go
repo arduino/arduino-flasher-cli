@@ -148,7 +148,7 @@ func checkDriversInstalled() {
 	logFile.Close()
 	defer os.Remove(logPath)
 
-	exitCode, err := runas.RunElevated(exe, pwd, []string{"install-drivers", "--log-file", logPath}, true)
+	exitCode, err := runas.RunElevated(exe, pwd, []string{"install-drivers", "--log-file", `"` + logPath + `"`}, true)
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error installing drivers: %v", err), feedback.ErrGeneric)
 	}
