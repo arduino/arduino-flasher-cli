@@ -5,5 +5,5 @@ path = [
   "qcserlib.cat",
   "qcserlib.inf"
 ]
-SPDX-FileCopyrightText = "Arduino s.r.l. and/or its affiliated companies"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-FileCopyrightText = "Qualcomm Technologies, Inc. and/or its subsidiaries"
+SPDX-License-Identifier = "BSD-3-Clause"
