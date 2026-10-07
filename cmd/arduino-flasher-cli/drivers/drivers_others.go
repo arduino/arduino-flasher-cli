@@ -7,7 +7,7 @@
 
 package drivers
 
-// installDrivers is a no-op on non-Windows platforms
-func installDrivers() error {
+// InstallDrivers is a no-op on non-Windows platforms
+func InstallDrivers(logFile string) error {
 	return nil
 }

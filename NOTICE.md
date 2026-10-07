@@ -27,9 +27,9 @@ in this repository; they are downloaded during the build by
 
 ### Windows driver files
 
-- Files: `cmd/arduino-flasher-cli/drivers/src/unoq.cat`, `unoq.inf`
-- Copyright: Arduino s.r.l. and/or its affiliated companies
-- License: GPL-3.0-or-later
+- Files: `cmd/arduino-flasher-cli/drivers/src/qcserlib.cat`, `qcserlib.inf`
+- Copyright: Qualcomm Technologies, Inc. and/or its subsidiaries
+- License: BSD-3-Clause
 
 Embedded in the Windows build only, and installed with `pnputil` when the
 `flash` command runs.
