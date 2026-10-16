@@ -31,7 +31,7 @@ import (
 )
 
 func NewFlashCmd() *cobra.Command {
-	var forceYes, preserveUser bool
+	var forceYes, preserveUser, cacheImage bool
 	var serialStr string
 	var tempDir string
 	var rootSizeStr string
@@ -50,7 +50,8 @@ Both arguments are optional. If no arguments are specified, the interactive wiza
 started.
 
 If a board is specified without an OS image file:
-  - The OS image is downloaded in a temp folder, verified with checksum, and flashed
+  - The online manifest is read and a cached image is reused after checksum verification
+  - Missing images are downloaded temporarily; --cache keeps new downloads for reuse
   - Unless a --version is specified, the most recent OS image will be selected
   - If more than one distribution is available, it may be specified with --os
 
@@ -58,6 +59,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 `,
 		Example: " " + os.Args[0] + " flash\n" +
 			" " + os.Args[0] + " flash unoq\n" +
+			" " + os.Args[0] + " flash unoq --cache\n" +
 			" " + os.Args[0] + " flash unoq --version 20250915-173\n" +
 			" " + os.Args[0] + " flash unoq ./my-image.tar.zst\n" +
 			" " + os.Args[0] + " flash unoq /path/to/debian-image.tar.zst \n" +
@@ -80,7 +82,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 			}
 			// Flashing needs a board, and the wizard is what asks for one.
 			if len(args) == 0 {
-				interactive.Run(cmd.Context())
+				interactive.Run(cmd.Context(), cacheImage)
 				return
 			}
 			imageArg := ""
@@ -105,14 +107,15 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize, cacheImage)
 		},
 	}
 	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
 	appCmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
 	appCmd.Flags().StringVarP(&serialStr, "serial", "s", "", "Serial number of the board as a decimal integer (e.g., 123456789) or a hexadecimal integer (e.g., 0x1A2B3C4D). Digit-only values are treated as decimal; prefix with 0x to force hexadecimal")
 	appCmd.Flags().BoolVarP(&forceYes, "yes", "y", false, "Automatically confirm all prompts")
-	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
+	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Parent directory for temporary downloads and extraction; cached archives use the user cache")
+	appCmd.Flags().BoolVar(&cacheImage, "cache", false, "Keep newly downloaded images in the cache for reuse")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
 	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
 
@@ -181,7 +184,7 @@ func rebootRequiredFatal() {
 	feedback.Fatal(i18n.Tr("A system reboot is required to finalize the driver installation. Please reboot your computer and run the flash command again."), feedback.ErrGeneric)
 }
 
-func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, cacheImage bool) {
 	boardID, imageArg, version = argparse.LegacyArgs(boardID, imageArg, version)
 
 	board, ok := registry.BoardByID(boardID)
@@ -234,6 +237,7 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 		PreserveUser: preserveUser,
 		TempDir:      tempDir,
 		RootSize:     rootSize,
+		Cache:        cacheImage,
 	}
 	if imagePath != nil {
 		err = updater.FlashImage(ctx, imagePath, board.ID, opts)

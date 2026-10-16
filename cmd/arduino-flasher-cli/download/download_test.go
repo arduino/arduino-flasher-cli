@@ -6,6 +6,8 @@
 package download
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,10 +22,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 // imageTransport serves both published indexes and the archive in memory. No
@@ -199,4 +203,28 @@ func TestDownloadExplicitDestinationWithCachedImage(t *testing.T) {
 	archive, err := imageCache.Lookup(context.Background(), transport.release())
 	require.NoError(t, err)
 	require.Equal(t, cached, archive, "an explicit download must not move or remove a cached image")
+}
+
+func TestDownloadedImageCanBePreparedForFlash(t *testing.T) {
+	transport, imageCache := setupDownload(t)
+	var archive bytes.Buffer
+	w := tar.NewWriter(&archive)
+	require.NoError(t, w.WriteHeader(&tar.Header{Name: "image/payload.txt", Mode: 0o600, Size: int64(len("test payload"))}))
+	_, err := w.Write([]byte("test payload"))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	transport.contents = archive.String()
+	executeDownload(t, "unoq")
+	archiveRequests := transport.archiveRequests
+
+	// Exercise the same preparation used by flash, without invoking QDL.
+	scratch := paths.New(t.TempDir())
+	require.NoError(t, updater.DownloadAndExtract(context.Background(), transport.release(), scratch, false))
+	data, err := os.ReadFile(scratch.Join("image", "payload.txt").String())
+	require.NoError(t, err)
+	require.Equal(t, "test payload", string(data))
+	require.Equal(t, archiveRequests, transport.archiveRequests, "flash preparation must reuse the download command's cache")
+	require.NoError(t, scratch.RemoveAll())
+	_, err = imageCache.Lookup(context.Background(), transport.release())
+	require.NoError(t, err)
 }

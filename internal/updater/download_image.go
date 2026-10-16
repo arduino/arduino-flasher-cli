@@ -7,6 +7,7 @@ package updater
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -16,22 +17,58 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 )
 
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path) error {
-	tmpZip, err := DownloadImage(ctx, rel, temp)
+// DownloadAndExtract reuses a verified cached archive or downloads the release.
+// New downloads are retained only when cacheImage is true. Extraction always
+// happens in temp, whose cleanup remains the caller's responsibility.
+func DownloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path, cacheImage bool) error {
+	imageCache, err := cache.Default()
 	if err != nil {
-		return fmt.Errorf("error downloading the image: %v", err)
+		return fmt.Errorf("could not open image cache: %w", err)
+	}
+	archive, err := imageCache.Lookup(ctx, rel)
+	var tmpZip *paths.Path
+	if err == nil {
+		feedback.Print(i18n.Tr("Using cached image version %s", rel.Version))
+		tmpZip = paths.New(archive)
+	} else if errors.Is(err, cache.ErrMiss) {
+		if cacheImage {
+			tmpZip, err = DownloadImageToCache(ctx, rel)
+		} else {
+			tmpZip, err = DownloadImage(ctx, rel, temp)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("error getting the image: %w", err)
 	}
 
 	if err := ExtractImage(ctx, tmpZip, temp); err != nil {
 		return fmt.Errorf("error extracting the image: %v", err)
 	}
 	return nil
+}
+
+// DownloadImageToCache downloads or reuses a verified archive in the user cache.
+// The caller must resolve rel from the online manifest before calling it.
+func DownloadImageToCache(ctx context.Context, rel registry.Release) (*paths.Path, error) {
+	imageCache, err := cache.Default()
+	if err != nil {
+		return nil, fmt.Errorf("could not open image cache: %w", err)
+	}
+	archive, err := imageCache.Store(ctx, rel, func(ctx context.Context, dir string) error {
+		_, err := DownloadImage(ctx, rel, paths.New(dir))
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return paths.New(archive), nil
 }
 
 // DownloadImage fetches a release that was already found in an index, and

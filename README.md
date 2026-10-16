@@ -30,6 +30,24 @@ Use `--dest-dir` to download to an existing directory instead of the cache:
 arduino-flasher-cli download unoq --dest-dir .
 ```
 
+## Reuse images when flashing
+
+`arduino-flasher-cli flash unoq` checks the online manifest and reuses a cached
+archive when its checksum matches. If no valid archive is cached, the image is
+downloaded temporarily and removed after the operation, including on failure.
+
+Use `--cache` to retain newly downloaded archives for future flashes:
+
+```sh
+arduino-flasher-cli flash unoq --cache
+```
+
+The interactive wizard also asks whether to keep new downloads. Existing cached
+archives are retained regardless of this choice, including when flashing fails.
+Extraction always uses a temporary directory. `--temp-dir` selects its parent;
+cached archives stay in the user cache. Local image files and directories are
+flashed directly without being added to the cache.
+
 ## Read an additional index
 
 Only the published indexes are read by default. `ARDUINO_FLASHER_ADDITIONAL_URLS`

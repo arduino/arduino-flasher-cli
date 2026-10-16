@@ -18,7 +18,6 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
@@ -101,15 +100,7 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 		feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
 	}
 	if downloadPath == nil {
-		imageCache, cacheErr := cache.Default()
-		if cacheErr != nil {
-			feedback.Fatal(i18n.Tr("error opening the image cache: %v", cacheErr), feedback.ErrGeneric)
-		}
-		archive, cacheErr := imageCache.Store(ctx, rel, func(ctx context.Context, dir string) error {
-			_, err := updater.DownloadImage(ctx, rel, paths.New(dir))
-			return err
-		})
-		downloadPath, err = paths.New(archive), cacheErr
+		downloadPath, err = updater.DownloadImageToCache(ctx, rel)
 	} else {
 		downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
 	}

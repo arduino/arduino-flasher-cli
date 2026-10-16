@@ -28,7 +28,7 @@ import (
 )
 
 // Run starts the interactive wizard and performs the flash.
-func Run(ctx context.Context) {
+func Run(ctx context.Context, cacheImage bool) {
 	images := fetchImages(ctx)
 
 	boardIDs := slices.Sorted(maps.Keys(images))
@@ -141,6 +141,15 @@ func Run(ctx context.Context) {
 		).WithHideFunc(func() bool { return preserveUser }))
 	}
 
+	groups = append(groups, huh.NewGroup(
+		huh.NewConfirm().
+			Title(i18n.Tr("Keep downloaded image for reuse?")).
+			Description(i18n.Tr("Save new downloads in the image cache. Existing cached images are always reused.")).
+			Affirmative(i18n.Tr("Yes")).
+			Negative(i18n.Tr("No")).
+			Value(&cacheImage),
+	))
+
 	boardLabel := cmp.Or(variant.Label, board.Label)
 	groups = append(groups, huh.NewGroup(
 		huh.NewConfirm().
@@ -149,10 +158,10 @@ func Run(ctx context.Context) {
 			// run, so the summary is also given statically for it to measure:
 			// without it the buttons fall outside the viewport. Before the func,
 			// which Description would otherwise clear.
-			Description(buildSummary(board, boardLabel, "", false, 0)).
+			Description(buildSummary(board, boardLabel, "", false, 0, cacheImage)).
 			DescriptionFunc(func() string {
-				return buildSummary(board, cmp.Or(variant.Label, boardLabel), selected.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser))
-			}, []any{&variant, &selected, &preserveUser, &rootPctStr}).
+				return buildSummary(board, cmp.Or(variant.Label, boardLabel), selected.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser), cacheImage)
+			}, []any{&variant, &selected, &preserveUser, &rootPctStr, &cacheImage}).
 			Affirmative(i18n.Tr("Flash now")).
 			Negative(i18n.Tr("Cancel")).
 			Value(&confirm),
@@ -173,7 +182,7 @@ func Run(ctx context.Context) {
 
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
-	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
+	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize, Cache: cacheImage}
 	if err := updater.DownloadAndFlash(ctx, board.ID, selected, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
@@ -383,11 +392,16 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	return toPadString()
 }
 
-func buildSummary(board registry.Board, boardLabel, version string, preserveUser bool, rootSize uint64) string {
+func buildSummary(board registry.Board, boardLabel, version string, preserveUser bool, rootSize uint64, cacheImage bool) string {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+boardLabel)
 	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
+	cacheChoice := i18n.Tr("No")
+	if cacheImage {
+		cacheChoice = i18n.Tr("Yes")
+	}
+	fmt.Fprintln(w, i18n.Tr("Cache new downloads:")+"\t"+cacheChoice)
 	// Both come off the board's partition table, so a board without one was
 	// asked neither and is reported neither.
 	if board.PreserveUser {
