@@ -18,6 +18,18 @@ Build it with `task build` and run:
 ./build/arduino-flasher-cli flash path/to/downloaded/image
 ```
 
+## Download images
+
+`arduino-flasher-cli download unoq` saves the image archive in the user cache
+under `arduino-flasher-cli/images/`. Each invocation reads the online manifest
+and reuses a cached archive only if its SHA-256 checksum matches the release.
+
+Use `--dest-dir` to download to an existing directory instead of the cache:
+
+```sh
+arduino-flasher-cli download unoq --dest-dir .
+```
+
 ## Read an additional index
 
 Only the published indexes are read by default. `ARDUINO_FLASHER_ADDITIONAL_URLS`

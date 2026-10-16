@@ -18,6 +18,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/argparse"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
@@ -28,17 +29,22 @@ func NewDownloadCmd() *cobra.Command {
 	var version string
 	cmd := &cobra.Command{
 		Use:   "download [board]",
-		Short: "Download a Linux image to the specified path",
-		Long: `Download a Linux image to the specified path.
+		Short: "Download a Linux image to the cache or a specified path",
+		Long: `Download a Linux image to the cache or a specified path.
 
 The first argument is the board name, asked for interactively when it is
 missing. The most recent image is downloaded unless a --version is specified.
 The --os flag selects the distribution if more than one is available.
+
+Images are saved in the user cache by default. A cached image is reused after
+checking its checksum against the online manifest. Use --dest-dir to save the
+image to an existing directory instead.
 `,
 		Args: cobra.MaximumNArgs(1),
 		Example: " " + os.Args[0] + " download\n" +
 			" " + os.Args[0] + " download unoq\n" +
 			" " + os.Args[0] + " download unoq --version 20251024-412\n" +
+			" " + os.Args[0] + " download unoq --dest-dir .\n" +
 			" " + os.Args[0] + " download unoq --dest-dir /tmp\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			boardID := ""
@@ -50,7 +56,7 @@ The --os flag selects the distribution if more than one is available.
 	}
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
 	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
-	cmd.Flags().StringVar(&destDir, "dest-dir", ".", "Path to the directory in which the image will be downloaded")
+	cmd.Flags().StringVar(&destDir, "dest-dir", "", "Path to an existing download directory (default: user image cache)")
 
 	return cmd
 }
@@ -58,9 +64,12 @@ The --os flag selects the distribution if more than one is available.
 func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs string, version string) {
 	boardID, _, version = argparse.LegacyArgs(boardID, "", version)
 
-	downloadPath := paths.New(destDir)
-	if !downloadPath.IsDir() {
-		feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
+	var downloadPath *paths.Path
+	if destDir != "" {
+		downloadPath = paths.New(destDir)
+		if !downloadPath.IsDir() {
+			feedback.Fatal(i18n.Tr("error: %s is not a directory. Please, select an existing directory.", destDir), feedback.ErrBadArgument)
+		}
 	}
 
 	// A board that was not named is asked for, and so is the image, since there
@@ -91,7 +100,19 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
 	}
-	downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
+	if downloadPath == nil {
+		imageCache, cacheErr := cache.Default()
+		if cacheErr != nil {
+			feedback.Fatal(i18n.Tr("error opening the image cache: %v", cacheErr), feedback.ErrGeneric)
+		}
+		archive, cacheErr := imageCache.Store(ctx, rel, func(ctx context.Context, dir string) error {
+			_, err := updater.DownloadImage(ctx, rel, paths.New(dir))
+			return err
+		})
+		downloadPath, err = paths.New(archive), cacheErr
+	} else {
+		downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
+	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
 	}
