@@ -68,6 +68,14 @@ including incomplete downloads. Files downloaded to another directory with
 `--dest-dir` and temporary directories outside `images/` are preserved.
 Both commands also work when the cache has not been created yet.
 
+The normal `list` command marks downloaded images in the `CACHED` column and
+includes a `cached` boolean in JSON output. It compares local metadata with the
+online image's board, distribution, version, checksum and archive name, without
+reading archive contents. A matching image with same-size corruption can still
+appear cached; its checksum is verified before reuse by `download` or `flash`.
+If the cache cannot be inspected, `list` reports a warning and still lists the
+online images without cache marks.
+
 ## Cache behavior over gRPC
 
 The `Flash` RPC uses the same image cache as the CLI. It reads the online manifest
