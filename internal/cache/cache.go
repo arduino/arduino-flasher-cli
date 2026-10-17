@@ -53,7 +53,9 @@ func (c *Cache) Dir() string {
 	return c.dir
 }
 
-type metadata struct {
+// Entry describes a stored image. Path is populated when listing the cache;
+// it is not needed in the metadata saved alongside an archive.
+type Entry struct {
 	Board        string    `json:"board"`
 	OS           string    `json:"os"`
 	Version      string    `json:"version"`
@@ -61,6 +63,7 @@ type metadata struct {
 	FileName     string    `json:"file_name"`
 	Size         int64     `json:"size"`
 	DownloadedAt time.Time `json:"downloaded_at"`
+	Path         string    `json:"path,omitempty"`
 }
 
 // Lookup returns a cached archive only after verifying it against rel, which the
@@ -81,7 +84,7 @@ func (c *Cache) Lookup(ctx context.Context, rel registry.Release) (string, error
 	if err != nil {
 		return "", fmt.Errorf("could not read cached image metadata: %w", err)
 	}
-	var meta metadata
+	var meta Entry
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return "", ErrMiss
 	}
@@ -137,7 +140,7 @@ func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(c
 	if err != nil {
 		return "", fmt.Errorf("could not verify downloaded image: %w", err)
 	}
-	meta := metadata{
+	meta := Entry{
 		Board:        rel.Board,
 		OS:           strings.ToLower(rel.OS),
 		Version:      rel.Version,

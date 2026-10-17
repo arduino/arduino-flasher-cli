@@ -55,7 +55,7 @@ func TestStoreAndReuse(t *testing.T) {
 	require.FileExists(t, archive)
 	data, err := os.ReadFile(filepath.Join(filepath.Dir(archive), metadataFile))
 	require.NoError(t, err)
-	var meta metadata
+	var meta Entry
 	require.NoError(t, json.Unmarshal(data, &meta))
 	require.Equal(t, rel.Board, meta.Board)
 	require.Equal(t, rel.OS, meta.OS)
@@ -92,7 +92,7 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			path := filepath.Join(filepath.Dir(archive), metadataFile)
 			data, err := os.ReadFile(path)
 			require.NoError(t, err)
-			var meta metadata
+			var meta Entry
 			require.NoError(t, json.Unmarshal(data, &meta))
 			meta.Version = "another-version"
 			data, err = json.Marshal(meta)
@@ -103,7 +103,7 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			path := filepath.Join(filepath.Dir(archive), metadataFile)
 			data, err := os.ReadFile(path)
 			require.NoError(t, err)
-			var meta metadata
+			var meta Entry
 			require.NoError(t, json.Unmarshal(data, &meta))
 			meta.Size++
 			data, err = json.Marshal(meta)

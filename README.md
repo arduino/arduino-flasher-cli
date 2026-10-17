@@ -48,6 +48,43 @@ Extraction always uses a temporary directory. `--temp-dir` selects its parent;
 cached archives stay in the user cache. Local image files and directories are
 flashed directly without being added to the cache.
 
+## Manage cached images
+
+Inspect or clear the shared image cache with:
+
+```sh
+arduino-flasher-cli cache list
+arduino-flasher-cli cache list --format json
+arduino-flasher-cli cache clear
+```
+
+`cache list` works offline and reports each complete image's board, distribution,
+version, archive size, download date and path (in JSON output). Total cache size
+includes metadata and incomplete downloads. Listing does not recheck archive
+checksums; those are verified against the online manifest before reuse.
+
+`cache clear` immediately removes all contents of the `images/` cache directory,
+including incomplete downloads. Files downloaded to another directory with
+`--dest-dir` and temporary directories outside `images/` are preserved.
+Both commands also work when the cache has not been created yet.
+
+## Cache behavior over gRPC
+
+The `Flash` RPC uses the same image cache as the CLI. It reads the online manifest
+and verifies cached archives before reuse. Set `FlashRequest.cache` to `true` to
+retain new downloads; the default is `false`, matching `flash` without `--cache`.
+Cached archives survive both successful and failed flashes.
+
+`FlashRequest.temp_path` selects the parent of a private per-request directory.
+An empty path uses the user cache directory. This private directory is removed
+on success, failure or cancellation; existing files in the parent are preserved.
+This replaces the previous behavior of retaining downloads there after a failed
+flash. Clients that need persistent images should opt in with `cache`.
+
+Download start/end events are also sent on a cache hit, with a completed progress
+update and a `Using cached image` end message. Extraction and flash progress use
+the existing response messages.
+
 ## Read an additional index
 
 Only the published indexes are read by default. `ARDUINO_FLASHER_ADDITIONAL_URLS`
