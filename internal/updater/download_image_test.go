@@ -123,6 +123,76 @@ func TestDownloadAndExtractReusesCache(t *testing.T) {
 	}
 }
 
+func TestDownloadAndExtractFreeSpace(t *testing.T) {
+	for _, keep := range []bool{false, true} {
+		for _, tc := range []struct {
+			name         string
+			state        string
+			freeGiB      uint64
+			wantRequired uint64
+			wantSuccess  bool
+		}{
+			{"cached with 11 GiB", "cached", 11, 10, true},
+			{"cached with exactly 10 GiB", "cached", 10, 10, true},
+			{"cached below 10 GiB", "cached", 9, 10, false},
+			{"missing with 11 GiB", "missing", 11, 12, false},
+			{"corrupt with 11 GiB", "corrupt", 11, 12, false},
+			{"missing with exactly 12 GiB", "missing", 12, 12, true},
+		} {
+			t.Run(fmt.Sprintf("%s/cache=%t", tc.name, keep), func(t *testing.T) {
+				c, rel, transport := setupImageDownload(t)
+				var archive string
+				if tc.state != "missing" {
+					archive = seedImageCache(t, c, rel, transport.contents)
+					if tc.state == "corrupt" {
+						require.NoError(t, os.WriteFile(archive, []byte("corrupted archive"), 0o600))
+					}
+				}
+				scratch := paths.New(t.TempDir())
+				spaceErr := errors.New("insufficient scratch space")
+				var checkedRequired uint64
+				var checkedOperation string
+				checks := 0
+				checkSpace := func(dir *paths.Path, requiredGiB uint64, what string) error {
+					checks++
+					require.Equal(t, scratch.String(), dir.String())
+					require.Zero(t, transport.requests, "space must be checked before a download starts")
+					require.NoDirExists(t, scratch.Join("image").String(), "space must be checked before extraction")
+					checkedRequired, checkedOperation = requiredGiB, what
+					if tc.freeGiB < requiredGiB {
+						return spaceErr
+					}
+					return nil
+				}
+				err := downloadAndExtract(context.Background(), rel, scratch, keep, checkSpace)
+				if tc.wantSuccess {
+					require.NoError(t, err)
+					requireExtractedPayload(t, scratch)
+					if tc.state == "cached" {
+						require.Zero(t, transport.requests)
+					} else {
+						require.Positive(t, transport.requests)
+					}
+				} else {
+					require.ErrorIs(t, err, spaceErr)
+					require.Zero(t, transport.requests, "insufficient space must stop before downloading")
+					require.NoDirExists(t, scratch.Join("image").String())
+				}
+				require.Equal(t, 1, checks)
+				require.Equal(t, tc.wantRequired, checkedRequired)
+				operation := "download and extraction"
+				if tc.state == "cached" {
+					operation = "extraction"
+					cached, err := c.Lookup(context.Background(), rel)
+					require.NoError(t, err, "a space check must preserve the cached archive")
+					require.Equal(t, archive, cached)
+				}
+				require.Equal(t, operation, checkedOperation)
+			})
+		}
+	}
+}
+
 func TestDownloadAndExtractCachesOnlyWhenRequested(t *testing.T) {
 	for _, keep := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {

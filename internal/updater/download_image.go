@@ -28,16 +28,36 @@ type DownloadConfirmCB func(target string) (bool, error)
 // New downloads are retained only when cacheImage is true. Extraction always
 // happens in temp, whose cleanup remains the caller's responsibility.
 func DownloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path, cacheImage bool) error {
+	return downloadAndExtract(ctx, rel, temp, cacheImage, nil)
+}
+
+// downloadAndExtract lets the flash composition check scratch space after
+// verifying the cache, before downloading or extracting. Other callers can
+// leave checkSpace nil to prepare an image without a fixed free-space minimum.
+func downloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path, cacheImage bool, checkSpace func(*paths.Path, uint64, string) error) error {
 	imageCache, err := cache.Default()
 	if err != nil {
 		return fmt.Errorf("could not open image cache: %w", err)
 	}
 	archive, err := imageCache.Lookup(ctx, rel)
+	if err != nil && !errors.Is(err, cache.ErrMiss) {
+		return fmt.Errorf("error getting the image: %w", err)
+	}
+	fromCache := err == nil
+	if checkSpace != nil {
+		requiredSpace, operation := DownloadDiskSpace, "download and extraction"
+		if fromCache {
+			requiredSpace, operation = ExtractDiskSpace, "extraction"
+		}
+		if err := checkSpace(temp, requiredSpace, operation); err != nil {
+			return err
+		}
+	}
 	var tmpZip *paths.Path
-	if err == nil {
+	if fromCache {
 		feedback.Print(i18n.Tr("Using cached image version %s", rel.Version))
 		tmpZip = paths.New(archive)
-	} else if errors.Is(err, cache.ErrMiss) {
+	} else {
 		if cacheImage {
 			tmpZip, err = DownloadImageToCache(ctx, rel)
 		} else {

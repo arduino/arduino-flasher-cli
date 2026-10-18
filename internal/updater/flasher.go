@@ -55,11 +55,7 @@ func DownloadAndFlash(ctx context.Context, boardID string, rel registry.Release,
 	}
 	defer func() { _ = temp.RemoveAll() }()
 
-	if err := checkFreeSpace(temp, DownloadDiskSpace, "download and extraction"); err != nil {
-		return err
-	}
-
-	if err := DownloadAndExtract(ctx, rel, temp, opts.Cache); err != nil {
+	if err := downloadAndExtract(ctx, rel, temp, opts.Cache, checkFreeSpace); err != nil {
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}
 

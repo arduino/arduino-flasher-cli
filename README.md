@@ -48,6 +48,8 @@ are retained regardless of this choice, including when flashing fails.
 Extraction always uses a temporary directory. `--temp-dir` selects its parent;
 cached archives stay in the user cache. Local image files and directories are
 flashed directly without being added to the cache.
+When reusing a verified cached archive, the free-space check only accounts for
+extraction.
 
 ## Manage cached images
 
