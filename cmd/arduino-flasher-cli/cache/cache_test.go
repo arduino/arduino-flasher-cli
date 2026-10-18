@@ -25,6 +25,11 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 )
 
+const (
+	listCommand  = "list"
+	clearCommand = "clear"
+)
+
 type offlineTransport struct {
 	requests int
 }
@@ -85,17 +90,17 @@ func seedCachedImage(t *testing.T, c *imagecache.Cache) string {
 func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 	c, transport := setupCacheCommand(t)
 	archive := seedCachedImage(t, c)
-	output, err := executeCache(t, "list")
+	output, err := executeCache(t, listCommand)
 	require.NoError(t, err)
 	for _, expected := range []string{c.Dir(), "BOARD", "OS", "VERSION", "SIZE", "DOWNLOADED", "unoq", "debian", "20250915-173", "Total cache size:"} {
 		require.Contains(t, output, expected)
 	}
-	output, err = executeCache(t, "clear")
+	output, err = executeCache(t, clearCommand)
 	require.NoError(t, err)
 	require.Contains(t, output, "Image cache cleared:")
 	require.Contains(t, output, c.Dir())
 	require.NoFileExists(t, archive)
-	output, err = executeCache(t, "list")
+	output, err = executeCache(t, listCommand)
 	require.NoError(t, err)
 	require.Contains(t, output, "No complete images are cached.")
 	require.Contains(t, output, "Total cache size: 0 B")
@@ -104,7 +109,7 @@ func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 
 func TestCacheCommandsHandleMissingDirectory(t *testing.T) {
 	c, transport := setupCacheCommand(t)
-	for _, command := range []string{"list", "clear", "clear"} {
+	for _, command := range []string{listCommand, clearCommand, clearCommand} {
 		_, err := executeCache(t, command)
 		require.NoError(t, err)
 		require.NoDirExists(t, c.Dir())
@@ -115,7 +120,7 @@ func TestCacheCommandsHandleMissingDirectory(t *testing.T) {
 func TestCacheCommandsRejectArgumentsBeforeDeleting(t *testing.T) {
 	c, _ := setupCacheCommand(t)
 	archive := seedCachedImage(t, c)
-	for _, command := range []string{"list", "clear"} {
+	for _, command := range []string{listCommand, clearCommand} {
 		_, err := executeCache(t, command, "unexpected-version")
 		require.Error(t, err)
 		require.FileExists(t, archive)

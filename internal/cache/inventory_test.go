@@ -54,7 +54,7 @@ func TestListIncludesImagesAndIncompleteDownloadSize(t *testing.T) {
 }
 
 func TestListSkipsUnusableRecords(t *testing.T) {
-	for _, change := range []string{"missing metadata", "invalid metadata", "missing archive", "wrong size", "wrong identity", "unsafe archive name"} {
+	for _, change := range []string{missingMetadataCase, invalidMetadataCase, missingArchiveCase, "wrong size", "wrong identity", "unsafe archive name"} {
 		t.Run(change, func(t *testing.T) {
 			ctx := context.Background()
 			c := New(t.TempDir())
@@ -63,11 +63,11 @@ func TestListSkipsUnusableRecords(t *testing.T) {
 			require.NoError(t, err)
 			metaPath := filepath.Join(filepath.Dir(archive), metadataFile)
 			switch change {
-			case "missing metadata":
+			case missingMetadataCase:
 				require.NoError(t, os.Remove(metaPath))
-			case "invalid metadata":
+			case invalidMetadataCase:
 				require.NoError(t, os.WriteFile(metaPath, []byte("{"), 0o600))
-			case "missing archive":
+			case missingArchiveCase:
 				require.NoError(t, os.Remove(archive))
 			case "wrong size":
 				require.NoError(t, os.Truncate(archive, 3))

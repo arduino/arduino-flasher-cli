@@ -91,6 +91,13 @@ func (r listResult) Data() interface{} {
 }
 
 func (r listResult) String() string {
+	const (
+		columnBoard      = "BOARD"
+		columnOS         = "OS"
+		columnVersion    = "VERSION"
+		columnSize       = "SIZE"
+		columnDownloaded = "DOWNLOADED"
+	)
 	header := i18n.Tr("Cache directory: %s", r.Directory)
 	footer := i18n.Tr("Total cache size: %s", humanize.IBytes(r.TotalSize))
 	if len(r.Images) == 0 {
@@ -98,13 +105,13 @@ func (r listResult) String() string {
 	}
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "SIZE", "DOWNLOADED"})
+	t.AppendHeader(table.Row{columnBoard, columnOS, columnVersion, columnSize, columnDownloaded})
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Name: "BOARD", Align: text.AlignLeft},
-		{Name: "OS", Align: text.AlignLeft},
-		{Name: "VERSION", Align: text.AlignLeft},
-		{Name: "SIZE", Align: text.AlignRight},
-		{Name: "DOWNLOADED", Align: text.AlignLeft},
+		{Name: columnBoard, Align: text.AlignLeft},
+		{Name: columnOS, Align: text.AlignLeft},
+		{Name: columnVersion, Align: text.AlignLeft},
+		{Name: columnSize, Align: text.AlignRight},
+		{Name: columnDownloaded, Align: text.AlignLeft},
 	})
 	for _, image := range r.Images {
 		// List returns only non-negative archive sizes.

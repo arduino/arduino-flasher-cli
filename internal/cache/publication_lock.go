@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -22,7 +21,12 @@ func lockPublication(ctx context.Context, dir string) (*os.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(filepath.Join(dir, publicationLockFile), os.O_CREATE|os.O_RDWR, 0o600)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("could not open cache publication directory: %w", err)
+	}
+	defer root.Close()
+	file, err := root.OpenFile(publicationLockFile, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("could not open cache publication lock: %w", err)
 	}

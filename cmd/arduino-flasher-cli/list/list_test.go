@@ -137,29 +137,31 @@ func requireCacheMark(t *testing.T, output, version string, cached bool) {
 }
 
 func TestListCacheIdentity(t *testing.T) {
-	for _, change := range []string{"matching", "board", "os", "version", "checksum", "archive name", "case"} {
+	for _, change := range []string{"matching", "different board", "different OS", "different version", "different checksum", "different archive name", "case-insensitive metadata"} {
 		t.Run(change, func(t *testing.T) {
 			c, transport, rel := setupList(t)
 			seedListCache(t, c, rel)
 			online := rel
+			wantCached := change == "matching"
 			switch change {
-			case "board":
+			case "different board":
 				online.Board = registry.VentunoQ.ID
-			case "os":
+			case "different OS":
 				online.OS = "ubuntu"
-			case "version":
+			case "different version":
 				online.Version = "20250916-174"
-			case "checksum":
+			case "different checksum":
 				online.Sha256 = strings.Repeat("a", 64)
-			case "archive name":
+			case "different archive name":
 				online.Url = "https://images.example/renamed.tar.zst"
-			case "case":
+			case "case-insensitive metadata":
+				wantCached = true
 				online.OS = "Debian GNU/Linux 13 (trixie)"
 				online.Sha256 = strings.ToUpper(online.Sha256)
 			}
 			transport.releases = registry.Releases{online}
 			output := executeList(t)
-			requireCacheMark(t, output, online.Version, change == "matching" || change == "case")
+			requireCacheMark(t, output, online.Version, wantCached)
 			require.Len(t, transport.requests, 2, "list should only read the two published indexes once")
 		})
 	}
@@ -169,7 +171,8 @@ func TestListMissingAndIncompleteCache(t *testing.T) {
 	for _, state := range []string{"missing cache", "missing metadata", "missing archive", "wrong size"} {
 		t.Run(state, func(t *testing.T) {
 			c, _, rel := setupList(t)
-			if state != "missing cache" {
+			cacheMissing := state == "missing cache"
+			if !cacheMissing {
 				archive := seedListCache(t, c, rel)
 				switch state {
 				case "missing metadata":
@@ -181,7 +184,7 @@ func TestListMissingAndIncompleteCache(t *testing.T) {
 				}
 			}
 			requireCacheMark(t, executeList(t), rel.Version, false)
-			if state == "missing cache" {
+			if cacheMissing {
 				require.NoDirExists(t, c.Dir(), "listing should not create the cache")
 			}
 		})

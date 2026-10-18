@@ -124,6 +124,11 @@ func TestDownloadAndExtractReusesCache(t *testing.T) {
 }
 
 func TestDownloadAndExtractFreeSpace(t *testing.T) {
+	const (
+		cachedState  = "cached"
+		missingState = "missing"
+		corruptState = "corrupt"
+	)
 	for _, keep := range []bool{false, true} {
 		for _, tc := range []struct {
 			name         string
@@ -132,19 +137,19 @@ func TestDownloadAndExtractFreeSpace(t *testing.T) {
 			wantRequired uint64
 			wantSuccess  bool
 		}{
-			{"cached with 11 GiB", "cached", 11, 10, true},
-			{"cached with exactly 10 GiB", "cached", 10, 10, true},
-			{"cached below 10 GiB", "cached", 9, 10, false},
-			{"missing with 11 GiB", "missing", 11, 12, false},
-			{"corrupt with 11 GiB", "corrupt", 11, 12, false},
-			{"missing with exactly 12 GiB", "missing", 12, 12, true},
+			{"cached with 11 GiB", cachedState, 11, 10, true},
+			{"cached with exactly 10 GiB", cachedState, 10, 10, true},
+			{"cached below 10 GiB", cachedState, 9, 10, false},
+			{"missing with 11 GiB", missingState, 11, 12, false},
+			{"corrupt with 11 GiB", corruptState, 11, 12, false},
+			{"missing with exactly 12 GiB", missingState, 12, 12, true},
 		} {
 			t.Run(fmt.Sprintf("%s/cache=%t", tc.name, keep), func(t *testing.T) {
 				c, rel, transport := setupImageDownload(t)
 				var archive string
-				if tc.state != "missing" {
+				if tc.state != missingState {
 					archive = seedImageCache(t, c, rel, transport.contents)
-					if tc.state == "corrupt" {
+					if tc.state == corruptState {
 						require.NoError(t, os.WriteFile(archive, []byte("corrupted archive"), 0o600))
 					}
 				}
@@ -168,7 +173,7 @@ func TestDownloadAndExtractFreeSpace(t *testing.T) {
 				if tc.wantSuccess {
 					require.NoError(t, err)
 					requireExtractedPayload(t, scratch)
-					if tc.state == "cached" {
+					if tc.state == cachedState {
 						require.Zero(t, transport.requests)
 					} else {
 						require.Positive(t, transport.requests)
@@ -181,7 +186,7 @@ func TestDownloadAndExtractFreeSpace(t *testing.T) {
 				require.Equal(t, 1, checks)
 				require.Equal(t, tc.wantRequired, checkedRequired)
 				operation := "download and extraction"
-				if tc.state == "cached" {
+				if tc.state == cachedState {
 					operation = "extraction"
 					cached, err := c.Lookup(context.Background(), rel)
 					require.NoError(t, err, "a space check must preserve the cached archive")

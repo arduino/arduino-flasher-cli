@@ -36,7 +36,9 @@ func TestPublicationLockAcrossProcesses(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestPublicationLockAcrossProcesses$")
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	cmd := exec.CommandContext(ctx, executable, "-test.run=^TestPublicationLockAcrossProcesses$")
 	cmd.Env = append(os.Environ(), helperEnv+"="+dir)
 	cmd.Stderr = os.Stderr
 	stdin, err := cmd.StdinPipe()

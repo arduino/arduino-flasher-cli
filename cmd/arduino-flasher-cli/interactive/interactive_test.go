@@ -46,10 +46,11 @@ func TestImageOptionsCacheLabels(t *testing.T) {
 		t.Run(cached, func(t *testing.T) {
 			var inventory cache.Inventory
 			labels := []string{newest.Version + " (latest)", older.Version}
-			if cached == "newest" {
+			switch cached {
+			case "newest":
 				inventory.Images = []cache.Entry{wizardEntry(newest)}
 				labels[0] += " (cached)"
-			} else if cached == "older" {
+			case "older":
 				inventory.Images = []cache.Entry{wizardEntry(older)}
 				labels[1] += " (cached)"
 			}

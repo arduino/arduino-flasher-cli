@@ -21,6 +21,12 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 )
 
+const (
+	missingMetadataCase = "missing metadata"
+	invalidMetadataCase = "invalid metadata"
+	missingArchiveCase  = "missing archive"
+)
+
 func releaseFor(contents string) registry.Release {
 	checksum := sha256.Sum256([]byte(contents))
 	return registry.Release{
@@ -129,10 +135,10 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 		name   string
 		change func(*testing.T, string)
 	}{
-		{"missing metadata", func(t *testing.T, archive string) {
+		{missingMetadataCase, func(t *testing.T, archive string) {
 			require.NoError(t, os.Remove(filepath.Join(filepath.Dir(archive), metadataFile)))
 		}},
-		{"invalid metadata", func(t *testing.T, archive string) {
+		{invalidMetadataCase, func(t *testing.T, archive string) {
 			require.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(archive), metadataFile), []byte("{"), 0o600))
 		}},
 		{"wrong identity in metadata", func(t *testing.T, archive string) {
@@ -157,7 +163,7 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, os.WriteFile(path, data, 0o600))
 		}},
-		{"missing archive", func(t *testing.T, archive string) {
+		{missingArchiveCase, func(t *testing.T, archive string) {
 			require.NoError(t, os.Remove(archive))
 		}},
 		{"truncated archive", func(t *testing.T, archive string) {

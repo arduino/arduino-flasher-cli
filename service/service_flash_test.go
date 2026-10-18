@@ -39,6 +39,8 @@ import (
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
+const testDistribution = "debian"
+
 type flashHTTP struct {
 	archive          []byte
 	archiveErr       error
@@ -50,7 +52,7 @@ type flashHTTP struct {
 func (h *flashHTTP) release() registry.Release {
 	sum := sha256.Sum256(h.archive)
 	return registry.Release{
-		Board: registry.UnoQ.ID, OS: "debian", Version: "20250915-173",
+		Board: registry.UnoQ.ID, OS: testDistribution, Version: "20250915-173",
 		Url: "https://images.example/image.tar", FileName: "image.tar",
 		Sha256: hex.EncodeToString(sum[:]),
 	}
@@ -167,7 +169,7 @@ func setupFlash(t *testing.T) *flashFixture {
 	f := &flashFixture{
 		server: NewFlasherServer().(*flasherServerImpl), http: h, imageCache: c,
 		request: &flasher.FlashRequest{
-			Board: registry.UnoQ.ID, Os: "debian", Version: h.release().Version,
+			Board: registry.UnoQ.ID, Os: testDistribution, Version: h.release().Version,
 			TempPath: t.TempDir(), Serial: "305419896", PreserveUser: true,
 		},
 		stream: &flashStream{ctx: context.Background()},
@@ -403,19 +405,19 @@ func TestFlashCanceledRequest(t *testing.T) {
 }
 
 func TestFlashInvalidRequest(t *testing.T) {
-	for _, field := range []string{"nil request", "board", "unknown board", "version", "os", "stream"} {
+	for _, field := range []string{"nil request", "missing board", "unknown board", "missing version", "missing OS", "stream"} {
 		t.Run(field, func(t *testing.T) {
 			f := setupFlash(t)
 			switch field {
 			case "nil request":
 				f.request = nil
-			case "board":
+			case "missing board":
 				f.request.Board = ""
 			case "unknown board":
 				f.request.Board = "unknown"
-			case "version":
+			case "missing version":
 				f.request.Version = ""
-			case "os":
+			case "missing OS":
 				f.request.Os = ""
 			case "stream":
 				require.Error(t, f.server.Flash(f.request, nil))
@@ -465,7 +467,7 @@ func TestFlashGRPCSharedCache(t *testing.T) {
 
 func TestFlashRequestCacheDefaultsToFalse(t *testing.T) {
 	for _, keep := range []bool{false, true} {
-		request := &flasher.FlashRequest{Board: "unoq", Version: "latest", Os: "debian", Cache: keep}
+		request := &flasher.FlashRequest{Board: "unoq", Version: "latest", Os: testDistribution, Cache: keep}
 		data, err := proto.Marshal(request)
 		require.NoError(t, err)
 		var decoded flasher.FlashRequest
