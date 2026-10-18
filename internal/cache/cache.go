@@ -162,6 +162,18 @@ func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(c
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", fmt.Errorf("could not create cached image directory: %w", err)
 	}
+	publicationLock, err := lockPublication(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	defer publicationLock.Close()
+	// Another request may have published this release while we downloaded or
+	// waited for the lock. Preserve its archive, even if it is open for flashing.
+	if existing, err := c.Lookup(ctx, rel); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, ErrMiss) {
+		return "", err
+	}
 	destination := filepath.Join(dir, rel.FileName)
 	if err := os.Rename(archive, destination); err != nil {
 		return "", fmt.Errorf("could not publish cached image: %w", err)
@@ -176,7 +188,7 @@ func (c *Cache) entryDir(rel registry.Release) (string, error) {
 	if rel.Board == "" || rel.Version == "" {
 		return "", errors.New("a cached image requires a board and a resolved version")
 	}
-	if !filepath.IsLocal(rel.FileName) || rel.FileName == "." || strings.ContainsAny(rel.FileName, `/\:`) || strings.EqualFold(rel.FileName, metadataFile) {
+	if !filepath.IsLocal(rel.FileName) || rel.FileName == "." || strings.ContainsAny(rel.FileName, `/\:`) || strings.EqualFold(rel.FileName, metadataFile) || strings.EqualFold(rel.FileName, publicationLockFile) {
 		return "", fmt.Errorf("invalid image archive name %q", rel.FileName)
 	}
 	checksum, err := hex.DecodeString(rel.Sha256)

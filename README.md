@@ -42,8 +42,9 @@ Use `--cache` to retain newly downloaded archives for future flashes:
 arduino-flasher-cli flash unoq --cache
 ```
 
-The interactive wizard also asks whether to keep new downloads. Existing cached
-archives are retained regardless of this choice, including when flashing fails.
+Interactive image selections mark matching local archives with `(cached)`. The
+flash wizard also asks whether to keep new downloads. Existing cached archives
+are retained regardless of this choice, including when flashing fails.
 Extraction always uses a temporary directory. `--temp-dir` selects its parent;
 cached archives stay in the user cache. Local image files and directories are
 flashed directly without being added to the cache.

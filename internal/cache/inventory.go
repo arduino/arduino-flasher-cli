@@ -28,6 +28,16 @@ type Inventory struct {
 	TotalSize uint64  `json:"total_size"`
 }
 
+// Contains reports whether the inventory has matching metadata for rel. It does
+// not verify archive contents; Lookup still checks integrity before reuse.
+func (inventory Inventory) Contains(rel registry.Release) bool {
+	return slices.ContainsFunc(inventory.Images, func(entry Entry) bool {
+		return entry.Board == rel.Board && strings.EqualFold(entry.OS, rel.OS) &&
+			entry.Version == rel.Version && strings.EqualFold(entry.SHA256, rel.Sha256) &&
+			entry.FileName == rel.FileName
+	})
+}
+
 // List inspects local metadata and file sizes without network access or hashing
 // multi-gigabyte archives. Lookup still verifies the checksum before reuse.
 // A missing cache is empty; listing it does not create any directories.

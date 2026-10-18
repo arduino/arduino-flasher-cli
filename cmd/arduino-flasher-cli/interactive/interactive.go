@@ -23,6 +23,7 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
+	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
@@ -30,6 +31,7 @@ import (
 // Run starts the interactive wizard and performs the flash.
 func Run(ctx context.Context, cacheImage bool) {
 	images := fetchImages(ctx)
+	inventory := readImageCache(ctx)
 
 	boardIDs := slices.Sorted(maps.Keys(images))
 	boardID := boardIDs[0]
@@ -63,7 +65,7 @@ func Run(ctx context.Context, cacheImage bool) {
 	}
 
 	// Newest first, so the first one is this board's latest.
-	versionOptions := imageOptions(boardImages)
+	versionOptions := imageOptions(boardImages, inventory)
 
 	var (
 		variant      registry.Variant
@@ -206,13 +208,14 @@ func SelectImage(ctx context.Context, withVersion bool) (registry.Board, string,
 
 	var selected registry.Release
 	if withVersion {
+		inventory := readImageCache(ctx)
 		// Bound to the board, so going back relists the images.
 		groups = append(groups, huh.NewGroup(
 			huh.NewSelect[registry.Release]().
 				Title(i18n.Tr("Select the image version")).
 				Description(i18n.Tr("Use ↑/↓ to navigate, Enter to confirm")).
 				OptionsFunc(func() []huh.Option[registry.Release] {
-					return imageOptions(images[boardID])
+					return imageOptions(images[boardID], inventory)
 				}, &boardID).
 				Value(&selected),
 		))
@@ -223,6 +226,21 @@ func SelectImage(ctx context.Context, withVersion bool) (registry.Board, string,
 	}
 	board, _ := registry.BoardByID(boardID)
 	return board, selected.OS, selected.Version, true
+}
+
+// readImageCache takes one metadata snapshot per selection flow. Rebuilding
+// options while switching boards never rereads or hashes image archives.
+func readImageCache(ctx context.Context) cache.Inventory {
+	imageCache, err := cache.Default()
+	if err == nil {
+		var inventory cache.Inventory
+		inventory, err = imageCache.List(ctx)
+		if err == nil {
+			return inventory
+		}
+	}
+	feedback.Warning(i18n.Tr("could not inspect the image cache: %v", err))
+	return cache.Inventory{}
 }
 
 // fetchImages reads every index once and groups what is published by board,
@@ -301,9 +319,9 @@ func boardSelect(boardIDs []string, boardID *string) *huh.Select[string] {
 		Value(boardID)
 }
 
-// imageOptions lists images newest first, saying which one is the latest and,
-// when the board has more than one distribution, which one it comes from.
-func imageOptions(images registry.Releases) []huh.Option[registry.Release] {
+// imageOptions lists images newest first with cache status and, when the board
+// has more than one distribution, which one each image comes from.
+func imageOptions(images registry.Releases, inventory cache.Inventory) []huh.Option[registry.Release] {
 	oses := images.OSes()
 	options := make([]huh.Option[registry.Release], 0, len(images))
 	for i, rel := range images {
@@ -313,6 +331,9 @@ func imageOptions(images registry.Releases) []huh.Option[registry.Release] {
 		}
 		if len(oses) > 1 {
 			label += " — " + rel.OS
+		}
+		if inventory.Contains(rel) {
+			label += " (" + i18n.Tr("cached") + ")"
 		}
 		options = append(options, huh.NewOption(label, rel))
 	}

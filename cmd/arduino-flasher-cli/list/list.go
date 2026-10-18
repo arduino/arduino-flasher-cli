@@ -91,23 +91,13 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 			Board:   r.Board,
 			Os:      r.OS,
 			Latest:  r.Latest,
-			Cached:  isCached(r, inventory.Images),
+			Cached:  inventory.Contains(r),
 			Url:     r.Url,
 			Sha256:  r.Sha256,
 		})
 	}
 
 	feedback.PrintResult(result)
-}
-
-// isCached compares the manifest with local inventory. Lookup still verifies
-// the archive contents before a cached image can be used for flashing.
-func isCached(rel registry.Release, images []cache.Entry) bool {
-	return slices.ContainsFunc(images, func(entry cache.Entry) bool {
-		return entry.Board == rel.Board && strings.EqualFold(entry.OS, rel.OS) &&
-			entry.Version == rel.Version && strings.EqualFold(entry.SHA256, rel.Sha256) &&
-			entry.FileName == rel.FileName
-	})
 }
 
 // listResult describes published images together with their local cache status.

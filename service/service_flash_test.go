@@ -376,7 +376,9 @@ func TestFlashTempParentInsideCache(t *testing.T) {
 	require.NoError(t, err, "even an explicit temp parent inside the cache must preserve cached files")
 	entries, err := os.ReadDir(f.request.TempPath)
 	require.NoError(t, err)
-	require.Len(t, entries, 2, "only the archive and its metadata should remain")
+	for _, entry := range entries {
+		require.False(t, entry.IsDir(), "only cache files should remain, not request scratch directories")
+	}
 	require.NoDirExists(t, f.extracted)
 }
 

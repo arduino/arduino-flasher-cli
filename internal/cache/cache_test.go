@@ -77,6 +77,53 @@ func TestStoreAndReuse(t *testing.T) {
 	require.Len(t, entries, 1, "successful downloads leave no staging directories")
 }
 
+func TestStoreReusesEntryPublishedDuringDownload(t *testing.T) {
+	ctx := context.Background()
+	c := New(t.TempDir())
+	other := New(c.Dir()) // Another CLI or daemon instance shares the directory.
+	rel := releaseFor("test image")
+	var published string
+	var originalInfo os.FileInfo
+	var originalMetadata []byte
+	archive, err := c.Store(ctx, rel, func(ctx context.Context, staging string) error {
+		// Both requests saw a miss, but the other download finishes first.
+		var err error
+		published, err = other.Store(ctx, rel, downloadContents(rel, "test image"))
+		if err != nil {
+			return err
+		}
+		reader, err := os.Open(published)
+		if err != nil {
+			return err
+		}
+		t.Cleanup(func() { _ = reader.Close() })
+		originalInfo, err = reader.Stat()
+		if err != nil {
+			return err
+		}
+		originalMetadata, err = os.ReadFile(filepath.Join(filepath.Dir(published), metadataFile))
+		if err != nil {
+			return err
+		}
+		// Keep the first archive open as an extractor would. Windows cannot
+		// replace it, and other platforms must also preserve the valid entry.
+		return downloadContents(rel, "test image")(ctx, staging)
+	})
+	require.NoError(t, err)
+	require.Equal(t, published, archive)
+	info, err := os.Stat(archive)
+	require.NoError(t, err)
+	require.True(t, os.SameFile(originalInfo, info), "a concurrent download must not replace the published archive")
+	metadata, err := os.ReadFile(filepath.Join(filepath.Dir(archive), metadataFile))
+	require.NoError(t, err)
+	require.Equal(t, originalMetadata, metadata, "reuse preserves the original download metadata")
+	_, err = c.Lookup(ctx, rel)
+	require.NoError(t, err)
+	entries, err := os.ReadDir(c.Dir())
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "the redundant download must leave no staging directory")
+}
+
 func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -214,7 +261,7 @@ func TestReleaseIdentity(t *testing.T) {
 }
 
 func TestRejectUnsafeArchiveNames(t *testing.T) {
-	for _, name := range []string{"", ".", "..", "../image.tar.zst", `..\image.tar.zst`, "/image.tar.zst", `C:\image.tar.zst`, "meta.json", "META.JSON"} {
+	for _, name := range []string{"", ".", "..", "../image.tar.zst", `..\image.tar.zst`, "/image.tar.zst", `C:\image.tar.zst`, "meta.json", "META.JSON", publicationLockFile, strings.ToUpper(publicationLockFile)} {
 		t.Run(name, func(t *testing.T) {
 			c := New(t.TempDir())
 			rel := releaseFor("test image")
