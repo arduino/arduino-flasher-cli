@@ -40,6 +40,8 @@ type FlashOptions struct {
 	PreserveUser bool
 	TempDir      string
 	RootSize     uint64
+	// Stream decompresses the disk images while flashing instead of extracting them.
+	Stream bool
 }
 
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
@@ -51,6 +53,19 @@ func DownloadAndFlash(ctx context.Context, boardID string, rel registry.Release,
 		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 	}
 	defer func() { _ = temp.RemoveAll() }()
+
+	if opts.Stream {
+		archive, err := DownloadImage(ctx, rel, temp)
+		if err != nil {
+			return fmt.Errorf("error downloading the image: %v", err)
+		}
+		unmount, err := StreamImage(ctx, archive, temp)
+		if err != nil {
+			return err
+		}
+		defer unmount()
+		return FlashBoard(ctx, opts.Serial, temp, rel.Version, boardID, opts.PreserveUser, opts.RootSize, nil)
+	}
 
 	if err := checkFreeSpace(temp, DownloadDiskSpace, "download and extraction"); err != nil {
 		return err
@@ -73,12 +88,20 @@ func FlashImage(ctx context.Context, imagePath *paths.Path, boardID string, opts
 		}
 		defer func() { _ = temp.RemoveAll() }()
 
-		if err := checkFreeSpace(temp, ExtractDiskSpace, "extraction"); err != nil {
-			return err
-		}
+		if opts.Stream {
+			unmount, err := StreamImage(ctx, imagePath, temp)
+			if err != nil {
+				return err
+			}
+			defer unmount()
+		} else {
+			if err := checkFreeSpace(temp, ExtractDiskSpace, "extraction"); err != nil {
+				return err
+			}
 
-		if err := ExtractImage(ctx, imagePath, temp); err != nil {
-			return fmt.Errorf("error extracting the archive: %v", err)
+			if err := ExtractImage(ctx, imagePath, temp); err != nil {
+				return fmt.Errorf("error extracting the archive: %v", err)
+			}
 		}
 		imagePath = temp
 	}
