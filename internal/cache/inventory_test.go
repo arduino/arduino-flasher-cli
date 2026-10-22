@@ -44,8 +44,9 @@ func TestListIncludesImagesAndIncompleteDownloadSize(t *testing.T) {
 	require.Equal(t, int64(len("first image")), listing.Images[0].Size)
 	require.False(t, listing.Images[0].DownloadedAt.IsZero())
 	require.Equal(t, secondPath, listing.Images[1].Path)
-	expectedSize := len("first image") + len("second image") + len(firstMeta) + len(secondMeta) + len("partial")
-	require.Equal(t, uint64(expectedSize), listing.TotalSize)
+	expectedSize := uint64(len("first image")) + uint64(len("second image")) +
+		uint64(len(firstMeta)) + uint64(len(secondMeta)) + uint64(len("partial"))
+	require.Equal(t, expectedSize, listing.TotalSize)
 	// Listing neither removes partial files nor rewrites stored metadata.
 	unchanged, err := os.ReadFile(filepath.Join(filepath.Dir(firstPath), metadataFile))
 	require.NoError(t, err)
