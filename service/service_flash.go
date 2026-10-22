@@ -147,19 +147,26 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 
-	tmpZipFile, err := tmpZip.Open()
-	if err != nil {
-		return fmt.Errorf("could not open archive: %w", err)
-	}
-	defer tmpZipFile.Close()
-
 	extractPath := tmpPath.Join("extracted")
-	extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
-	if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
-		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
-		return s
-	}); err != nil {
-		return fmt.Errorf("could not extract archive: %w", err)
+	// Release the archive before flashing so cache operations can remove it on
+	// Windows while the board is being flashed from the extracted files.
+	if err := func() error {
+		tmpZipFile, err := tmpZip.Open()
+		if err != nil {
+			return fmt.Errorf("could not open archive: %w", err)
+		}
+		defer tmpZipFile.Close()
+
+		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
+		if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
+			extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
+			return s
+		}); err != nil {
+			return fmt.Errorf("could not extract archive: %w", err)
+		}
+		return nil
+	}(); err != nil {
+		return err
 	}
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 

@@ -266,6 +266,34 @@ func TestFlashCachePolicyAndCleanup(t *testing.T) {
 	}
 }
 
+func TestFlashAllowsCacheClearDuringFlashing(t *testing.T) {
+	for _, cached := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cached=%t", cached), func(t *testing.T) {
+			f := setupFlash(t)
+			f.request.Cache = true
+			if cached {
+				f.seedCache(t)
+			}
+			flashBoard := f.server.flashBoard
+			f.server.flashBoard = func(ctx context.Context, serial string, dir *paths.Path, version, board string, preserve bool, rootSize uint64, cb updater.FlashCallback) error {
+				// Extraction has finished, but Flash has not returned yet. Clearing
+				// the cache must succeed even on Windows, where open archives block it.
+				require.NoError(t, f.imageCache.Clear(ctx))
+				inventory, err := f.imageCache.List(ctx)
+				require.NoError(t, err)
+				require.Empty(t, inventory.Images)
+				require.Zero(t, inventory.TotalSize)
+				// Flashing still uses the independently extracted files.
+				return flashBoard(ctx, serial, dir, version, board, preserve, rootSize, cb)
+			}
+
+			require.NoError(t, f.server.Flash(f.request, f.stream))
+			require.Equal(t, int64(1), f.flashCalls.Load())
+			requireScratchClean(t, f)
+		})
+	}
+}
+
 func TestFlashFailedDownload(t *testing.T) {
 	for _, keep := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
