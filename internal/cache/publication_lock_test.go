@@ -20,10 +20,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testPublicationKey = "test-image"
+
 func TestPublicationLockAcrossProcesses(t *testing.T) {
 	const helperEnv = "ARDUINO_FLASHER_TEST_LOCK_DIRECTORY"
 	if dir := os.Getenv(helperEnv); dir != "" {
-		lock, err := lockPublication(context.Background(), dir)
+		lock, err := lockPublication(context.Background(), dir, testPublicationKey)
 		require.NoError(t, err)
 		fmt.Println("locked")
 		_, _ = io.Copy(io.Discard, os.Stdin)
@@ -59,7 +61,7 @@ func TestPublicationLockAcrossProcesses(t *testing.T) {
 
 	waitCtx, stop := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer stop()
-	blocked, err := lockPublication(waitCtx, dir)
+	blocked, err := lockPublication(waitCtx, dir, testPublicationKey)
 	if blocked != nil {
 		_ = blocked.Close()
 	}
@@ -67,10 +69,10 @@ func TestPublicationLockAcrossProcesses(t *testing.T) {
 	require.NoError(t, stdin.Close())
 	require.NoError(t, cmd.Wait())
 
-	lock, err := lockPublication(ctx, dir)
+	lock, err := lockPublication(ctx, dir, testPublicationKey)
 	require.NoError(t, err, "process exit must release the lock without deleting its file")
 	require.NoError(t, lock.Close())
-	info, err := os.Stat(filepath.Join(dir, publicationLockFile))
+	info, err := os.Stat(filepath.Join(dir, publicationLocksDir, testPublicationKey+publicationLockFile))
 	require.NoError(t, err)
 	require.Zero(t, info.Size(), "publication locks must not consume image storage")
 }
@@ -79,8 +81,8 @@ func TestPublicationLockCanceledBeforeOpen(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	lock, err := lockPublication(ctx, dir)
+	lock, err := lockPublication(ctx, dir, testPublicationKey)
 	require.Nil(t, lock)
 	require.ErrorIs(t, err, context.Canceled)
-	require.NoFileExists(t, filepath.Join(dir, publicationLockFile))
+	require.NoFileExists(t, filepath.Join(dir, publicationLocksDir, testPublicationKey+publicationLockFile))
 }

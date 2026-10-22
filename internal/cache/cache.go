@@ -105,7 +105,8 @@ func (c *Cache) Lookup(ctx context.Context, rel registry.Release) (string, error
 
 // Store reuses a valid entry or invokes download in a private staging directory.
 // download must write rel.FileName into that directory and close it before
-// returning. Only a verified archive is published, with metadata written last.
+// returning. The verified archive and its metadata are published together by
+// renaming the complete staging directory while holding the publication lock.
 // A failed or interrupted download can never become a cache hit.
 func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(context.Context, string) error) (string, error) {
 	if archive, err := c.Lookup(ctx, rel); err == nil {
@@ -156,10 +157,8 @@ func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(c
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return "", fmt.Errorf("could not create cached image directory: %w", err)
-	}
-	publicationLock, err := lockPublication(ctx, dir)
+	key := filepath.Base(dir)
+	publicationLock, err := lockPublication(ctx, c.dir, key)
 	if err != nil {
 		return "", err
 	}
@@ -171,14 +170,21 @@ func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(c
 	} else if !errors.Is(err, ErrMiss) {
 		return "", err
 	}
-	destination := filepath.Join(dir, rel.FileName)
-	if err := os.Rename(archive, destination); err != nil {
+	root, err := c.openRoot()
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	// Only an unusable entry can reach this point. Remove it before the rename:
+	// Windows cannot rename a directory over an existing destination directory.
+	// Root confines removal to the hash-derived entry inside the cache.
+	if err := root.RemoveAll(key); err != nil {
+		return "", fmt.Errorf("could not remove incomplete cached image: %w", err)
+	}
+	if err := root.Rename(filepath.Base(staging), key); err != nil {
 		return "", fmt.Errorf("could not publish cached image: %w", err)
 	}
-	if err := os.Rename(filepath.Join(staging, metadataFile), filepath.Join(dir, metadataFile)); err != nil {
-		return "", fmt.Errorf("could not publish cached image metadata: %w", err)
-	}
-	return destination, nil
+	return filepath.Join(dir, rel.FileName), nil
 }
 
 func (c *Cache) entryDir(rel registry.Release) (string, error) {

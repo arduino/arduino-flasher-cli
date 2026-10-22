@@ -66,9 +66,12 @@ version, archive size, download date and path (in JSON output). Total cache size
 includes metadata and incomplete downloads. Listing does not recheck archive
 checksums; those are verified against the online manifest before reuse.
 
-`cache clear` immediately removes all contents of the `images/` cache directory,
-including incomplete downloads. Files downloaded to another directory with
-`--dest-dir` and temporary directories outside `images/` are preserved.
+`cache clear` immediately removes images and incomplete downloads from the
+`images/` cache directory. Empty synchronization files in `.locks/` are preserved
+so concurrent processes continue to share the same publication locks.
+Files downloaded to another directory with `--dest-dir` and temporary directories
+outside `images/` are preserved. Verified archives and metadata are published
+together by renaming their complete temporary directory.
 Both commands also work when the cache has not been created yet.
 
 The normal `list` command marks downloaded images in the `CACHED` column and

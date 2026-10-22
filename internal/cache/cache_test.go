@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -80,7 +81,7 @@ func TestStoreAndReuse(t *testing.T) {
 	require.Equal(t, 1, calls, "a cache hit does not invoke the downloader")
 	entries, err := os.ReadDir(c.Dir())
 	require.NoError(t, err)
-	require.Len(t, entries, 1, "successful downloads leave no staging directories")
+	require.Len(t, entries, 2, "only the complete image and publication locks remain")
 }
 
 func TestStoreReusesEntryPublishedDuringDownload(t *testing.T) {
@@ -127,7 +128,7 @@ func TestStoreReusesEntryPublishedDuringDownload(t *testing.T) {
 	require.NoError(t, err)
 	entries, err := os.ReadDir(c.Dir())
 	require.NoError(t, err)
-	require.Len(t, entries, 1, "the redundant download must leave no staging directory")
+	require.Len(t, entries, 2, "the redundant download must leave no staging directory")
 }
 
 func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
@@ -181,6 +182,49 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestStoreReplacesIncompleteDirectory(t *testing.T) {
+	ctx := context.Background()
+	c := New(t.TempDir())
+	rel := releaseFor("test image")
+	dir, err := c.entryDir(rel)
+	require.NoError(t, err)
+	require.NoError(t, os.Mkdir(dir, 0o750))
+	// Reproduce an entry left by the old two-rename publication scheme.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, rel.FileName), []byte("test image"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, publicationLockFile), nil, 0o600))
+	archive, err := c.Store(ctx, rel, downloadContents(rel, "test image"))
+	require.NoError(t, err)
+	reused, err := c.Lookup(ctx, rel)
+	require.NoError(t, err)
+	require.Equal(t, archive, reused)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	require.ElementsMatch(t, []string{rel.FileName, metadataFile}, names, "the complete directory replaces all remnants of the incomplete entry")
+}
+
+func TestStoreCanceledWhileWaitingDoesNotCreateEntry(t *testing.T) {
+	c := New(t.TempDir())
+	rel := releaseFor("test image")
+	dir, err := c.entryDir(rel)
+	require.NoError(t, err)
+	lock, err := lockPublication(context.Background(), c.Dir(), filepath.Base(dir))
+	require.NoError(t, err)
+	defer lock.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err = c.Store(ctx, rel, downloadContents(rel, "test image"))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NoDirExists(t, dir, "waiting for publication must not expose a partial entry")
+	entries, err := os.ReadDir(c.Dir())
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "canceled publication must remove staging files")
+	require.Equal(t, publicationLocksDir, entries[0].Name())
 }
 
 func TestLookupReusesVerifiedArchiveWithIncorrectMetadataSize(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,8 @@ func TestClearRemovesOnlyCacheContents(t *testing.T) {
 	require.NoError(t, c.Clear(ctx))
 	entries, err := os.ReadDir(c.Dir())
 	require.NoError(t, err)
-	require.Empty(t, entries)
+	require.Len(t, entries, 1)
+	require.Equal(t, publicationLocksDir, entries[0].Name(), "publication locks must remain stable across clears")
 	for _, sibling := range []string{"tmp", "custom-downloads"} {
 		data, err := os.ReadFile(filepath.Join(parent, sibling, "keep"))
 		require.NoError(t, err)
@@ -44,6 +46,26 @@ func TestClearRemovesOnlyCacheContents(t *testing.T) {
 	require.NoError(t, c.Clear(ctx), "clearing twice should be harmless")
 	_, err = c.Store(ctx, rel, downloadContents(rel, "test image"))
 	require.NoError(t, err, "the cache must remain usable after clearing")
+}
+
+func TestClearPreservesHeldPublicationLock(t *testing.T) {
+	ctx := context.Background()
+	c := New(t.TempDir())
+	lock, err := lockPublication(ctx, c.Dir(), testPublicationKey)
+	require.NoError(t, err)
+	defer lock.Close()
+	require.NoError(t, c.Clear(ctx))
+	waitCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	blocked, err := lockPublication(waitCtx, c.Dir(), testPublicationKey)
+	if blocked != nil {
+		_ = blocked.Close()
+	}
+	require.ErrorIs(t, err, context.DeadlineExceeded, "clearing must not let another publisher bypass an existing lock")
+	listing, err := c.List(ctx)
+	require.NoError(t, err)
+	require.Empty(t, listing.Images)
+	require.Zero(t, listing.TotalSize)
 }
 
 func TestClearRejectsRelativePaths(t *testing.T) {

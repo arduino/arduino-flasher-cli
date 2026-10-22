@@ -14,9 +14,10 @@ import (
 	"path/filepath"
 )
 
-// Clear removes the contents of the images directory, including incomplete
-// downloads. The directory and its siblings are preserved. Symbolic links inside
-// it are removed without deleting their targets. A missing cache is already clear.
+// Clear removes images and incomplete downloads, preserving the directory,
+// its siblings and the persistent publication locks used by other processes.
+// Symbolic links are removed without deleting their targets. A missing cache
+// is already clear.
 func (c *Cache) Clear(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -40,6 +41,9 @@ func (c *Cache) Clear(ctx context.Context) error {
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if entry.Name() == publicationLocksDir {
+			continue
 		}
 		if err := root.RemoveAll(entry.Name()); err != nil {
 			return fmt.Errorf("could not clear cached item %s: %w", entry.Name(), err)

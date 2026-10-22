@@ -9,15 +9,20 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
-const publicationLockFile = ".publish.lock"
+const (
+	publicationLockFile = ".publish.lock"
+	publicationLocksDir = ".locks"
+)
 
 // lockPublication serializes publishers of one cache entry across processes.
 // Closing the returned file or terminating its process releases the OS lock.
-// The empty file stays in place so waiters always lock the same file.
-func lockPublication(ctx context.Context, dir string) (*os.File, error) {
+// Empty files stay in a separate directory, preserved by Clear, so waiters
+// always lock the same file even when an image directory is replaced.
+func lockPublication(ctx context.Context, dir, key string) (*os.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -26,7 +31,10 @@ func lockPublication(ctx context.Context, dir string) (*os.File, error) {
 		return nil, fmt.Errorf("could not open cache publication directory: %w", err)
 	}
 	defer root.Close()
-	file, err := root.OpenFile(publicationLockFile, os.O_CREATE|os.O_RDWR, 0o600)
+	if err := root.MkdirAll(publicationLocksDir, 0o750); err != nil {
+		return nil, fmt.Errorf("could not create cache publication locks directory: %w", err)
+	}
+	file, err := root.OpenFile(filepath.Join(publicationLocksDir, key+publicationLockFile), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("could not open cache publication lock: %w", err)
 	}
