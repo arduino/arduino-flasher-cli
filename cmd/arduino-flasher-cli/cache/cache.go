@@ -110,7 +110,7 @@ func (r listResult) String() string {
 		{Name: columnBoard, Align: text.AlignLeft},
 		{Name: columnOS, Align: text.AlignLeft},
 		{Name: columnVersion, Align: text.AlignLeft},
-		{Name: columnSize, Align: text.AlignRight},
+		{Name: columnSize, Align: text.AlignLeft},
 		{Name: columnDownloaded, Align: text.AlignLeft},
 	})
 	for _, image := range r.Images {

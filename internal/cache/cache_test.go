@@ -152,17 +152,6 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, os.WriteFile(path, data, 0o600))
 		}},
-		{"wrong size in metadata", func(t *testing.T, archive string) {
-			path := filepath.Join(filepath.Dir(archive), metadataFile)
-			data, err := os.ReadFile(path)
-			require.NoError(t, err)
-			var meta Entry
-			require.NoError(t, json.Unmarshal(data, &meta))
-			meta.Size++
-			data, err = json.Marshal(meta)
-			require.NoError(t, err)
-			require.NoError(t, os.WriteFile(path, data, 0o600))
-		}},
 		{missingArchiveCase, func(t *testing.T, archive string) {
 			require.NoError(t, os.Remove(archive))
 		}},
@@ -192,6 +181,33 @@ func TestLookupRejectsIncompleteAndCorruptEntries(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestLookupReusesVerifiedArchiveWithIncorrectMetadataSize(t *testing.T) {
+	ctx := context.Background()
+	c := New(t.TempDir())
+	rel := releaseFor("test image")
+	archive, err := c.Store(ctx, rel, downloadContents(rel, "test image"))
+	require.NoError(t, err)
+	path := filepath.Join(filepath.Dir(archive), metadataFile)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var meta Entry
+	require.NoError(t, json.Unmarshal(data, &meta))
+	meta.Size++
+	data, err = json.Marshal(meta)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+
+	reused, err := c.Lookup(ctx, rel)
+	require.NoError(t, err, "a verified checksum is sufficient even when the recorded size is incorrect")
+	require.Equal(t, archive, reused)
+	reused, err = c.Store(ctx, rel, func(context.Context, string) error {
+		t.Fatal("a verified archive must not be downloaded again")
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, archive, reused)
 }
 
 func TestFailedDownloadIsNotCached(t *testing.T) {

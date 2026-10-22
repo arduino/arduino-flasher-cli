@@ -93,15 +93,12 @@ func (c *Cache) Lookup(ctx context.Context, rel registry.Release) (string, error
 		return "", ErrMiss
 	}
 	archive := filepath.Join(dir, rel.FileName)
-	size, err := verifyArchive(ctx, archive, rel.Sha256)
+	_, err = verifyArchive(ctx, archive, rel.Sha256)
 	if errors.Is(err, os.ErrNotExist) || errors.Is(err, errChecksumMismatch) {
 		return "", ErrMiss
 	}
 	if err != nil {
 		return "", err
-	}
-	if size != meta.Size {
-		return "", ErrMiss
 	}
 	return archive, nil
 }
