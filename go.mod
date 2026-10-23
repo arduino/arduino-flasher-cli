@@ -9,7 +9,9 @@ require (
 	github.com/codeclysm/extract/v4 v4.0.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
+	github.com/hanwen/go-fuse/v2 v2.9.0
 	github.com/jedib0t/go-pretty/v6 v6.6.8
+	github.com/klauspost/compress v1.18.0
 	github.com/leonelquinteros/gotext v1.7.2
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/shirou/gopsutil/v4 v4.25.10
@@ -70,7 +72,6 @@ require (
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/juju/errors v1.0.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

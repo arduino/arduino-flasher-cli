@@ -31,7 +31,7 @@ import (
 )
 
 func NewFlashCmd() *cobra.Command {
-	var forceYes, preserveUser bool
+	var forceYes, preserveUser, stream bool
 	var serialStr string
 	var tempDir string
 	var rootSizeStr string
@@ -105,7 +105,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 				}
 			}
 
-			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize)
+			runFlashCommand(cmd.Context(), args[0], imageArg, osStr, version, serialStr, forceYes, preserveUser, tempDir, rootSize, stream)
 		},
 	}
 	appCmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
@@ -115,6 +115,7 @@ NOTE: On Windows, required drivers are automatically installed with elevated pri
 	appCmd.Flags().StringVar(&tempDir, "temp-dir", "", "Path to the directory in which the image will be downloaded and extracted")
 	appCmd.Flags().BoolVar(&preserveUser, "preserve-user", false, "Preserve user partition")
 	appCmd.Flags().StringVar(&rootSizeStr, "root-size", "", "Size of the root partition (e.g. 10GB). Leave empty for autodetection")
+	appCmd.Flags().BoolVar(&stream, "stream", false, "Decompress the .tar.zst disk images while flashing instead of extracting them (Linux and macOS, needs FUSE)")
 
 	return appCmd
 }
@@ -181,7 +182,7 @@ func rebootRequiredFatal() {
 	feedback.Fatal(i18n.Tr("A system reboot is required to finalize the driver installation. Please reboot your computer and run the flash command again."), feedback.ErrGeneric)
 }
 
-func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64) {
+func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs string, version, serialStr string, forceYes bool, preserveUser bool, tempDir string, rootSize uint64, stream bool) {
 	boardID, imageArg, version = argparse.LegacyArgs(boardID, imageArg, version)
 
 	board, ok := registry.BoardByID(boardID)
@@ -234,6 +235,7 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 		PreserveUser: preserveUser,
 		TempDir:      tempDir,
 		RootSize:     rootSize,
+		Stream:       stream,
 	}
 	if imagePath != nil {
 		err = updater.FlashImage(ctx, imagePath, board.ID, opts)
