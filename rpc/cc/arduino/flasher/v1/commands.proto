@@ -56,8 +56,9 @@ message FlashRequest {
   // The version of the image to flash. Required: the most recent image is not
   // assumed, call List to pick one.
   string version = 1;
-  // The path in which the image will be downloaded and extracted.
-  // If an image file is already present, it will not be downloaded again.
+  // Parent directory for per-request temporary downloads and extraction.
+  // Empty uses the user cache directory. Only the private subdirectory created
+  // for this request is removed, on success or failure; the parent is preserved.
   string temp_path = 2;
   // Preserve user partition if possible.
   bool preserve_user = 3;
@@ -70,6 +71,11 @@ message FlashRequest {
   // The distribution to flash, e.g. "debian". Required alongside the version
   // and the board: a version alone can be a different image on another board.
   string os = 6;
+  // Retain newly downloaded image archives in the shared user cache. Defaults
+  // to false. Existing cached archives are always verified against the online
+  // manifest and reused, regardless of this option, and are never removed by
+  // request cleanup.
+  bool cache = 7;
 }
 
 message FlashResponse {

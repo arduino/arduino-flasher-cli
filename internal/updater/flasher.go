@@ -40,6 +40,9 @@ type FlashOptions struct {
 	PreserveUser bool
 	TempDir      string
 	RootSize     uint64
+	// Cache retains newly downloaded archives. Existing cached images are
+	// always reused after verification, regardless of this option.
+	Cache bool
 }
 
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
@@ -52,11 +55,7 @@ func DownloadAndFlash(ctx context.Context, boardID string, rel registry.Release,
 	}
 	defer func() { _ = temp.RemoveAll() }()
 
-	if err := checkFreeSpace(temp, DownloadDiskSpace, "download and extraction"); err != nil {
-		return err
-	}
-
-	if err := DownloadAndExtract(ctx, rel, temp); err != nil {
+	if err := downloadAndExtract(ctx, rel, temp, opts.Cache, checkFreeSpace); err != nil {
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}
 
