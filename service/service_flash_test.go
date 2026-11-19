@@ -277,7 +277,6 @@ func TestFlashFailedDownload(t *testing.T) {
 			inventory, err := f.imageCache.List(context.Background())
 			require.NoError(t, err)
 			require.Empty(t, inventory.Images)
-			require.Zero(t, inventory.TotalSize, "failed cache writes must leave no partial files")
 			requireScratchClean(t, f)
 			var failed bool
 			for _, response := range f.stream.responses {

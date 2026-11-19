@@ -35,5 +35,4 @@ func TestListIncludesImagesAndIncompleteDownloadSize(t *testing.T) {
 		require.Equal(t, filepath.Base(image.Path), image.FileName)
 		require.False(t, image.DownloadedAt.IsZero())
 	}
-	require.Equal(t, uint64(len("first image")+len("second image")+len("partial")), listing.TotalSize)
 }

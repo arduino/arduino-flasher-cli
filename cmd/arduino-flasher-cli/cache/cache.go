@@ -38,7 +38,6 @@ func newListCmd() *cobra.Command {
 		Long: `List locally cached images without accessing the network.
 
 Shows the archive name, size and download date.
-Total cache size includes incomplete downloads.
 `,
 		Example: " " + os.Args[0] + " cache list\n" +
 			" " + os.Args[0] + " cache list --format json\n",
@@ -53,7 +52,7 @@ Total cache size includes incomplete downloads.
 				feedback.Fatal(i18n.Tr("error listing the image cache: %v", err), feedback.ErrGeneric)
 			}
 			feedback.PrintResult(listResult{
-				Directory: c.Dir(), Images: inventory.Images, TotalSize: inventory.TotalSize,
+				Directory: c.Dir(), Images: inventory.Images,
 			})
 		},
 	}
@@ -82,7 +81,6 @@ func newClearCmd() *cobra.Command {
 type listResult struct {
 	Directory string             `json:"directory"`
 	Images    []imagecache.Entry `json:"images"`
-	TotalSize uint64             `json:"total_size"`
 }
 
 func (r listResult) Data() interface{} {
@@ -96,9 +94,8 @@ func (r listResult) String() string {
 		columnDownloaded = "DOWNLOADED"
 	)
 	header := i18n.Tr("Cache directory: %s", r.Directory)
-	footer := i18n.Tr("Total cache size: %s", humanize.IBytes(r.TotalSize))
 	if len(r.Images) == 0 {
-		return header + "\n\n" + i18n.Tr("No complete images are cached.") + "\n\n" + footer
+		return header + "\n\n" + i18n.Tr("No complete images are cached.")
 	}
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
@@ -113,7 +110,7 @@ func (r listResult) String() string {
 		size := humanize.IBytes(uint64(image.Size)) //nolint:gosec
 		t.AppendRow(table.Row{image.FileName, size, image.DownloadedAt.UTC().Format(time.RFC3339)})
 	}
-	return header + "\n\n" + t.Render() + "\n\n" + footer
+	return header + "\n\n" + t.Render()
 }
 
 type clearResult struct {

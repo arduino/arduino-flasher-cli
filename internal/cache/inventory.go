@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,11 +18,9 @@ import (
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 )
 
-// Inventory contains the cached archives and the total size of regular files in
-// the cache, including incomplete downloads. Sizes are in bytes.
+// Inventory contains the cached archives.
 type Inventory struct {
-	Images    []Entry `json:"images"`
-	TotalSize uint64  `json:"total_size"`
+	Images []Entry `json:"images"`
 }
 
 // Contains reports whether the archive of rel is cached. Lookup still checks its hash.
@@ -64,32 +61,6 @@ func (c *Cache) List(ctx context.Context) (Inventory, error) {
 			DownloadedAt: info.ModTime().UTC(),
 			Path:         filepath.Join(c.dir, file.Name()),
 		})
-	}
-	err = filepath.WalkDir(c.dir, func(_ string, entry fs.DirEntry, walkErr error) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if errors.Is(walkErr, os.ErrNotExist) {
-			return nil
-		}
-		if walkErr != nil {
-			return walkErr
-		}
-		info, err := entry.Info()
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		size := info.Size()
-		if info.Mode().IsRegular() && size >= 0 {
-			result.TotalSize += uint64(size)
-		}
-		return nil
-	})
-	if err != nil {
-		return result, fmt.Errorf("could not measure image cache: %w", err)
 	}
 	slices.SortFunc(result.Images, func(a, b Entry) int {
 		return cmp.Or(b.DownloadedAt.Compare(a.DownloadedAt), strings.Compare(a.FileName, b.FileName))

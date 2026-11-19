@@ -18,66 +18,25 @@ Build it with `task build` and run:
 ./build/arduino-flasher-cli flash path/to/downloaded/image
 ```
 
-## Download images
+## Image cache
 
-`arduino-flasher-cli download unoq` saves the image archive in the user cache,
-under `arduino-flasher-cli/images/`. If the cache already has the image, the
-download is skipped. An interrupted download resumes on the next run.
+`download` saves images in the user cache, under `arduino-flasher-cli/images/`.
+A cached image is reused, and an interrupted download resumes on the next run.
+Use `--dest-dir` to save the image in another directory instead.
 
-Use `--dest-dir` to download to an existing directory instead of the cache:
-
-```sh
-arduino-flasher-cli download unoq --dest-dir .
-```
-
-## Reuse images when flashing
-
-`arduino-flasher-cli flash unoq` uses the cached image if there is one.
-Otherwise it downloads the image to a temporary directory and removes it after
-the flash.
-
-Use `--cache` to keep the downloaded image in the cache for future flashes:
-
-```sh
-arduino-flasher-cli flash unoq --cache
-```
-
-In interactive mode, cached images are marked `(cached)`, and the wizard asks
-whether to keep new downloads. `--temp-dir` selects where the image is
-extracted. Local image files and directories are flashed directly and are not
-added to the cache.
-
-## Manage cached images
-
-Inspect or clear the image cache with:
+`flash` uses a cached image if there is one. Use `--cache` to keep a new
+download in the cache. `list` marks cached images in the `CACHED` column, and
+the interactive mode marks them `(cached)`.
 
 ```sh
 arduino-flasher-cli cache list
-arduino-flasher-cli cache list --format json
 arduino-flasher-cli cache clear
 ```
 
-`cache list` shows the file name, size and download date of each cached image.
-It works offline. `cache clear` removes all cached images and
-incomplete downloads. Files saved with `--dest-dir` are not removed.
-
-The `list` command marks cached images in the `CACHED` column, and with `cached`
-in JSON output.
-
-## Cache behavior over gRPC
-
-The `Flash` RPC uses the same image cache as the CLI. Set `FlashRequest.cache`
-to `true` to keep new downloads in the cache. The default is `false`, as for
-`flash` without `--cache`.
-
-`FlashRequest.temp_path` selects the parent of the temporary directory for the
-download and the extraction. If it is empty, the user cache directory is used.
-The temporary directory is removed after the flash, also on failure or
-cancellation.
-
-Download start/end events are also sent on a cache hit, with a completed progress
-update and a `Using cached image` end message. Extraction and flash progress use
-the existing response messages.
+Over gRPC, set `FlashRequest.cache` to `true` to keep a new download in the
+cache. `FlashRequest.temp_path` selects the parent of the temporary directory,
+which is removed after the flash. On a cache hit, the download events report a
+completed download with the message `Using cached image`.
 
 ## Read an additional index
 

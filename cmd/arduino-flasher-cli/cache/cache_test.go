@@ -91,7 +91,7 @@ func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 	archive := seedCachedImage(t, c)
 	output, err := executeCache(t, listCommand)
 	require.NoError(t, err)
-	for _, expected := range []string{c.Dir(), "FILE", "SIZE", "DOWNLOADED", "image.tar.zst", "Total cache size:"} {
+	for _, expected := range []string{c.Dir(), "FILE", "SIZE", "DOWNLOADED", "image.tar.zst"} {
 		require.Contains(t, output, expected)
 	}
 	output, err = executeCache(t, clearCommand)
@@ -102,6 +102,5 @@ func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 	output, err = executeCache(t, listCommand)
 	require.NoError(t, err)
 	require.Contains(t, output, "No complete images are cached.")
-	require.Contains(t, output, "Total cache size: 0 B")
 	require.Zero(t, transport.requests)
 }

@@ -50,12 +50,8 @@ func (c *Cache) Dir() string {
 	return c.dir
 }
 
-// Entry describes a cached archive. The release fields are empty: the online index has them.
+// Entry describes a cached archive.
 type Entry struct {
-	Board        string    `json:"board,omitempty"`
-	OS           string    `json:"os,omitempty"`
-	Version      string    `json:"version,omitempty"`
-	SHA256       string    `json:"sha256,omitempty"`
 	FileName     string    `json:"file_name"`
 	Size         int64     `json:"size"`
 	DownloadedAt time.Time `json:"downloaded_at"`
