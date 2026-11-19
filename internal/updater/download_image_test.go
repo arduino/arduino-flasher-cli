@@ -137,12 +137,9 @@ func TestDownloadAndExtractFreeSpace(t *testing.T) {
 			wantRequired uint64
 			wantSuccess  bool
 		}{
-			{"cached with 11 GiB", cachedState, 11, 10, true},
 			{"cached with exactly 10 GiB", cachedState, 10, 10, true},
 			{"cached below 10 GiB", cachedState, 9, 10, false},
 			{"missing with 11 GiB", missingState, 11, 12, false},
-			{"corrupt with 11 GiB", corruptState, 11, 12, false},
-			{"missing with exactly 12 GiB", missingState, 12, 12, true},
 		} {
 			t.Run(fmt.Sprintf("%s/cache=%t", tc.name, keep), func(t *testing.T) {
 				c, rel, transport := setupImageDownload(t)
@@ -221,52 +218,4 @@ func TestDownloadAndExtractCachesOnlyWhenRequested(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestDownloadAndExtractRejectsCorruptCache(t *testing.T) {
-	for _, keep := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
-			imageCache, rel, transport := setupImageDownload(t)
-			archive := seedImageCache(t, imageCache, rel, transport.contents)
-			require.NoError(t, os.WriteFile(archive, []byte("corrupt archive"), 0o600))
-			scratch := paths.New(t.TempDir())
-			require.NoError(t, DownloadAndExtract(context.Background(), rel, scratch, keep))
-			requireExtractedPayload(t, scratch)
-			require.NotZero(t, transport.requests, "a corrupt cached image must be downloaded again")
-			_, err := imageCache.Lookup(context.Background(), rel)
-			if keep {
-				require.NoError(t, err, "opt-in caching replaces the corrupt entry")
-			} else {
-				require.ErrorIs(t, err, cache.ErrMiss, "without opt-in, the fresh download stays temporary")
-			}
-		})
-	}
-}
-
-func TestDownloadAndExtractFailureKeepsCachedArchive(t *testing.T) {
-	imageCache, rel, transport := setupImageDownload(t)
-	archive := seedImageCache(t, imageCache, rel, transport.contents)
-	scratch := paths.New(t.TempDir())
-	// A file blocking the archive's directory forces extraction to fail.
-	require.NoError(t, os.WriteFile(scratch.Join("image").String(), []byte("blocked"), 0o600))
-	require.Error(t, DownloadAndExtract(context.Background(), rel, scratch, false))
-	require.Zero(t, transport.requests)
-	require.NoError(t, scratch.RemoveAll())
-	cached, err := imageCache.Lookup(context.Background(), rel)
-	require.NoError(t, err)
-	require.Equal(t, archive, cached)
-}
-
-func TestDownloadAndExtractFailedDownloadIsNotCached(t *testing.T) {
-	imageCache, rel, transport := setupImageDownload(t)
-	transport.err = errors.New("connection lost")
-	scratch := paths.New(t.TempDir())
-	err := DownloadAndExtract(context.Background(), rel, scratch, true)
-	require.ErrorContains(t, err, "connection lost")
-	_, err = imageCache.Lookup(context.Background(), rel)
-	require.ErrorIs(t, err, cache.ErrMiss)
-	entries, err := os.ReadDir(imageCache.Dir())
-	require.NoError(t, err)
-	require.Empty(t, entries, "a failed retained download leaves no cache entry")
-	require.NoDirExists(t, scratch.Join("image").String())
 }

@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,11 +22,9 @@ import (
 )
 
 // ErrMiss means that no complete, valid archive is cached for the release.
-var ErrMiss = errors.New("image is not cached or failed integrity verification")
+var ErrMiss = errors.New("image is not cached")
 
 var errChecksumMismatch = errors.New("archive checksum does not match the manifest")
-
-const metadataFile = "meta.json"
 
 // Cache holds image archives in a directory separate from extraction scratch space.
 type Cache struct {
@@ -53,46 +50,28 @@ func (c *Cache) Dir() string {
 	return c.dir
 }
 
-// Entry describes a stored image. Path is populated when listing the cache;
-// it is not needed in the metadata saved alongside an archive.
+// Entry describes a cached archive. The release fields are empty: the online index has them.
 type Entry struct {
-	Board        string    `json:"board"`
-	OS           string    `json:"os"`
-	Version      string    `json:"version"`
-	SHA256       string    `json:"sha256"`
+	Board        string    `json:"board,omitempty"`
+	OS           string    `json:"os,omitempty"`
+	Version      string    `json:"version,omitempty"`
+	SHA256       string    `json:"sha256,omitempty"`
 	FileName     string    `json:"file_name"`
 	Size         int64     `json:"size"`
 	DownloadedAt time.Time `json:"downloaded_at"`
 	Path         string    `json:"path,omitempty"`
 }
 
-// Lookup returns a cached archive only after verifying it against rel, which the
-// caller must resolve from the online manifest. Missing metadata, incomplete
-// downloads and corrupt archives are cache misses; filesystem errors are returned.
+// Lookup returns the cached archive of rel after it checks the archive hash.
+// A missing archive or a hash mismatch is a cache miss.
 func (c *Cache) Lookup(ctx context.Context, rel registry.Release) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	dir, err := c.entryDir(rel)
+	archive, err := c.archivePath(rel)
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(filepath.Join(dir, metadataFile))
-	if errors.Is(err, os.ErrNotExist) {
-		return "", ErrMiss
-	}
-	if err != nil {
-		return "", fmt.Errorf("could not read cached image metadata: %w", err)
-	}
-	var meta Entry
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return "", ErrMiss
-	}
-	if meta.Board != rel.Board || !strings.EqualFold(meta.OS, rel.OS) || meta.Version != rel.Version ||
-		!strings.EqualFold(meta.SHA256, rel.Sha256) || meta.FileName != rel.FileName {
-		return "", ErrMiss
-	}
-	archive := filepath.Join(dir, rel.FileName)
 	_, err = verifyArchive(ctx, archive, rel.Sha256)
 	if errors.Is(err, os.ErrNotExist) || errors.Is(err, errChecksumMismatch) {
 		return "", ErrMiss
@@ -103,114 +82,42 @@ func (c *Cache) Lookup(ctx context.Context, rel registry.Release) (string, error
 	return archive, nil
 }
 
-// Store reuses a valid entry or invokes download in a private staging directory.
-// download must write rel.FileName into that directory and close it before
-// returning. The verified archive and its metadata are published together by
-// renaming the complete staging directory while holding the publication lock.
-// A failed or interrupted download can never become a cache hit.
+// Store runs download, which must write and verify rel.FileName in the partial
+// directory. Call it after a Lookup miss. A failed download stays there for resume.
 func (c *Cache) Store(ctx context.Context, rel registry.Release, download func(context.Context, string) error) (string, error) {
-	if archive, err := c.Lookup(ctx, rel); err == nil {
-		return archive, nil
-	} else if !errors.Is(err, ErrMiss) {
-		return "", err
-	}
 	if download == nil {
 		return "", errors.New("no image download function provided")
 	}
-	dir, err := c.entryDir(rel)
+	archive, err := c.archivePath(rel)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(c.dir, 0o750); err != nil {
+	partial := filepath.Join(c.dir, ".partial")
+	if err := os.MkdirAll(partial, 0o750); err != nil {
 		return "", fmt.Errorf("could not create image cache: %w", err)
 	}
-	staging, err := os.MkdirTemp(c.dir, ".download-")
-	if err != nil {
-		return "", fmt.Errorf("could not create image download directory: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(staging) }()
-
-	if err := download(ctx, staging); err != nil {
-		return "", fmt.Errorf("could not download image for the cache: %w", err)
-	}
-	archive := filepath.Join(staging, rel.FileName)
-	size, err := verifyArchive(ctx, archive, rel.Sha256)
-	if err != nil {
-		return "", fmt.Errorf("could not verify downloaded image: %w", err)
-	}
-	meta := Entry{
-		Board:        rel.Board,
-		OS:           strings.ToLower(rel.OS),
-		Version:      rel.Version,
-		SHA256:       strings.ToLower(rel.Sha256),
-		FileName:     rel.FileName,
-		Size:         size,
-		DownloadedAt: time.Now().UTC(),
-	}
-	data, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("could not encode cached image metadata: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(staging, metadataFile), data, 0o600); err != nil {
-		return "", fmt.Errorf("could not write cached image metadata: %w", err)
-	}
-	if err := ctx.Err(); err != nil {
+	if err := download(ctx, partial); err != nil {
 		return "", err
 	}
-	key := filepath.Base(dir)
-	publicationLock, err := lockPublication(ctx, c.dir, key)
-	if err != nil {
-		return "", err
+	// Rename fails on Windows if the archive exists.
+	if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("could not remove damaged cached image: %w", err)
 	}
-	defer publicationLock.Close()
-	// Another request may have published this release while we downloaded or
-	// waited for the lock. Preserve its archive, even if it is open for flashing.
-	if existing, err := c.Lookup(ctx, rel); err == nil {
-		return existing, nil
-	} else if !errors.Is(err, ErrMiss) {
-		return "", err
+	if err := os.Rename(filepath.Join(partial, rel.FileName), archive); err != nil {
+		return "", fmt.Errorf("could not move downloaded image into the cache: %w", err)
 	}
-	root, err := c.openRoot()
-	if err != nil {
-		return "", err
-	}
-	defer root.Close()
-	// Only an unusable entry can reach this point. Remove it before the rename:
-	// Windows cannot rename a directory over an existing destination directory.
-	// Root confines removal to the hash-derived entry inside the cache.
-	if err := root.RemoveAll(key); err != nil {
-		return "", fmt.Errorf("could not remove incomplete cached image: %w", err)
-	}
-	if err := root.Rename(filepath.Base(staging), key); err != nil {
-		return "", fmt.Errorf("could not publish cached image: %w", err)
-	}
-	return filepath.Join(dir, rel.FileName), nil
+	return archive, nil
 }
 
-func (c *Cache) entryDir(rel registry.Release) (string, error) {
-	if rel.Board == "" || rel.Version == "" {
-		return "", errors.New("a cached image requires a board and a resolved version")
-	}
-	if !filepath.IsLocal(rel.FileName) || rel.FileName == "." || strings.ContainsAny(rel.FileName, `/\:`) || strings.EqualFold(rel.FileName, metadataFile) || strings.EqualFold(rel.FileName, publicationLockFile) {
+func (c *Cache) archivePath(rel registry.Release) (string, error) {
+	if !filepath.IsLocal(rel.FileName) || rel.FileName == "." || strings.ContainsAny(rel.FileName, `/\:`) {
 		return "", fmt.Errorf("invalid image archive name %q", rel.FileName)
 	}
 	checksum, err := hex.DecodeString(rel.Sha256)
 	if err != nil || len(checksum) != sha256.Size {
 		return "", errors.New("a cached image requires a valid SHA-256 checksum")
 	}
-	// Hash the identity rather than using manifest fields as directory names.
-	// This avoids path traversal and works with versions on every platform.
-	// The checksum separates republished images of the same version, while the
-	// resolved version makes "latest" and an explicit version share one entry.
-	identity, err := json.Marshal([]string{
-		rel.Board, strings.ToLower(rel.OS), rel.Version,
-		strings.ToLower(rel.Sha256), rel.FileName,
-	})
-	if err != nil {
-		return "", err
-	}
-	key := sha256.Sum256(identity)
-	return filepath.Join(c.dir, hex.EncodeToString(key[:])), nil
+	return filepath.Join(c.dir, rel.FileName), nil
 }
 
 func verifyArchive(ctx context.Context, path, expected string) (int64, error) {

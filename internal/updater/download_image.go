@@ -59,7 +59,8 @@ func downloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.P
 		tmpZip = paths.New(archive)
 	} else {
 		if cacheImage {
-			tmpZip, err = DownloadImageToCache(ctx, rel)
+			archive, err = imageCache.Store(ctx, rel, downloadInto(rel))
+			tmpZip = paths.New(archive)
 		} else {
 			tmpZip, err = DownloadImage(ctx, rel, temp)
 		}
@@ -81,10 +82,10 @@ func DownloadImageToCache(ctx context.Context, rel registry.Release) (*paths.Pat
 	if err != nil {
 		return nil, fmt.Errorf("could not open image cache: %w", err)
 	}
-	archive, err := imageCache.Store(ctx, rel, func(ctx context.Context, dir string) error {
-		_, err := DownloadImage(ctx, rel, paths.New(dir))
-		return err
-	})
+	archive, err := imageCache.Lookup(ctx, rel)
+	if errors.Is(err, cache.ErrMiss) {
+		archive, err = imageCache.Store(ctx, rel, downloadInto(rel))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -106,11 +107,7 @@ func DownloadImage(ctx context.Context, rel registry.Release, downloadPath *path
 		}
 		_ = bar.Set64(current)
 	}
-	tmpZip, err := client.DownloadFile(ctx, downloadPath, rel, callback)
-	if err != nil {
-		return nil, fmt.Errorf("could not download the image: %w", err)
-	}
-	return tmpZip, nil
+	return client.DownloadFile(ctx, downloadPath, rel, callback)
 }
 
 func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {
@@ -153,4 +150,12 @@ func SetTempDir(prefix string, tempDir string) (*paths.Path, error) {
 	}
 
 	return temp, nil
+}
+
+// downloadInto returns a cache download function that downloads rel into its directory.
+func downloadInto(rel registry.Release) func(context.Context, string) error {
+	return func(ctx context.Context, dir string) error {
+		_, err := DownloadImage(ctx, rel, paths.New(dir))
+		return err
+	}
 }

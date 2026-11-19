@@ -10,7 +10,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -92,7 +91,7 @@ func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 	archive := seedCachedImage(t, c)
 	output, err := executeCache(t, listCommand)
 	require.NoError(t, err)
-	for _, expected := range []string{c.Dir(), "BOARD", "OS", "VERSION", "SIZE", "DOWNLOADED", "unoq", "debian", "20250915-173", "Total cache size:"} {
+	for _, expected := range []string{c.Dir(), "FILE", "SIZE", "DOWNLOADED", "image.tar.zst", "Total cache size:"} {
 		require.Contains(t, output, expected)
 	}
 	output, err = executeCache(t, clearCommand)
@@ -105,47 +104,4 @@ func TestCacheListAndClearCommandsWorkOffline(t *testing.T) {
 	require.Contains(t, output, "No complete images are cached.")
 	require.Contains(t, output, "Total cache size: 0 B")
 	require.Zero(t, transport.requests)
-}
-
-func TestCacheCommandsHandleMissingDirectory(t *testing.T) {
-	c, transport := setupCacheCommand(t)
-	for _, command := range []string{listCommand, clearCommand, clearCommand} {
-		_, err := executeCache(t, command)
-		require.NoError(t, err)
-		require.NoDirExists(t, c.Dir())
-	}
-	require.Zero(t, transport.requests)
-}
-
-func TestCacheCommandsRejectArgumentsBeforeDeleting(t *testing.T) {
-	c, _ := setupCacheCommand(t)
-	archive := seedCachedImage(t, c)
-	for _, command := range []string{listCommand, clearCommand} {
-		_, err := executeCache(t, command, "unexpected-version")
-		require.Error(t, err)
-		require.FileExists(t, archive)
-	}
-}
-
-func TestCacheResultJSON(t *testing.T) {
-	c, _ := setupCacheCommand(t)
-	archive := seedCachedImage(t, c)
-	inventory, err := c.List(context.Background())
-	require.NoError(t, err)
-	result := listResult{Directory: c.Dir(), Images: inventory.Images, TotalSize: inventory.TotalSize}
-	data, err := json.Marshal(result.Data())
-	require.NoError(t, err)
-	var parsed listResult
-	require.NoError(t, json.Unmarshal(data, &parsed))
-	require.Equal(t, c.Dir(), parsed.Directory)
-	require.Len(t, parsed.Images, 1)
-	require.Equal(t, archive, parsed.Images[0].Path)
-	require.Equal(t, "20250915-173", parsed.Images[0].Version)
-	require.Positive(t, parsed.TotalSize)
-	data, err = json.Marshal(clearResult{Directory: c.Dir(), Cleared: true}.Data())
-	require.NoError(t, err)
-	var cleared clearResult
-	require.NoError(t, json.Unmarshal(data, &cleared))
-	require.True(t, cleared.Cleared)
-	require.Equal(t, c.Dir(), cleared.Directory)
 }

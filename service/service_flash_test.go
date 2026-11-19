@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,14 +23,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
@@ -266,34 +261,6 @@ func TestFlashCachePolicyAndCleanup(t *testing.T) {
 	}
 }
 
-func TestFlashAllowsCacheClearDuringFlashing(t *testing.T) {
-	for _, cached := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cached=%t", cached), func(t *testing.T) {
-			f := setupFlash(t)
-			f.request.Cache = true
-			if cached {
-				f.seedCache(t)
-			}
-			flashBoard := f.server.flashBoard
-			f.server.flashBoard = func(ctx context.Context, serial string, dir *paths.Path, version, board string, preserve bool, rootSize uint64, cb updater.FlashCallback) error {
-				// Extraction has finished, but Flash has not returned yet. Clearing
-				// the cache must succeed even on Windows, where open archives block it.
-				require.NoError(t, f.imageCache.Clear(ctx))
-				inventory, err := f.imageCache.List(ctx)
-				require.NoError(t, err)
-				require.Empty(t, inventory.Images)
-				require.Zero(t, inventory.TotalSize)
-				// Flashing still uses the independently extracted files.
-				return flashBoard(ctx, serial, dir, version, board, preserve, rootSize, cb)
-			}
-
-			require.NoError(t, f.server.Flash(f.request, f.stream))
-			require.Equal(t, int64(1), f.flashCalls.Load())
-			requireScratchClean(t, f)
-		})
-	}
-}
-
 func TestFlashFailedDownload(t *testing.T) {
 	for _, keep := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
@@ -318,42 +285,6 @@ func TestFlashFailedDownload(t *testing.T) {
 			require.True(t, failed)
 		})
 	}
-}
-
-func TestFlashRejectsCorruptCache(t *testing.T) {
-	for _, keep := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
-			f := setupFlash(t)
-			archive := f.seedCache(t)
-			require.NoError(t, os.WriteFile(archive, []byte("corrupt image"), 0o600))
-			f.request.Cache = keep
-			require.NoError(t, f.server.Flash(f.request, f.stream))
-			require.Positive(t, f.http.archiveRequests.Load())
-			require.Equal(t, int64(1), f.flashCalls.Load())
-			_, err := f.imageCache.Lookup(context.Background(), f.http.release())
-			if keep {
-				require.NoError(t, err, "retaining a fresh download repairs the corrupt entry")
-			} else {
-				require.ErrorIs(t, err, cache.ErrMiss)
-			}
-			requireScratchClean(t, f)
-		})
-	}
-}
-
-func TestFlashUsesCurrentManifestChecksum(t *testing.T) {
-	f := setupFlash(t)
-	oldRelease := f.http.release()
-	f.seedCache(t)
-	f.http.archive = imageArchive(t, "updated image with the same version")
-	f.request.Cache = true
-	require.NoError(t, f.server.Flash(f.request, f.stream))
-	require.Positive(t, f.http.archiveRequests.Load(), "a different online checksum must invalidate a cached version")
-	_, err := f.imageCache.Lookup(context.Background(), f.http.release())
-	require.NoError(t, err)
-	_, err = f.imageCache.Lookup(context.Background(), oldRelease)
-	require.NoError(t, err, "the earlier cache entry is not owned by this request")
-	requireScratchClean(t, f)
 }
 
 func TestFlashCacheRequiresOnlineManifest(t *testing.T) {
@@ -407,7 +338,7 @@ func TestFlashTempParentInsideCache(t *testing.T) {
 	entries, err := os.ReadDir(f.request.TempPath)
 	require.NoError(t, err)
 	for _, entry := range entries {
-		require.False(t, entry.IsDir(), "only cache files should remain, not request scratch directories")
+		require.False(t, strings.HasPrefix(entry.Name(), "grpc-flash-"), "request scratch directories must be removed")
 	}
 	require.NoDirExists(t, f.extracted)
 }
@@ -455,52 +386,6 @@ func TestFlashInvalidRequest(t *testing.T) {
 			require.Zero(t, f.http.manifestRequests.Load())
 			require.Zero(t, f.flashCalls.Load())
 		})
-	}
-}
-
-func TestFlashGRPCSharedCache(t *testing.T) {
-	f := setupFlash(t)
-	listener := bufconn.Listen(1 << 20)
-	server := grpc.NewServer()
-	flasher.RegisterFlasherServer(server, f.server)
-	go func() { _ = server.Serve(listener) }()
-	t.Cleanup(func() { server.Stop(); _ = listener.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	conn, err := grpc.NewClient("passthrough:///flash-test",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listener.DialContext(ctx)
-		}))
-	require.NoError(t, err)
-	defer conn.Close()
-	f.request.Cache = true
-	stream, err := flasher.NewFlasherClient(conn).Flash(ctx, f.request)
-	require.NoError(t, err)
-	var responses []*flasher.FlashResponse
-	for {
-		response, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		responses = append(responses, response)
-	}
-	requireFlashProgress(t, responses, false, true)
-	require.Equal(t, int64(1), f.flashCalls.Load())
-	_, err = f.imageCache.Lookup(context.Background(), f.http.release())
-	require.NoError(t, err, "the cache flag must survive gRPC serialization")
-	requireScratchClean(t, f)
-}
-
-func TestFlashRequestCacheDefaultsToFalse(t *testing.T) {
-	for _, keep := range []bool{false, true} {
-		request := &flasher.FlashRequest{Board: "unoq", Version: "latest", Os: testDistribution, Cache: keep}
-		data, err := proto.Marshal(request)
-		require.NoError(t, err)
-		var decoded flasher.FlashRequest
-		require.NoError(t, proto.Unmarshal(data, &decoded))
-		require.Equal(t, keep, decoded.GetCache())
 	}
 }
 

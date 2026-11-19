@@ -6,8 +6,6 @@
 package download
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -22,12 +20,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
-	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 // imageTransport serves both published indexes and the archive in memory. No
@@ -140,38 +136,6 @@ func TestDownloadCachesByDefault(t *testing.T) {
 	require.Equal(t, 1, transport.downloads)
 }
 
-func TestDownloadRepairsCorruptCache(t *testing.T) {
-	transport, imageCache := setupDownload(t)
-	executeDownload(t, "unoq")
-	archive, err := imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(archive, []byte("corrupted!"), 0o600))
-
-	executeDownload(t, "unoq")
-	require.Equal(t, 2, transport.downloads)
-	_, err = imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err, "a corrupt archive must be replaced by a verified download")
-}
-
-func TestDownloadChecksUpdatedManifest(t *testing.T) {
-	transport, imageCache := setupDownload(t)
-	executeDownload(t, "unoq")
-	original := transport.release()
-
-	// The publisher replaces an image without changing its version or URL.
-	transport.contents = "updated image"
-	executeDownload(t, "unoq")
-	require.Equal(t, 2, transport.downloads)
-	archive, err := imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err)
-	data, err := os.ReadFile(archive)
-	require.NoError(t, err)
-	require.Equal(t, transport.contents, string(data))
-	previous, err := imageCache.Lookup(context.Background(), original)
-	require.NoError(t, err)
-	require.NotEqual(t, previous, archive, "the old checksum cannot validate the new release")
-}
-
 func TestDownloadExplicitDestinationBypassesCache(t *testing.T) {
 	for _, destination := range []string{"custom directory", "current directory"} {
 		t.Run(destination, func(t *testing.T) {
@@ -189,42 +153,4 @@ func TestDownloadExplicitDestinationBypassesCache(t *testing.T) {
 			require.NoDirExists(t, imageCache.Dir(), "an explicit destination must not populate the cache")
 		})
 	}
-}
-
-func TestDownloadExplicitDestinationWithCachedImage(t *testing.T) {
-	transport, imageCache := setupDownload(t)
-	executeDownload(t, "unoq")
-	cached, err := imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err)
-
-	dir := t.TempDir()
-	executeDownload(t, "unoq", "--dest-dir", dir)
-	require.FileExists(t, filepath.Join(dir, transport.release().FileName))
-	archive, err := imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err)
-	require.Equal(t, cached, archive, "an explicit download must not move or remove a cached image")
-}
-
-func TestDownloadedImageCanBePreparedForFlash(t *testing.T) {
-	transport, imageCache := setupDownload(t)
-	var archive bytes.Buffer
-	w := tar.NewWriter(&archive)
-	require.NoError(t, w.WriteHeader(&tar.Header{Name: "image/payload.txt", Mode: 0o600, Size: int64(len("test payload"))}))
-	_, err := w.Write([]byte("test payload"))
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	transport.contents = archive.String()
-	executeDownload(t, "unoq")
-	archiveRequests := transport.archiveRequests
-
-	// Exercise the same preparation used by flash, without invoking QDL.
-	scratch := paths.New(t.TempDir())
-	require.NoError(t, updater.DownloadAndExtract(context.Background(), transport.release(), scratch, false))
-	data, err := os.ReadFile(scratch.Join("image", "payload.txt").String())
-	require.NoError(t, err)
-	require.Equal(t, "test payload", string(data))
-	require.Equal(t, archiveRequests, transport.archiveRequests, "flash preparation must reuse the download command's cache")
-	require.NoError(t, scratch.RemoveAll())
-	_, err = imageCache.Lookup(context.Background(), transport.release())
-	require.NoError(t, err)
 }

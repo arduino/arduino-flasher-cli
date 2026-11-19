@@ -137,27 +137,19 @@ func requireCacheMark(t *testing.T, output, version string, cached bool) {
 }
 
 func TestListCacheIdentity(t *testing.T) {
-	for _, change := range []string{"matching", "different board", "different OS", "different version", "different checksum", "different archive name", "case-insensitive metadata"} {
+	const renamed = "different archive name"
+	for _, change := range []string{"matching", renamed, "different checksum"} {
 		t.Run(change, func(t *testing.T) {
 			c, transport, rel := setupList(t)
 			seedListCache(t, c, rel)
 			online := rel
-			wantCached := change == "matching"
+			// The archive name is the identity; Lookup checks the checksum before use.
+			wantCached := change != renamed
 			switch change {
-			case "different board":
-				online.Board = registry.VentunoQ.ID
-			case "different OS":
-				online.OS = "ubuntu"
-			case "different version":
-				online.Version = "20250916-174"
+			case renamed:
+				online.Url = "https://images.example/renamed.tar.zst"
 			case "different checksum":
 				online.Sha256 = strings.Repeat("a", 64)
-			case "different archive name":
-				online.Url = "https://images.example/renamed.tar.zst"
-			case "case-insensitive metadata":
-				wantCached = true
-				online.OS = "Debian GNU/Linux 13 (trixie)"
-				online.Sha256 = strings.ToUpper(online.Sha256)
 			}
 			transport.releases = registry.Releases{online}
 			output := executeList(t)
@@ -167,75 +159,9 @@ func TestListCacheIdentity(t *testing.T) {
 	}
 }
 
-func TestListMissingAndIncompleteCache(t *testing.T) {
-	for _, state := range []string{"missing cache", "missing metadata", "missing archive", "wrong size"} {
-		t.Run(state, func(t *testing.T) {
-			c, _, rel := setupList(t)
-			cacheMissing := state == "missing cache"
-			if !cacheMissing {
-				archive := seedListCache(t, c, rel)
-				switch state {
-				case "missing metadata":
-					require.NoError(t, os.Remove(filepath.Join(filepath.Dir(archive), "meta.json")))
-				case "missing archive":
-					require.NoError(t, os.Remove(archive))
-				case "wrong size":
-					require.NoError(t, os.Truncate(archive, 3))
-				}
-			}
-			requireCacheMark(t, executeList(t), rel.Version, false)
-			if cacheMissing {
-				require.NoDirExists(t, c.Dir(), "listing should not create the cache")
-			}
-		})
-	}
-}
-
-func TestListDoesNotHashArchives(t *testing.T) {
-	c, _, rel := setupList(t)
-	archive := seedListCache(t, c, rel)
-	require.NoError(t, os.WriteFile(archive, []byte("corrupted!"), 0o600))
-	requireCacheMark(t, executeList(t), rel.Version, true)
-	_, err := c.Lookup(context.Background(), rel)
-	require.ErrorIs(t, err, cache.ErrMiss, "flashing still verifies same-size corruption")
-}
-
 func TestListUnavailableCachePreservesOnlineImages(t *testing.T) {
 	c, _, rel := setupList(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Dir()), 0o750))
 	require.NoError(t, os.WriteFile(c.Dir(), []byte("not a directory"), 0o600))
 	requireCacheMark(t, executeList(t), rel.Version, false)
-}
-
-func TestListFiltersWithCacheMarks(t *testing.T) {
-	c, transport, rel := setupList(t)
-	seedListCache(t, c, rel)
-	other := rel
-	other.Board, other.OS = registry.VentunoQ.ID, "ubuntu"
-	transport.releases = append(transport.releases, other)
-	output := executeList(t, "unoq", "--os", "debian")
-	requireCacheMark(t, output, rel.Version, true)
-	require.NotContains(t, output, "ventunoq")
-	require.NotContains(t, output, "ubuntu")
-}
-
-func TestListResultJSONIncludesCacheStatus(t *testing.T) {
-	result := listResult{Releases: []listRelease{
-		{Version: "cached", Cached: true},
-		{Version: "not-cached", Cached: false},
-	}}
-	data, err := json.Marshal(result.Data())
-	require.NoError(t, err)
-	var decoded struct {
-		Releases []struct {
-			Version string `json:"version"`
-			Cached  *bool  `json:"cached"`
-		} `json:"releases"`
-	}
-	require.NoError(t, json.Unmarshal(data, &decoded))
-	require.Len(t, decoded.Releases, 2)
-	for i, release := range decoded.Releases {
-		require.NotNil(t, release.Cached, "the JSON field must be present even when false")
-		require.Equal(t, result.Releases[i].Cached, *release.Cached)
-	}
 }

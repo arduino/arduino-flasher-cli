@@ -37,9 +37,8 @@ func newListCmd() *cobra.Command {
 		Short: "List cached images and their disk usage",
 		Long: `List locally cached images without accessing the network.
 
-Shows the board, distribution, version, archive size and download date.
-Total cache size includes metadata and incomplete downloads. Archive checksums
-are verified before reuse by download or flash, rather than while listing.
+Shows the archive name, size and download date.
+Total cache size includes incomplete downloads.
 `,
 		Example: " " + os.Args[0] + " cache list\n" +
 			" " + os.Args[0] + " cache list --format json\n",
@@ -92,9 +91,7 @@ func (r listResult) Data() interface{} {
 
 func (r listResult) String() string {
 	const (
-		columnBoard      = "BOARD"
-		columnOS         = "OS"
-		columnVersion    = "VERSION"
+		columnFile       = "FILE"
 		columnSize       = "SIZE"
 		columnDownloaded = "DOWNLOADED"
 	)
@@ -105,18 +102,16 @@ func (r listResult) String() string {
 	}
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{columnBoard, columnOS, columnVersion, columnSize, columnDownloaded})
+	t.AppendHeader(table.Row{columnFile, columnSize, columnDownloaded})
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Name: columnBoard, Align: text.AlignLeft},
-		{Name: columnOS, Align: text.AlignLeft},
-		{Name: columnVersion, Align: text.AlignLeft},
+		{Name: columnFile, Align: text.AlignLeft},
 		{Name: columnSize, Align: text.AlignLeft},
 		{Name: columnDownloaded, Align: text.AlignLeft},
 	})
 	for _, image := range r.Images {
 		// List returns only non-negative archive sizes.
 		size := humanize.IBytes(uint64(image.Size)) //nolint:gosec
-		t.AppendRow(table.Row{image.Board, image.OS, image.Version, size, image.DownloadedAt.UTC().Format(time.RFC3339)})
+		t.AppendRow(table.Row{image.FileName, size, image.DownloadedAt.UTC().Format(time.RFC3339)})
 	}
 	return header + "\n\n" + t.Render() + "\n\n" + footer
 }
