@@ -8,7 +8,6 @@ package version
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
@@ -27,15 +26,13 @@ func NewVersionCmd(version string) *cobra.Command {
 
 			latest, err := checkForUpdates(version)
 			if err != nil {
-				feedback.Warning(color.YellowString("\n\nFailed to check for updates: "+err.Error()) + "\n")
+				feedback.Warning(i18n.Tr("failed to check for updates: %v", err))
 			}
 			if latest != "" {
-				msg := fmt.Sprintf("\n\n%s %s → %s\n%s",
-					color.YellowString(i18n.Tr("A new release of Arduino Flasher CLI is available:")),
-					color.CyanString(version),
-					color.CyanString(latest),
-					color.YellowString("https://www.arduino.cc/en/software/#flasher-tool"))
-				feedback.Warning(msg)
+				// Plain: Warning colors the whole line, and a nested color
+				// would reset it partway through.
+				feedback.Warning(i18n.Tr("a new release of Arduino Flasher CLI is available: %s → %s\n%s",
+					version, latest, "https://www.arduino.cc/en/software/#flasher-tool"))
 			}
 		},
 	}
