@@ -104,8 +104,11 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 	} else {
 		downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
 	}
+	if err != nil && ctx.Err() != nil {
+		feedback.Fatal(i18n.Tr("Download interrupted. Run the command again to resume it."), feedback.ErrGeneric)
+	}
 	if err != nil {
-		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
+		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrGeneric)
 	}
 	pathAbs, _ := downloadPath.Abs()
 	feedback.Print(i18n.Tr("\nImage successfully downloaded: %s", pathAbs.String()))

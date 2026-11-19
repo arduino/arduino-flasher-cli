@@ -244,6 +244,9 @@ func runFlashCommand(ctx context.Context, boardID, imageArg string, imageOs stri
 	} else {
 		err = updater.DownloadAndFlash(ctx, board.ID, rel, opts)
 	}
+	if err != nil && ctx.Err() != nil {
+		feedback.Fatal(i18n.Tr("Flashing interrupted. Run the command again to restart it."), feedback.ErrGeneric)
+	}
 	if err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
