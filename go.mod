@@ -1,6 +1,6 @@
 module github.com/arduino/arduino-flasher-cli
 
-go 1.25.8
+go 1.27.4
 
 require (
 	charm.land/huh/v2 v2.0.3
