@@ -18,6 +18,8 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/drivers"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/flash"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/list"
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/prune"
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/remove"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/version"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -52,6 +54,8 @@ func main() {
 		drivers.NewInstallDriversCmd(),
 		list.NewListCmd(),
 		download.NewDownloadCmd(),
+		remove.NewRemoveCmd(),
+		prune.NewPruneCmd(),
 		version.NewVersionCmd(Version),
 		daemon.NewDaemonCommand(service.NewFlasherServer()),
 	)

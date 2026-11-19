@@ -28,7 +28,7 @@ import (
 )
 
 // Run starts the interactive wizard and performs the flash.
-func Run(ctx context.Context) {
+func Run(ctx context.Context, keepImage bool) {
 	images := fetchImages(ctx)
 
 	boardIDs := slices.Sorted(maps.Keys(images))
@@ -173,7 +173,7 @@ func Run(ctx context.Context) {
 
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
-	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize}
+	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize, Keep: keepImage}
 	if err := updater.DownloadAndFlash(ctx, board.ID, selected, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}

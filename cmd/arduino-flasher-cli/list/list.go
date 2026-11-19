@@ -20,6 +20,7 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	"github.com/arduino/arduino-flasher-cli/internal/tablestyle"
 )
 
@@ -70,6 +71,12 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 		}
 	}
 
+	// An unavailable image store does not hide the published images.
+	var stored []string
+	if imageStore, err := store.Default(); err == nil {
+		stored, _ = imageStore.Stored()
+	}
+
 	result := listResult{board: board}
 	for _, r := range all.Filter(imageOs, board.ID) {
 		result.Releases = append(result.Releases, listRelease{
@@ -77,6 +84,7 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 			Board:   r.Board,
 			Os:      r.OS,
 			Latest:  r.Latest,
+			Stored:  slices.Contains(stored, r.FileName),
 			Url:     r.Url,
 			Sha256:  r.Sha256,
 		})
@@ -102,6 +110,8 @@ type listRelease struct {
 	Os string `json:"os,omitempty"`
 	// Latest is whether this is the most recent of its board and distribution.
 	Latest bool `json:"latest"`
+	// Stored is whether the image is in the image store.
+	Stored bool `json:"stored"`
 	// Url and Sha256 are where the archive is published, to fetch it without
 	// going through the flash command.
 	Url    string `json:"url"`
@@ -139,7 +149,7 @@ func (lr listResult) String() string {
 
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "LATEST"})
+	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "LATEST", "STORED"})
 	// The style centers cells, which leaves names of different lengths ragged.
 	// These are read off to be retyped, so they line up instead.
 	t.SetColumnConfigs([]table.ColumnConfig{
@@ -149,13 +159,16 @@ func (lr listResult) String() string {
 	})
 	for _, key := range order {
 		for _, r := range groups[key] {
-			mark := ""
-			if r.Latest {
-				mark = "✓"
-			}
 			// Named on every row: a row is what the flash arguments are read off.
-			t.AppendRow(table.Row{key.board, key.os, r.Version, mark})
+			t.AppendRow(table.Row{key.board, key.os, r.Version, check(r.Latest), check(r.Stored)})
 		}
 	}
 	return t.Render()
+}
+
+func check(b bool) string {
+	if b {
+		return "✓"
+	}
+	return ""
 }
