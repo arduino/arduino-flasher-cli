@@ -190,6 +190,9 @@ func setupFlash(t *testing.T) *flashFixture {
 			require.NoError(t, err)
 			parent = filepath.Join(userCache, "arduino-flasher-cli")
 		}
+		// MkTempDir returns a canonical path; on macOS t.TempDir is under the /var symlink.
+		parent, err = filepath.EvalSymlinks(parent)
+		require.NoError(t, err)
 		relative, err := filepath.Rel(parent, dir.String())
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(relative, "grpc-flash-"))
