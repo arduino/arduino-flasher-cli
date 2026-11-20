@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 type manifestTransport struct {
@@ -68,9 +68,9 @@ func (s *manifestTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}, nil
 }
 
-func setupList(t *testing.T) (*cache.Cache, *manifestTransport, registry.Release) {
+func setupList(t *testing.T) (*store.Store, *manifestTransport, registry.Release) {
 	t.Helper()
-	// Tests use their own cache and in-memory manifests, never the user's images
+	// Tests use their own image store and in-memory manifests, never the user's images
 	// or the network. Environment and HTTP globals prevent parallel subtests.
 	switch runtime.GOOS {
 	case "windows":
@@ -92,14 +92,14 @@ func setupList(t *testing.T) (*cache.Cache, *manifestTransport, registry.Release
 	original := http.DefaultClient
 	http.DefaultClient = &http.Client{Transport: transport}
 	t.Cleanup(func() { http.DefaultClient = original })
-	c, err := cache.Default()
+	c, err := store.Default()
 	require.NoError(t, err)
 	return c, transport, rel
 }
 
-func seedListCache(t *testing.T, c *cache.Cache, rel registry.Release) string {
+func seedListStore(t *testing.T, c *store.Store, rel registry.Release) string {
 	t.Helper()
-	archive, err := c.Store(context.Background(), rel, func(_ context.Context, dir string) error {
+	archive, _, err := c.Get(context.Background(), rel, true, func(_ context.Context, dir string) error {
 		return os.WriteFile(filepath.Join(dir, rel.FileName), []byte("test image"), 0o600)
 	})
 	require.NoError(t, err)
@@ -117,16 +117,16 @@ func executeList(t *testing.T, args ...string) string {
 	return output.String()
 }
 
-func requireCacheMark(t *testing.T, output, version string, cached bool) {
+func requireKeptMark(t *testing.T, output, version string, kept bool) {
 	t.Helper()
-	require.Contains(t, output, "CACHED")
+	require.Contains(t, output, "KEPT")
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 3 && fields[2] == version {
 			// This fixture has one release per board/OS, so it always has a
-			// LATEST mark. A cached release has a second mark in CACHED.
+			// LATEST mark. A kept release has a second mark in KEPT.
 			marks := 1
-			if cached {
+			if kept {
 				marks++
 			}
 			require.Equal(t, marks, strings.Count(line, "✓"), line)
@@ -136,106 +136,32 @@ func requireCacheMark(t *testing.T, output, version string, cached bool) {
 	t.Fatalf("version %s missing from output:\n%s", version, output)
 }
 
-func TestListCacheIdentity(t *testing.T) {
-	for _, change := range []string{"matching", "different board", "different OS", "different version", "different checksum", "different archive name", "case-insensitive metadata"} {
+func TestListKeptIdentity(t *testing.T) {
+	const renamed = "different archive name"
+	for _, change := range []string{"matching", renamed, "different checksum"} {
 		t.Run(change, func(t *testing.T) {
 			c, transport, rel := setupList(t)
-			seedListCache(t, c, rel)
+			seedListStore(t, c, rel)
 			online := rel
-			wantCached := change == "matching"
+			// The archive name is the identity; Lookup checks the checksum before use.
+			wantKept := change != renamed
 			switch change {
-			case "different board":
-				online.Board = registry.VentunoQ.ID
-			case "different OS":
-				online.OS = "ubuntu"
-			case "different version":
-				online.Version = "20250916-174"
+			case renamed:
+				online.Url = "https://images.example/renamed.tar.zst"
 			case "different checksum":
 				online.Sha256 = strings.Repeat("a", 64)
-			case "different archive name":
-				online.Url = "https://images.example/renamed.tar.zst"
-			case "case-insensitive metadata":
-				wantCached = true
-				online.OS = "Debian GNU/Linux 13 (trixie)"
-				online.Sha256 = strings.ToUpper(online.Sha256)
 			}
 			transport.releases = registry.Releases{online}
 			output := executeList(t)
-			requireCacheMark(t, output, online.Version, wantCached)
+			requireKeptMark(t, output, online.Version, wantKept)
 			require.Len(t, transport.requests, 2, "list should only read the two published indexes once")
 		})
 	}
 }
 
-func TestListMissingAndIncompleteCache(t *testing.T) {
-	for _, state := range []string{"missing cache", "missing metadata", "missing archive", "wrong size"} {
-		t.Run(state, func(t *testing.T) {
-			c, _, rel := setupList(t)
-			cacheMissing := state == "missing cache"
-			if !cacheMissing {
-				archive := seedListCache(t, c, rel)
-				switch state {
-				case "missing metadata":
-					require.NoError(t, os.Remove(filepath.Join(filepath.Dir(archive), "meta.json")))
-				case "missing archive":
-					require.NoError(t, os.Remove(archive))
-				case "wrong size":
-					require.NoError(t, os.Truncate(archive, 3))
-				}
-			}
-			requireCacheMark(t, executeList(t), rel.Version, false)
-			if cacheMissing {
-				require.NoDirExists(t, c.Dir(), "listing should not create the cache")
-			}
-		})
-	}
-}
-
-func TestListDoesNotHashArchives(t *testing.T) {
-	c, _, rel := setupList(t)
-	archive := seedListCache(t, c, rel)
-	require.NoError(t, os.WriteFile(archive, []byte("corrupted!"), 0o600))
-	requireCacheMark(t, executeList(t), rel.Version, true)
-	_, err := c.Lookup(context.Background(), rel)
-	require.ErrorIs(t, err, cache.ErrMiss, "flashing still verifies same-size corruption")
-}
-
-func TestListUnavailableCachePreservesOnlineImages(t *testing.T) {
+func TestListUnavailableStorePreservesOnlineImages(t *testing.T) {
 	c, _, rel := setupList(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Dir()), 0o750))
 	require.NoError(t, os.WriteFile(c.Dir(), []byte("not a directory"), 0o600))
-	requireCacheMark(t, executeList(t), rel.Version, false)
-}
-
-func TestListFiltersWithCacheMarks(t *testing.T) {
-	c, transport, rel := setupList(t)
-	seedListCache(t, c, rel)
-	other := rel
-	other.Board, other.OS = registry.VentunoQ.ID, "ubuntu"
-	transport.releases = append(transport.releases, other)
-	output := executeList(t, "unoq", "--os", "debian")
-	requireCacheMark(t, output, rel.Version, true)
-	require.NotContains(t, output, "ventunoq")
-	require.NotContains(t, output, "ubuntu")
-}
-
-func TestListResultJSONIncludesCacheStatus(t *testing.T) {
-	result := listResult{Releases: []listRelease{
-		{Version: "cached", Cached: true},
-		{Version: "not-cached", Cached: false},
-	}}
-	data, err := json.Marshal(result.Data())
-	require.NoError(t, err)
-	var decoded struct {
-		Releases []struct {
-			Version string `json:"version"`
-			Cached  *bool  `json:"cached"`
-		} `json:"releases"`
-	}
-	require.NoError(t, json.Unmarshal(data, &decoded))
-	require.Len(t, decoded.Releases, 2)
-	for i, release := range decoded.Releases {
-		require.NotNil(t, release.Cached, "the JSON field must be present even when false")
-		require.Equal(t, result.Releases[i].Cached, *release.Cached)
-	}
+	requireKeptMark(t, executeList(t), rel.Version, false)
 }

@@ -23,15 +23,15 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 )
 
 // Run starts the interactive wizard and performs the flash.
-func Run(ctx context.Context, cacheImage bool) {
+func Run(ctx context.Context, keepImage bool) {
 	images := fetchImages(ctx)
-	inventory := readImageCache(ctx)
+	inventory := readImageStore()
 
 	boardIDs := slices.Sorted(maps.Keys(images))
 	boardID := boardIDs[0]
@@ -146,10 +146,10 @@ func Run(ctx context.Context, cacheImage bool) {
 	groups = append(groups, huh.NewGroup(
 		huh.NewConfirm().
 			Title(i18n.Tr("Keep downloaded image for reuse?")).
-			Description(i18n.Tr("Save new downloads in the image cache. Existing cached images are always reused.")).
+			Description(i18n.Tr("Keep the image in the image store after the flash. Kept images are always reused.")).
 			Affirmative(i18n.Tr("Yes")).
 			Negative(i18n.Tr("No")).
-			Value(&cacheImage),
+			Value(&keepImage),
 	))
 
 	boardLabel := cmp.Or(variant.Label, board.Label)
@@ -160,10 +160,10 @@ func Run(ctx context.Context, cacheImage bool) {
 			// run, so the summary is also given statically for it to measure:
 			// without it the buttons fall outside the viewport. Before the func,
 			// which Description would otherwise clear.
-			Description(buildSummary(board, boardLabel, "", false, 0, cacheImage)).
+			Description(buildSummary(board, boardLabel, "", false, 0, keepImage)).
 			DescriptionFunc(func() string {
-				return buildSummary(board, cmp.Or(variant.Label, boardLabel), selected.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser), cacheImage)
-			}, []any{&variant, &selected, &preserveUser, &rootPctStr, &cacheImage}).
+				return buildSummary(board, cmp.Or(variant.Label, boardLabel), selected.Version, preserveUser, parseRootSize(variant.Capacity, rootPctStr, preserveUser), keepImage)
+			}, []any{&variant, &selected, &preserveUser, &rootPctStr, &keepImage}).
 			Affirmative(i18n.Tr("Flash now")).
 			Negative(i18n.Tr("Cancel")).
 			Value(&confirm),
@@ -184,7 +184,7 @@ func Run(ctx context.Context, cacheImage bool) {
 
 	rootSize := parseRootSize(variant.Capacity, rootPctStr, preserveUser)
 
-	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize, Cache: cacheImage}
+	opts := updater.FlashOptions{PreserveUser: preserveUser, RootSize: rootSize, Keep: keepImage}
 	if err := updater.DownloadAndFlash(ctx, board.ID, selected, opts); err != nil {
 		feedback.Fatal(i18n.Tr("error flashing the board: %v", err), feedback.ErrBadArgument)
 	}
@@ -208,7 +208,7 @@ func SelectImage(ctx context.Context, withVersion bool) (registry.Board, string,
 
 	var selected registry.Release
 	if withVersion {
-		inventory := readImageCache(ctx)
+		inventory := readImageStore()
 		// Bound to the board, so going back relists the images.
 		groups = append(groups, huh.NewGroup(
 			huh.NewSelect[registry.Release]().
@@ -228,19 +228,19 @@ func SelectImage(ctx context.Context, withVersion bool) (registry.Board, string,
 	return board, selected.OS, selected.Version, true
 }
 
-// readImageCache takes one metadata snapshot per selection flow. Rebuilding
+// readImageStore takes one metadata snapshot per selection flow. Rebuilding
 // options while switching boards never rereads or hashes image archives.
-func readImageCache(ctx context.Context) cache.Inventory {
-	imageCache, err := cache.Default()
+func readImageStore() store.Inventory {
+	imageStore, err := store.Default()
 	if err == nil {
-		var inventory cache.Inventory
-		inventory, err = imageCache.List(ctx)
+		var inventory store.Inventory
+		inventory, err = imageStore.List()
 		if err == nil {
 			return inventory
 		}
 	}
-	feedback.Warning(i18n.Tr("could not inspect the image cache: %v", err))
-	return cache.Inventory{}
+	feedback.Warning(i18n.Tr("could not inspect the image store: %v", err))
+	return store.Inventory{}
 }
 
 // fetchImages reads every index once and groups what is published by board,
@@ -319,9 +319,9 @@ func boardSelect(boardIDs []string, boardID *string) *huh.Select[string] {
 		Value(boardID)
 }
 
-// imageOptions lists images newest first with cache status and, when the board
+// imageOptions lists images newest first, marks the kept ones and, when the board
 // has more than one distribution, which one each image comes from.
-func imageOptions(images registry.Releases, inventory cache.Inventory) []huh.Option[registry.Release] {
+func imageOptions(images registry.Releases, inventory store.Inventory) []huh.Option[registry.Release] {
 	oses := images.OSes()
 	options := make([]huh.Option[registry.Release], 0, len(images))
 	for i, rel := range images {
@@ -333,7 +333,7 @@ func imageOptions(images registry.Releases, inventory cache.Inventory) []huh.Opt
 			label += " — " + rel.OS
 		}
 		if inventory.Contains(rel) {
-			label += " (" + i18n.Tr("cached") + ")"
+			label += " (" + i18n.Tr("kept") + ")"
 		}
 		options = append(options, huh.NewOption(label, rel))
 	}
@@ -413,16 +413,16 @@ func buildSplitPreview(boardStorage uint64, rootPctStr string) string {
 	return toPadString()
 }
 
-func buildSummary(board registry.Board, boardLabel, version string, preserveUser bool, rootSize uint64, cacheImage bool) string {
+func buildSummary(board registry.Board, boardLabel, version string, preserveUser bool, rootSize uint64, keepImage bool) string {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, i18n.Tr("Board:")+"\t"+boardLabel)
 	fmt.Fprintln(w, i18n.Tr("Image version:")+"\t"+version)
-	cacheChoice := i18n.Tr("No")
-	if cacheImage {
-		cacheChoice = i18n.Tr("Yes")
+	keepChoice := i18n.Tr("No")
+	if keepImage {
+		keepChoice = i18n.Tr("Yes")
 	}
-	fmt.Fprintln(w, i18n.Tr("Cache new downloads:")+"\t"+cacheChoice)
+	fmt.Fprintln(w, i18n.Tr("Keep the image:")+"\t"+keepChoice)
 	// Both come off the board's partition table, so a board without one was
 	// asked neither and is reported neither.
 	if board.PreserveUser {

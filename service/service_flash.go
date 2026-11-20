@@ -9,14 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
 
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
@@ -43,27 +42,8 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return fmt.Errorf("no image distribution requested, call List to pick one")
 	}
 
-	if stream == nil {
-		return errors.New("no flash response stream provided")
-	}
-	ctx, cancel := context.WithCancelCause(stream.Context())
-	defer cancel(nil)
-	if err := context.Cause(ctx); err != nil {
-		return err
-	}
-	// Stop work if the client can no longer receive progress. CancelCause keeps
-	// the first send error and is safe for callbacks from different goroutines.
-	syncSend := NewSynchronizedSend(func(msg *flasher.FlashResponse) error {
-		if err := context.Cause(ctx); err != nil {
-			return err
-		}
-		if err := stream.Send(msg); err != nil {
-			cancel(err)
-			return err
-		}
-		return nil
-	})
-	responseCallback := syncSend.Send
+	responseCallback := NewSynchronizedSend(stream.Send).Send
+	ctx := stream.Context()
 	var downloadCB flasher.DownloadProgressCB = func(msg *flasher.DownloadProgress) {
 		_ = responseCallback(&flasher.FlashResponse{
 			Message: &flasher.FlashResponse_DownloadProgress{
@@ -95,85 +75,50 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return fmt.Errorf("could not get release info: %w", errors.Join(err, fetchErr))
 	}
 
-	// Own a private directory, never the client-supplied parent. Shared cached
-	// archives live outside this directory and survive all request outcomes.
-	tmpPath, err := updater.SetTempDir("grpc-flash-", req.GetTempPath())
+	imageStore, err := store.Default()
+	if err != nil {
+		return err
+	}
+	// Extract in a private directory, never in the client-supplied parent.
+	tmpPath, err := store.TempDir("grpc-flash-", req.GetTempPath())
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tmpPath.RemoveAll() }()
 
 	downloadCB.Start(rel.Url, rel.Version)
-	imageCache, err := cache.Default()
-	if err != nil {
-		downloadCB.End(false, err.Error())
+	archive, found, err := imageStore.Get(ctx, rel, req.GetKeep(), func(ctx context.Context, dir string) error {
+		_, err := client.DownloadFile(ctx, paths.New(dir), rel, downloadCB.Update)
 		return err
-	}
-	archive, err := imageCache.Lookup(ctx, rel)
-	fromCache := err == nil
-	var tmpZip *paths.Path
-	if fromCache {
-		tmpZip = paths.New(archive)
-		info, statErr := os.Stat(archive)
-		if statErr != nil {
-			downloadCB.End(false, statErr.Error())
-			return statErr
-		}
-		downloadCB.Update(info.Size(), info.Size())
-	} else if errors.Is(err, cache.ErrMiss) {
-		if req.GetCache() {
-			archive, err = imageCache.Store(ctx, rel, func(ctx context.Context, dir string) error {
-				_, err := client.DownloadFile(ctx, paths.New(dir), rel, downloadCB.Update)
-				return err
-			})
-			tmpZip = paths.New(archive)
-		} else {
-			tmpZip, err = client.DownloadFile(ctx, tmpPath, rel, downloadCB.Update)
-		}
-	}
+	})
 	if err != nil {
 		downloadCB.End(false, err.Error())
-		if cause := context.Cause(ctx); cause != nil {
-			return cause
-		}
 		return err
 	}
 	message := ""
-	if fromCache {
-		message = "Using cached image"
+	if found {
+		message = "Using stored image"
 	}
 	downloadCB.End(true, message)
-	if err := context.Cause(ctx); err != nil {
-		return err
+
+	tmpZipFile, err := paths.New(archive).Open()
+	if err != nil {
+		return fmt.Errorf("could not open archive: %w", err)
 	}
-
 	extractPath := tmpPath.Join("extracted")
-	// Release the archive before flashing so cache operations can remove it on
-	// Windows while the board is being flashed from the extracted files.
-	if err := func() error {
-		tmpZipFile, err := tmpZip.Open()
-		if err != nil {
-			return fmt.Errorf("could not open archive: %w", err)
-		}
-		defer tmpZipFile.Close()
-
-		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
-		if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
-			extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
-			return s
-		}); err != nil {
-			return fmt.Errorf("could not extract archive: %w", err)
-		}
-		return nil
-	}(); err != nil {
-		return err
+	extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
+	err = extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
+		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
+		return s
+	})
+	// Discard needs the archive closed.
+	_ = tmpZipFile.Close()
+	if err != nil {
+		return fmt.Errorf("could not extract archive: %w", err)
 	}
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
 
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Message: "Flashing image"})
-	if err := context.Cause(ctx); err != nil {
-		return err
-	}
 	if err := s.flashBoard(ctx, req.GetSerial(), extractPath, rel.Version, board.ID, req.GetPreserveUser(), 0, func(fe updater.FlashEvent) {
 		flashCB(&flasher.TaskProgress{
 			Name:     taskFlash,
@@ -185,6 +130,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Completed: true})
+	imageStore.Discard(archive)
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{

@@ -50,15 +50,16 @@ message Release {
   // The distribution the image is built for ("debian"). Empty when the index
   // named none.
   string os = 4;
+  // Whether the image is kept in the image store, so a flash does not download it.
+  bool kept = 5;
 }
 
 message FlashRequest {
   // The version of the image to flash. Required: the most recent image is not
   // assumed, call List to pick one.
   string version = 1;
-  // Parent directory for per-request temporary downloads and extraction.
-  // Empty uses the user cache directory. Only the private subdirectory created
-  // for this request is removed, on success or failure; the parent is preserved.
+  // Parent directory for the temporary extraction of the image. Empty uses the
+  // user cache directory. The extraction is always removed; the parent is kept.
   string temp_path = 2;
   // Preserve user partition if possible.
   bool preserve_user = 3;
@@ -71,11 +72,9 @@ message FlashRequest {
   // The distribution to flash, e.g. "debian". Required alongside the version
   // and the board: a version alone can be a different image on another board.
   string os = 6;
-  // Retain newly downloaded image archives in the shared user cache. Defaults
-  // to false. Existing cached archives are always verified against the online
-  // manifest and reused, regardless of this option, and are never removed by
-  // request cleanup.
-  bool cache = 7;
+  // Keep the image archive in the image store after a successful flash.
+  // Defaults to false. A failed flash always keeps it for a retry.
+  bool keep = 7;
 }
 
 message FlashResponse {

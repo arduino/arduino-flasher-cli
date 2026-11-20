@@ -131,6 +131,8 @@ func (c *Client) DownloadFile(ctx context.Context, basePath *paths.Path, rel Rel
 	if sha256Byte, err := hex.DecodeString(rel.Sha256); err != nil {
 		return nil, fmt.Errorf("could not convert sha256 from hex to bytes: %w", err)
 	} else if s := checksum.Sum(nil); !bytes.Equal(s, sha256Byte) {
+		_ = tmpZipFile.Close()
+		_ = filePath.Remove()
 		return nil, fmt.Errorf("bad hash: %x (expected %x)", s, sha256Byte)
 	}
 

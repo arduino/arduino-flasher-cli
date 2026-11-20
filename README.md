@@ -18,86 +18,47 @@ Build it with `task build` and run:
 ./build/arduino-flasher-cli flash path/to/downloaded/image
 ```
 
-## Download images
+## Image store
 
-`arduino-flasher-cli download unoq` saves the image archive in the user cache
-under `arduino-flasher-cli/images/`. Each invocation reads the online manifest
-and reuses a cached archive only if its SHA-256 checksum matches the release.
+The flasher keeps its files in one folder, `arduino-flasher-cli/` in the user
+cache directory. The CLI and the gRPC daemon share it:
 
-Use `--dest-dir` to download to an existing directory instead of the cache:
+- `images/` holds the kept images. A flash never removes them.
+- `images/.partial/` holds downloads that are not kept. An interrupted download
+  resumes there, and a failed flash leaves its image there for a retry.
+- A flash extracts the image into a temporary folder, by default in
+  `arduino-flasher-cli/`, and removes it on every exit.
 
-```sh
-arduino-flasher-cli download unoq --dest-dir .
-```
+A flash reuses a stored image (kept or partial) after it checks the checksum.
 
-## Reuse images when flashing
+`download` saves images in the image store, under the user cache directory in
+`arduino-flasher-cli/images/`. A stored image is reused, and an interrupted
+download resumes on the next run. Use `--dest-dir` to save the image in another
+directory instead.
 
-`arduino-flasher-cli flash unoq` checks the online manifest and reuses a cached
-archive when its checksum matches. If no valid archive is cached, the image is
-downloaded temporarily and removed after the operation, including on failure.
+`flash` uses a stored image if there is one. Use `--keep` to keep a new
+download in the image store. Without it, `flash` removes the download after a
+successful flash. An interrupted download resumes, and a failed flash keeps the
+download, so a retry does not download it again. `list` marks kept images in
+the `KEPT` column, and the interactive mode marks them `(kept)`.
 
-Use `--cache` to retain newly downloaded archives for future flashes:
-
-```sh
-arduino-flasher-cli flash unoq --cache
-```
-
-Interactive image selections mark matching local archives with `(cached)`. The
-flash wizard also asks whether to keep new downloads. Existing cached archives
-are retained regardless of this choice, including when flashing fails.
-Extraction always uses a temporary directory. `--temp-dir` selects its parent;
-cached archives stay in the user cache. Local image files and directories are
-flashed directly without being added to the cache.
-When reusing a verified cached archive, the free-space check only accounts for
-extraction.
-
-## Manage cached images
-
-Inspect or clear the shared image cache with:
+`images list` also shows the size of the partial downloads and of the other
+files that the flasher left, such as the directories of a crashed flash.
+`prune` removes everything except the kept images, and `images remove` removes
+kept images.
 
 ```sh
-arduino-flasher-cli cache list
-arduino-flasher-cli cache list --format json
-arduino-flasher-cli cache clear
+arduino-flasher-cli images list
+arduino-flasher-cli images remove --all
+arduino-flasher-cli prune
 ```
 
-`cache list` works offline and reports each complete image's board, distribution,
-version, archive size, download date and path (in JSON output). Total cache size
-includes metadata and incomplete downloads. Listing does not recheck archive
-checksums; those are verified against the online manifest before reuse.
-
-`cache clear` immediately removes images and incomplete downloads from the
-`images/` cache directory. Empty synchronization files in `.locks/` are preserved
-so concurrent processes continue to share the same publication locks.
-Files downloaded to another directory with `--dest-dir` and temporary directories
-outside `images/` are preserved. Verified archives and metadata are published
-together by renaming their complete temporary directory.
-Both commands also work when the cache has not been created yet.
-
-The normal `list` command marks downloaded images in the `CACHED` column and
-includes a `cached` boolean in JSON output. It compares local metadata with the
-online image's board, distribution, version, checksum and archive name, without
-reading archive contents. A matching image with same-size corruption can still
-appear cached; its checksum is verified before reuse by `download` or `flash`.
-If the cache cannot be inspected, `list` reports a warning and still lists the
-online images without cache marks.
-
-## Cache behavior over gRPC
-
-The `Flash` RPC uses the same image cache as the CLI. It reads the online manifest
-and verifies cached archives before reuse. Set `FlashRequest.cache` to `true` to
-retain new downloads; the default is `false`, matching `flash` without `--cache`.
-Cached archives survive both successful and failed flashes.
-
-`FlashRequest.temp_path` selects the parent of a private per-request directory.
-An empty path uses the user cache directory. This private directory is removed
-on success, failure or cancellation; existing files in the parent are preserved.
-This replaces the previous behavior of retaining downloads there after a failed
-flash. Clients that need persistent images should opt in with `cache`.
-
-Download start/end events are also sent on a cache hit, with a completed progress
-update and a `Using cached image` end message. Extraction and flash progress use
-the existing response messages.
+Over gRPC, the same rules apply. Set `FlashRequest.keep` to `true` to keep a
+new download in the image store. `List` sets `Release.kept` for kept images.
+`FlashRequest.temp_path` selects the parent of the temporary extraction
+directory, which is removed after the flash. When the image is already stored,
+the download events report a completed download with the message
+`Using stored image`.
 
 ## Read an additional index
 

@@ -28,14 +28,14 @@ func NewDownloadCmd() *cobra.Command {
 	var version string
 	cmd := &cobra.Command{
 		Use:   "download [board]",
-		Short: "Download a Linux image to the cache or a specified path",
-		Long: `Download a Linux image to the cache or a specified path.
+		Short: "Download a Linux image to the image store or a specified path",
+		Long: `Download a Linux image to the image store or a specified path.
 
 The first argument is the board name, asked for interactively when it is
 missing. The most recent image is downloaded unless a --version is specified.
 The --os flag selects the distribution if more than one is available.
 
-Images are saved in the user cache by default. A cached image is reused after
+Images are saved in the image store by default. A kept image is reused after
 checking its checksum against the online manifest. Use --dest-dir to save the
 image to an existing directory instead.
 `,
@@ -55,7 +55,7 @@ image to an existing directory instead.
 	}
 	cmd.Flags().StringVarP(&version, "version", "v", "", "Version of the image to download. Leave empty for latest")
 	cmd.Flags().StringVar(&osStr, "os", "", "Distribution to download, if more than one is available")
-	cmd.Flags().StringVar(&destDir, "dest-dir", "", "Path to an existing download directory (default: user image cache)")
+	cmd.Flags().StringVar(&destDir, "dest-dir", "", "Path to an existing download directory (default: the image store)")
 
 	return cmd
 }
@@ -100,12 +100,15 @@ func runDownloadCommand(ctx context.Context, boardID, destDir string, imageOs st
 		feedback.Fatal(i18n.Tr("error looking up the image: %v", err), feedback.ErrBadArgument)
 	}
 	if downloadPath == nil {
-		downloadPath, err = updater.DownloadImageToCache(ctx, rel)
+		downloadPath, err = updater.DownloadImageToStore(ctx, rel)
 	} else {
 		downloadPath, err = updater.DownloadImage(ctx, rel, downloadPath)
 	}
+	if err != nil && ctx.Err() != nil {
+		feedback.Fatal(i18n.Tr("Download interrupted. Run the command again to resume it."), feedback.ErrGeneric)
+	}
 	if err != nil {
-		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrBadArgument)
+		feedback.Fatal(i18n.Tr("error downloading the image: %v", err), feedback.ErrGeneric)
 	}
 	pathAbs, _ := downloadPath.Abs()
 	feedback.Print(i18n.Tr("\nImage successfully downloaded: %s", pathAbs.String()))
