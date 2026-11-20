@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,8 +23,8 @@ import (
 	"github.com/arduino/go-paths-helper"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 type archiveTransport struct {
@@ -58,7 +57,7 @@ func (s *archiveTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}, nil
 }
 
-func setupImageDownload(t *testing.T) (*cache.Cache, registry.Release, *archiveTransport) {
+func setupImageDownload(t *testing.T) (*store.Store, registry.Release, *archiveTransport) {
 	t.Helper()
 	switch runtime.GOOS {
 	case "windows":
@@ -85,14 +84,14 @@ func setupImageDownload(t *testing.T) (*cache.Cache, registry.Release, *archiveT
 	original := http.DefaultClient
 	http.DefaultClient = &http.Client{Transport: transport}
 	t.Cleanup(func() { http.DefaultClient = original })
-	imageCache, err := cache.Default()
+	imageStore, err := store.Default()
 	require.NoError(t, err)
-	return imageCache, rel, transport
+	return imageStore, rel, transport
 }
 
-func seedImageCache(t *testing.T, imageCache *cache.Cache, rel registry.Release, contents []byte) string {
+func seedImageStore(t *testing.T, imageStore *store.Store, rel registry.Release, contents []byte) string {
 	t.Helper()
-	archive, err := imageCache.Store(context.Background(), rel, func(_ context.Context, dir string) error {
+	archive, _, err := imageStore.Get(context.Background(), rel, true, func(_ context.Context, dir string) error {
 		return os.WriteFile(filepath.Join(dir, rel.FileName), contents, 0o600)
 	})
 	require.NoError(t, err)
@@ -106,115 +105,46 @@ func requireExtractedPayload(t *testing.T, dir *paths.Path) {
 	require.Equal(t, "test payload", string(data))
 }
 
-func TestDownloadAndExtractReusesCache(t *testing.T) {
+func TestDownloadAndExtractReusesStore(t *testing.T) {
 	for _, keep := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
-			imageCache, rel, transport := setupImageDownload(t)
-			archive := seedImageCache(t, imageCache, rel, transport.contents)
+		t.Run(fmt.Sprintf("keep=%t", keep), func(t *testing.T) {
+			imageStore, rel, transport := setupImageDownload(t)
+			archive := seedImageStore(t, imageStore, rel, transport.contents)
 			scratch := paths.New(t.TempDir())
-			require.NoError(t, DownloadAndExtract(context.Background(), rel, scratch, keep))
+			_, err := downloadAndExtract(context.Background(), imageStore, rel, scratch, keep)
+			require.NoError(t, err)
 			requireExtractedPayload(t, scratch)
 			require.Zero(t, transport.requests, "reusing an archive must not contact its server")
-			require.NoDirExists(t, filepath.Join(filepath.Dir(archive), "image"), "extraction must stay outside the cache")
+			require.NoDirExists(t, filepath.Join(filepath.Dir(archive), "image"), "extraction must stay outside the image store")
 			require.NoError(t, scratch.RemoveAll())
-			_, err := imageCache.Lookup(context.Background(), rel)
-			require.NoError(t, err, "cleaning scratch space must not delete cached archives")
+			_, err = imageStore.Lookup(context.Background(), rel)
+			require.NoError(t, err, "cleaning scratch space must not delete stored archives")
 		})
 	}
 }
 
-func TestDownloadAndExtractFreeSpace(t *testing.T) {
-	const (
-		cachedState  = "cached"
-		missingState = "missing"
-		corruptState = "corrupt"
-	)
+func TestDownloadAndExtractKeepsOnlyWhenRequested(t *testing.T) {
 	for _, keep := range []bool{false, true} {
-		for _, tc := range []struct {
-			name         string
-			state        string
-			freeGiB      uint64
-			wantRequired uint64
-			wantSuccess  bool
-		}{
-			{"cached with exactly 10 GiB", cachedState, 10, 10, true},
-			{"cached below 10 GiB", cachedState, 9, 10, false},
-			{"missing with 11 GiB", missingState, 11, 12, false},
-		} {
-			t.Run(fmt.Sprintf("%s/cache=%t", tc.name, keep), func(t *testing.T) {
-				c, rel, transport := setupImageDownload(t)
-				var archive string
-				if tc.state != missingState {
-					archive = seedImageCache(t, c, rel, transport.contents)
-					if tc.state == corruptState {
-						require.NoError(t, os.WriteFile(archive, []byte("corrupted archive"), 0o600))
-					}
-				}
-				scratch := paths.New(t.TempDir())
-				spaceErr := errors.New("insufficient scratch space")
-				var checkedRequired uint64
-				var checkedOperation string
-				checks := 0
-				checkSpace := func(dir *paths.Path, requiredGiB uint64, what string) error {
-					checks++
-					require.Equal(t, scratch.String(), dir.String())
-					require.Zero(t, transport.requests, "space must be checked before a download starts")
-					require.NoDirExists(t, scratch.Join("image").String(), "space must be checked before extraction")
-					checkedRequired, checkedOperation = requiredGiB, what
-					if tc.freeGiB < requiredGiB {
-						return spaceErr
-					}
-					return nil
-				}
-				err := downloadAndExtract(context.Background(), rel, scratch, keep, checkSpace)
-				if tc.wantSuccess {
-					require.NoError(t, err)
-					requireExtractedPayload(t, scratch)
-					if tc.state == cachedState {
-						require.Zero(t, transport.requests)
-					} else {
-						require.Positive(t, transport.requests)
-					}
-				} else {
-					require.ErrorIs(t, err, spaceErr)
-					require.Zero(t, transport.requests, "insufficient space must stop before downloading")
-					require.NoDirExists(t, scratch.Join("image").String())
-				}
-				require.Equal(t, 1, checks)
-				require.Equal(t, tc.wantRequired, checkedRequired)
-				operation := "download and extraction"
-				if tc.state == cachedState {
-					operation = "extraction"
-					cached, err := c.Lookup(context.Background(), rel)
-					require.NoError(t, err, "a space check must preserve the cached archive")
-					require.Equal(t, archive, cached)
-				}
-				require.Equal(t, operation, checkedOperation)
-			})
-		}
-	}
-}
-
-func TestDownloadAndExtractCachesOnlyWhenRequested(t *testing.T) {
-	for _, keep := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cache=%t", keep), func(t *testing.T) {
-			imageCache, rel, transport := setupImageDownload(t)
+		t.Run(fmt.Sprintf("keep=%t", keep), func(t *testing.T) {
+			imageStore, rel, transport := setupImageDownload(t)
 			scratch := paths.New(t.TempDir())
-			require.NoError(t, DownloadAndExtract(context.Background(), rel, scratch, keep))
+			archive, err := downloadAndExtract(context.Background(), imageStore, rel, scratch, keep)
+			require.NoError(t, err)
 			requireExtractedPayload(t, scratch)
 			require.NotZero(t, transport.requests)
-			archive, err := imageCache.Lookup(context.Background(), rel)
+			require.NoFileExists(t, scratch.Join(rel.FileName).String(), "archives are never in the extraction directory")
+			_, err = imageStore.Lookup(context.Background(), rel)
 			if keep {
 				require.NoError(t, err)
-				require.NoFileExists(t, scratch.Join(rel.FileName).String(), "a retained archive belongs in the cache")
 			} else {
-				require.ErrorIs(t, err, cache.ErrMiss)
-				require.NoDirExists(t, imageCache.Dir())
-				require.FileExists(t, scratch.Join(rel.FileName).String())
+				require.ErrorIs(t, err, store.ErrMiss)
+				require.Equal(t, filepath.Join(imageStore.Dir(), ".partial", rel.FileName), archive)
 			}
-			require.NoError(t, scratch.RemoveAll())
+			imageStore.Discard(archive)
 			if keep {
-				require.FileExists(t, archive)
+				require.FileExists(t, archive, "discarding leaves kept archives")
+			} else {
+				require.NoFileExists(t, archive)
 			}
 		})
 	}

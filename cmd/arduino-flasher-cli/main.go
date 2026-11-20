@@ -13,12 +13,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.bug.st/cleanup"
 
-	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/cache"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/daemon"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/download"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/drivers"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/flash"
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/images"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/list"
+	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/prune"
 	"github.com/arduino/arduino-flasher-cli/cmd/arduino-flasher-cli/version"
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
@@ -53,7 +54,8 @@ func main() {
 		drivers.NewInstallDriversCmd(),
 		list.NewListCmd(),
 		download.NewDownloadCmd(),
-		cache.NewCacheCmd(),
+		images.NewImagesCmd(),
+		prune.NewPruneCmd(),
 		version.NewVersionCmd(Version),
 		daemon.NewDaemonCommand(service.NewFlasherServer()),
 	)

@@ -18,25 +18,47 @@ Build it with `task build` and run:
 ./build/arduino-flasher-cli flash path/to/downloaded/image
 ```
 
-## Image cache
+## Image store
 
-`download` saves images in the user cache, under `arduino-flasher-cli/images/`.
-A cached image is reused, and an interrupted download resumes on the next run.
-Use `--dest-dir` to save the image in another directory instead.
+The flasher keeps its files in one folder, `arduino-flasher-cli/` in the user
+cache directory. The CLI and the gRPC daemon share it:
 
-`flash` uses a cached image if there is one. Use `--cache` to keep a new
-download in the cache. `list` marks cached images in the `CACHED` column, and
-the interactive mode marks them `(cached)`.
+- `images/` holds the kept images. A flash never removes them.
+- `images/.partial/` holds downloads that are not kept. An interrupted download
+  resumes there, and a failed flash leaves its image there for a retry.
+- A flash extracts the image into a temporary folder, by default in
+  `arduino-flasher-cli/`, and removes it on every exit.
+
+A flash reuses a stored image (kept or partial) after it checks the checksum.
+
+`download` saves images in the image store, under the user cache directory in
+`arduino-flasher-cli/images/`. A stored image is reused, and an interrupted
+download resumes on the next run. Use `--dest-dir` to save the image in another
+directory instead.
+
+`flash` uses a stored image if there is one. Use `--keep` to keep a new
+download in the image store. Without it, `flash` removes the download after a
+successful flash. An interrupted download resumes, and a failed flash keeps the
+download, so a retry does not download it again. `list` marks kept images in
+the `KEPT` column, and the interactive mode marks them `(kept)`.
+
+`images list` also shows the size of the partial downloads and of the other
+files that the flasher left, such as the directories of a crashed flash.
+`prune` removes everything except the kept images, and `images remove` removes
+kept images.
 
 ```sh
-arduino-flasher-cli cache list
-arduino-flasher-cli cache clear
+arduino-flasher-cli images list
+arduino-flasher-cli images remove --all
+arduino-flasher-cli prune
 ```
 
-Over gRPC, set `FlashRequest.cache` to `true` to keep a new download in the
-cache. `FlashRequest.temp_path` selects the parent of the temporary directory,
-which is removed after the flash. On a cache hit, the download events report a
-completed download with the message `Using cached image`.
+Over gRPC, the same rules apply. Set `FlashRequest.keep` to `true` to keep a
+new download in the image store. `List` sets `Release.kept` for kept images.
+`FlashRequest.temp_path` selects the parent of the temporary extraction
+directory, which is removed after the flash. When the image is already stored,
+the download events report a completed download with the message
+`Using stored image`.
 
 ## Read an additional index
 

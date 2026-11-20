@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package cache
+package store
 
 import (
 	"context"
@@ -20,19 +20,20 @@ func TestListIncludesImagesAndIncompleteDownloadSize(t *testing.T) {
 	first := releaseFor("first image")
 	second := releaseFor("second image")
 	second.FileName = "second.tar.zst"
-	firstPath, err := c.Store(ctx, first, downloadContents(first, "first image"))
+	firstPath, _, err := c.Get(ctx, first, true, downloadContents(first, "first image"))
 	require.NoError(t, err)
-	secondPath, err := c.Store(ctx, second, downloadContents(second, "second image"))
+	secondPath, _, err := c.Get(ctx, second, true, downloadContents(second, "second image"))
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(c.Dir(), ".partial", "third.tar.zst"), []byte("partial"), 0o600))
 
-	listing, err := c.List(ctx)
+	listing, err := c.List()
 	require.NoError(t, err)
 	require.Len(t, listing.Images, 2, "a partial download is not listed")
-	paths := []string{listing.Images[0].Path, listing.Images[1].Path}
-	require.ElementsMatch(t, []string{firstPath, secondPath}, paths)
+	require.Equal(t, int64(len("partial")), listing.PartialSize)
+	require.Zero(t, listing.OtherSize)
+	names := []string{listing.Images[0].FileName, listing.Images[1].FileName}
+	require.ElementsMatch(t, []string{filepath.Base(firstPath), filepath.Base(secondPath)}, names)
 	for _, image := range listing.Images {
-		require.Equal(t, filepath.Base(image.Path), image.FileName)
 		require.False(t, image.DownloadedAt.IsZero())
 	}
 }

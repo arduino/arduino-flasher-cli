@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 func wizardRelease() registry.Release {
@@ -25,26 +25,26 @@ func wizardRelease() registry.Release {
 	}
 }
 
-func wizardEntry(rel registry.Release) cache.Entry {
-	return cache.Entry{FileName: rel.FileName}
+func wizardEntry(rel registry.Release) store.Entry {
+	return store.Entry{FileName: rel.FileName}
 }
 
-func TestImageOptionsCacheLabels(t *testing.T) {
+func TestImageOptionsKeptLabels(t *testing.T) {
 	newest := wizardRelease()
 	older := newest
 	older.Version, older.Latest, older.FileName = "20250914-172", false, "image-20250914-172.tar.zst"
 	images := registry.Releases{newest, older}
-	for _, cached := range []string{"none", "newest", "older"} {
-		t.Run(cached, func(t *testing.T) {
-			var inventory cache.Inventory
+	for _, kept := range []string{"none", "newest", "older"} {
+		t.Run(kept, func(t *testing.T) {
+			var inventory store.Inventory
 			labels := []string{newest.Version + " (latest)", older.Version}
-			switch cached {
+			switch kept {
 			case "newest":
-				inventory.Images = []cache.Entry{wizardEntry(newest)}
-				labels[0] += " (cached)"
+				inventory.Images = []store.Entry{wizardEntry(newest)}
+				labels[0] += " (kept)"
 			case "older":
-				inventory.Images = []cache.Entry{wizardEntry(older)}
-				labels[1] += " (cached)"
+				inventory.Images = []store.Entry{wizardEntry(older)}
+				labels[1] += " (kept)"
 			}
 			options := imageOptions(images, inventory)
 			require.Len(t, options, len(images))

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
 
@@ -23,7 +24,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 		}
 	}
 
-	// One fetch, then filtered: nothing is cached, so asking again is a round
+	// One fetch, then filtered: the index is not stored, so asking again is a round
 	// trip for what is already in hand.
 	all, err := registry.NewClient().Fetch(ctx)
 	if err != nil && len(all) == 0 {
@@ -35,6 +36,12 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 	// which is the order the response promises.
 	matched := all.Filter(req.GetOs(), req.GetBoard())
 
+	// An unavailable image store does not hide the published images.
+	var inventory store.Inventory
+	if imageStore, err := store.Default(); err == nil {
+		inventory, _ = imageStore.List()
+	}
+
 	releases := make([]*flasher.Release, 0, len(matched))
 	for _, r := range matched {
 		releases = append(releases, &flasher.Release{
@@ -42,6 +49,7 @@ func (s *flasherServerImpl) List(ctx context.Context, req *flasher.ListRequest) 
 			Latest:  r.Latest,
 			Board:   r.Board,
 			Os:      r.OS,
+			Kept:    inventory.Contains(r),
 		})
 	}
 

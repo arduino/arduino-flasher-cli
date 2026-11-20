@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 type manifestTransport struct {
@@ -68,9 +68,9 @@ func (s *manifestTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}, nil
 }
 
-func setupList(t *testing.T) (*cache.Cache, *manifestTransport, registry.Release) {
+func setupList(t *testing.T) (*store.Store, *manifestTransport, registry.Release) {
 	t.Helper()
-	// Tests use their own cache and in-memory manifests, never the user's images
+	// Tests use their own image store and in-memory manifests, never the user's images
 	// or the network. Environment and HTTP globals prevent parallel subtests.
 	switch runtime.GOOS {
 	case "windows":
@@ -92,14 +92,14 @@ func setupList(t *testing.T) (*cache.Cache, *manifestTransport, registry.Release
 	original := http.DefaultClient
 	http.DefaultClient = &http.Client{Transport: transport}
 	t.Cleanup(func() { http.DefaultClient = original })
-	c, err := cache.Default()
+	c, err := store.Default()
 	require.NoError(t, err)
 	return c, transport, rel
 }
 
-func seedListCache(t *testing.T, c *cache.Cache, rel registry.Release) string {
+func seedListStore(t *testing.T, c *store.Store, rel registry.Release) string {
 	t.Helper()
-	archive, err := c.Store(context.Background(), rel, func(_ context.Context, dir string) error {
+	archive, _, err := c.Get(context.Background(), rel, true, func(_ context.Context, dir string) error {
 		return os.WriteFile(filepath.Join(dir, rel.FileName), []byte("test image"), 0o600)
 	})
 	require.NoError(t, err)
@@ -117,16 +117,16 @@ func executeList(t *testing.T, args ...string) string {
 	return output.String()
 }
 
-func requireCacheMark(t *testing.T, output, version string, cached bool) {
+func requireKeptMark(t *testing.T, output, version string, kept bool) {
 	t.Helper()
-	require.Contains(t, output, "CACHED")
+	require.Contains(t, output, "KEPT")
 	for _, line := range strings.Split(output, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 3 && fields[2] == version {
 			// This fixture has one release per board/OS, so it always has a
-			// LATEST mark. A cached release has a second mark in CACHED.
+			// LATEST mark. A kept release has a second mark in KEPT.
 			marks := 1
-			if cached {
+			if kept {
 				marks++
 			}
 			require.Equal(t, marks, strings.Count(line, "✓"), line)
@@ -136,15 +136,15 @@ func requireCacheMark(t *testing.T, output, version string, cached bool) {
 	t.Fatalf("version %s missing from output:\n%s", version, output)
 }
 
-func TestListCacheIdentity(t *testing.T) {
+func TestListKeptIdentity(t *testing.T) {
 	const renamed = "different archive name"
 	for _, change := range []string{"matching", renamed, "different checksum"} {
 		t.Run(change, func(t *testing.T) {
 			c, transport, rel := setupList(t)
-			seedListCache(t, c, rel)
+			seedListStore(t, c, rel)
 			online := rel
 			// The archive name is the identity; Lookup checks the checksum before use.
-			wantCached := change != renamed
+			wantKept := change != renamed
 			switch change {
 			case renamed:
 				online.Url = "https://images.example/renamed.tar.zst"
@@ -153,15 +153,15 @@ func TestListCacheIdentity(t *testing.T) {
 			}
 			transport.releases = registry.Releases{online}
 			output := executeList(t)
-			requireCacheMark(t, output, online.Version, wantCached)
+			requireKeptMark(t, output, online.Version, wantKept)
 			require.Len(t, transport.requests, 2, "list should only read the two published indexes once")
 		})
 	}
 }
 
-func TestListUnavailableCachePreservesOnlineImages(t *testing.T) {
+func TestListUnavailableStorePreservesOnlineImages(t *testing.T) {
 	c, _, rel := setupList(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Dir()), 0o750))
 	require.NoError(t, os.WriteFile(c.Dir(), []byte("not a directory"), 0o600))
-	requireCacheMark(t, executeList(t), rel.Version, false)
+	requireKeptMark(t, executeList(t), rel.Version, false)
 }

@@ -22,12 +22,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 // imageTransport serves both published indexes and the archive in memory. No
-// request can reach the network, including on a cache hit or a custom download.
+// request can reach the network, including when the image is kept or for a custom download.
 type imageTransport struct {
 	contents         string
 	manifestRequests int
@@ -89,9 +89,9 @@ func (s *imageTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func setupDownload(t *testing.T) (*imageTransport, *cache.Cache) {
+func setupDownload(t *testing.T) (*imageTransport, *store.Store) {
 	t.Helper()
-	// Keep the real user cache untouched on every supported host OS.
+	// Keep the real image store untouched on every supported host OS.
 	switch runtime.GOOS {
 	case "windows":
 		t.Setenv("LocalAppData", t.TempDir())
@@ -106,9 +106,9 @@ func setupDownload(t *testing.T) (*imageTransport, *cache.Cache) {
 	original := http.DefaultClient
 	http.DefaultClient = &http.Client{Transport: transport}
 	t.Cleanup(func() { http.DefaultClient = original })
-	imageCache, err := cache.Default()
+	imageStore, err := store.Default()
 	require.NoError(t, err)
-	return transport, imageCache
+	return transport, imageStore
 }
 
 func executeDownload(t *testing.T, args ...string) {
@@ -118,28 +118,28 @@ func executeDownload(t *testing.T, args ...string) {
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 }
 
-func TestDownloadCachesByDefault(t *testing.T) {
-	transport, imageCache := setupDownload(t)
+func TestDownloadKeepsByDefault(t *testing.T) {
+	transport, imageStore := setupDownload(t)
 	executeDownload(t, "unoq")
 	require.Equal(t, 1, transport.downloads)
-	archive, err := imageCache.Lookup(context.Background(), transport.release())
+	archive, err := imageStore.Lookup(context.Background(), transport.release())
 	require.NoError(t, err)
 	data, err := os.ReadFile(archive)
 	require.NoError(t, err)
 	require.Equal(t, transport.contents, string(data))
 	manifestRequests, archiveRequests := transport.manifestRequests, transport.archiveRequests
 
-	// An explicit version resolves to the very same cached archive as latest.
+	// An explicit version resolves to the very same kept archive as latest.
 	executeDownload(t, "unoq", "--version", transport.release().Version)
-	require.Greater(t, transport.manifestRequests, manifestRequests, "cache hits still consult the online manifest")
-	require.Equal(t, archiveRequests, transport.archiveRequests, "a valid cached archive needs no HEAD or GET request")
+	require.Greater(t, transport.manifestRequests, manifestRequests, "kept images still need the online manifest")
+	require.Equal(t, archiveRequests, transport.archiveRequests, "a valid kept archive needs no HEAD or GET request")
 	require.Equal(t, 1, transport.downloads)
 }
 
-func TestDownloadExplicitDestinationBypassesCache(t *testing.T) {
+func TestDownloadExplicitDestinationBypassesStore(t *testing.T) {
 	for _, destination := range []string{"custom directory", "current directory"} {
 		t.Run(destination, func(t *testing.T) {
-			transport, imageCache := setupDownload(t)
+			transport, imageStore := setupDownload(t)
 			dir := t.TempDir()
 			argument := dir
 			if destination == "current directory" {
@@ -150,7 +150,7 @@ func TestDownloadExplicitDestinationBypassesCache(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, transport.release().FileName))
 			require.NoError(t, err)
 			require.Equal(t, transport.contents, string(data))
-			require.NoDirExists(t, imageCache.Dir(), "an explicit destination must not populate the cache")
+			require.NoDirExists(t, imageStore.Dir(), "an explicit destination must not populate the image store")
 		})
 	}
 }
