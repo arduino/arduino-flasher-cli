@@ -19,7 +19,6 @@ import (
 
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
-	"github.com/arduino/arduino-flasher-cli/internal/cache"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
 	"github.com/arduino/arduino-flasher-cli/internal/tablestyle"
 )
@@ -33,8 +32,6 @@ func NewListCmd() *cobra.Command {
 
 Everything published is listed, grouped by board and distribution. The argument
 narrows the result to one board, and --os to one distribution.
-The CACHED column marks local archives whose metadata matches the online image.
-Archive checksums are verified before reuse by flash, rather than while listing.
 `,
 		Args: cobra.MaximumNArgs(1),
 		Example: " " + os.Args[0] + " list\n" +
@@ -62,7 +59,8 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 		}
 	}
 
-	// Fetch the manifest once, then filter the releases already in hand.
+	// One fetch, then filtered: nothing is cached, so asking per distribution
+	// would only be more round trips for releases already in hand.
 	all, err := registry.NewClient().Fetch(ctx)
 	if err != nil {
 		// One index failing should not hide the ones that did not.
@@ -72,18 +70,6 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 		}
 	}
 
-	// Inspect local metadata once, without hashing multi-GB archives. An
-	// unavailable cache should not hide images published in the online manifest.
-	var inventory cache.Inventory
-	imageCache, cacheErr := cache.Default()
-	if cacheErr == nil {
-		inventory, cacheErr = imageCache.List(ctx)
-	}
-	if cacheErr != nil {
-		feedback.Warning(i18n.Tr("could not inspect the image cache: %v", cacheErr))
-		inventory = cache.Inventory{}
-	}
-
 	result := listResult{board: board}
 	for _, r := range all.Filter(imageOs, board.ID) {
 		result.Releases = append(result.Releases, listRelease{
@@ -91,7 +77,6 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 			Board:   r.Board,
 			Os:      r.OS,
 			Latest:  r.Latest,
-			Cached:  inventory.Contains(r),
 			Url:     r.Url,
 			Sha256:  r.Sha256,
 		})
@@ -100,7 +85,8 @@ func runListCommand(ctx context.Context, boardID string, imageOs string) {
 	feedback.PrintResult(result)
 }
 
-// listResult describes published images together with their local cache status.
+// The reported shape mirrors the daemon's List, so the two describe an image the
+// same way.
 type listResult struct {
 	Releases []listRelease `json:"releases"`
 	// board is only for the empty-result message.
@@ -116,8 +102,6 @@ type listRelease struct {
 	Os string `json:"os,omitempty"`
 	// Latest is whether this is the most recent of its board and distribution.
 	Latest bool `json:"latest"`
-	// Cached indicates matching local metadata, not a freshly verified checksum.
-	Cached bool `json:"cached"`
 	// Url and Sha256 are where the archive is published, to fetch it without
 	// going through the flash command.
 	Url    string `json:"url"`
@@ -155,7 +139,7 @@ func (lr listResult) String() string {
 
 	t := table.NewWriter()
 	t.SetStyle(tablestyle.CustomCleanStyle)
-	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "LATEST", "CACHED"})
+	t.AppendHeader(table.Row{"BOARD", "OS", "VERSION", "LATEST"})
 	// The style centers cells, which leaves names of different lengths ragged.
 	// These are read off to be retyped, so they line up instead.
 	t.SetColumnConfigs([]table.ColumnConfig{
@@ -169,12 +153,8 @@ func (lr listResult) String() string {
 			if r.Latest {
 				mark = "✓"
 			}
-			cachedMark := ""
-			if r.Cached {
-				cachedMark = "✓"
-			}
 			// Named on every row: a row is what the flash arguments are read off.
-			t.AppendRow(table.Row{key.board, key.os, r.Version, mark, cachedMark})
+			t.AppendRow(table.Row{key.board, key.os, r.Version, mark})
 		}
 	}
 	return t.Render()
