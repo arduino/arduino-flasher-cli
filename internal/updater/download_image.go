@@ -8,7 +8,6 @@ package updater
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/arduino/go-paths-helper"
 	"github.com/codeclysm/extract/v4"
@@ -17,21 +16,24 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/feedback"
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 )
 
 // DownloadConfirmCB is a function that is called when a Debian image is ready to be downloaded.
 type DownloadConfirmCB func(target string) (bool, error)
 
-func DownloadAndExtract(ctx context.Context, rel registry.Release, temp *paths.Path) error {
-	tmpZip, err := DownloadImage(ctx, rel, temp)
+// DownloadImageToStore downloads or reuses a verified archive in the image store.
+// The caller must resolve rel from the online manifest before calling it.
+func DownloadImageToStore(ctx context.Context, rel registry.Release) (*paths.Path, error) {
+	imageStore, err := store.Default()
 	if err != nil {
-		return fmt.Errorf("error downloading the image: %v", err)
+		return nil, fmt.Errorf("could not open the image store: %w", err)
 	}
-
-	if err := ExtractImage(ctx, tmpZip, temp); err != nil {
-		return fmt.Errorf("error extracting the image: %v", err)
+	archive, _, err := imageStore.Get(ctx, rel, true, downloadInto(rel))
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return paths.New(archive), nil
 }
 
 // DownloadImage fetches a release that was already found in an index, and
@@ -74,26 +76,26 @@ func ExtractImage(ctx context.Context, archive, temp *paths.Path) error {
 	return nil
 }
 
-// SetTempDir returns a temporary directory inside the user's cache directory (default).
-// The tempDir parameter is used to change the download/extraction directory.
-// The caller is responsible for removing the directory when no longer needed.
-func SetTempDir(prefix string, tempDir string) (*paths.Path, error) {
-	cacheDir := paths.New(tempDir)
-
-	if cacheDir == nil {
-		userCacheDir, err := os.UserCacheDir()
-		if err != nil {
-			return nil, fmt.Errorf("could not get user's cache directory: %w", err)
-		}
-
-		cacheDir = paths.New(userCacheDir, "arduino-flasher-cli")
-		_ = cacheDir.MkdirAll()
-	}
-
-	temp, err := paths.MkTempDir(cacheDir.String(), prefix)
+// downloadAndExtract gets the archive of rel from the image store, or downloads
+// it, then extracts it in temp. It returns the archive for Store.Discard.
+func downloadAndExtract(ctx context.Context, imageStore *store.Store, rel registry.Release, temp *paths.Path, keep bool) (string, error) {
+	archive, found, err := imageStore.Get(ctx, rel, keep, downloadInto(rel))
 	if err != nil {
-		return nil, fmt.Errorf("could not create .cache directory: %w", err)
+		return "", fmt.Errorf("error getting the image: %w", err)
 	}
+	if found {
+		feedback.Print(i18n.Tr("Using stored image version %s", rel.Version))
+	}
+	if err := ExtractImage(ctx, paths.New(archive), temp); err != nil {
+		return "", fmt.Errorf("error extracting the image: %v", err)
+	}
+	return archive, nil
+}
 
-	return temp, nil
+// downloadInto returns a store download function that downloads rel into its directory.
+func downloadInto(rel registry.Release) func(context.Context, string) error {
+	return func(ctx context.Context, dir string) error {
+		_, err := DownloadImage(ctx, rel, paths.New(dir))
+		return err
+	}
 }

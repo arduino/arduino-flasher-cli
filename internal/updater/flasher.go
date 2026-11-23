@@ -24,15 +24,14 @@ import (
 	"github.com/arduino/arduino-flasher-cli/cmd/i18n"
 	"github.com/arduino/arduino-flasher-cli/internal/helper"
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	"github.com/arduino/arduino-flasher-cli/internal/types/serial"
 	"github.com/arduino/arduino-flasher-cli/internal/updater/artifacts"
 )
 
 const (
-	GiB               = uint64(1024 * 1024 * 1024)
-	DownloadDiskSpace = uint64(12)
-	ExtractDiskSpace  = uint64(10)
-	yesPrompt         = "yes"
+	GiB       = uint64(1024 * 1024 * 1024)
+	yesPrompt = "yes"
 )
 
 type FlashOptions struct {
@@ -40,40 +39,50 @@ type FlashOptions struct {
 	PreserveUser bool
 	TempDir      string
 	RootSize     uint64
+	// Keep stores the archive in the image store after a successful flash.
+	Keep bool
 }
 
 // DownloadAndFlash fetches the release and flashes it. It is the composition the
 // CLI needs; the daemon reports progress between the steps and uses them
 // directly instead.
 func DownloadAndFlash(ctx context.Context, boardID string, rel registry.Release, opts FlashOptions) error {
-	temp, err := SetTempDir("download-", opts.TempDir)
+	temp, err := store.TempDir("download-", opts.TempDir)
 	if err != nil {
 		return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 	}
 	defer func() { _ = temp.RemoveAll() }()
 
-	if err := checkFreeSpace(temp, DownloadDiskSpace, "download and extraction"); err != nil {
+	if err := checkFreeSpace(temp, 12, "download and extraction"); err != nil {
 		return err
 	}
-
-	if err := DownloadAndExtract(ctx, rel, temp); err != nil {
+	imageStore, err := store.Default()
+	if err != nil {
+		return fmt.Errorf("could not open the image store: %w", err)
+	}
+	archive, err := downloadAndExtract(ctx, imageStore, rel, temp, opts.Keep)
+	if err != nil {
 		return fmt.Errorf("could not download and extract the image: %v", err)
 	}
 
-	return FlashBoard(ctx, opts.Serial, temp, rel.Version, boardID, opts.PreserveUser, opts.RootSize, nil)
+	if err := FlashBoard(ctx, opts.Serial, temp, rel.Version, boardID, opts.PreserveUser, opts.RootSize, nil); err != nil {
+		return err
+	}
+	imageStore.Discard(archive)
+	return nil
 }
 
 // FlashImage flashes an image already on disk, extracting it first when it is an
 // archive. The image does not say which board it is for, so the caller tells.
 func FlashImage(ctx context.Context, imagePath *paths.Path, boardID string, opts FlashOptions) error {
 	if !imagePath.IsDir() {
-		temp, err := SetTempDir("extract-", opts.TempDir)
+		temp, err := store.TempDir("extract-", opts.TempDir)
 		if err != nil {
 			return fmt.Errorf("error creating a temporary directory to extract the archive: %v", err)
 		}
 		defer func() { _ = temp.RemoveAll() }()
 
-		if err := checkFreeSpace(temp, ExtractDiskSpace, "extraction"); err != nil {
+		if err := checkFreeSpace(temp, 10, "extraction"); err != nil {
 			return err
 		}
 

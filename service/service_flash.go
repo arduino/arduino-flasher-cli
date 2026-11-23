@@ -6,6 +6,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/codeclysm/extract/v4"
 
 	"github.com/arduino/arduino-flasher-cli/internal/registry"
+	"github.com/arduino/arduino-flasher-cli/internal/store"
 	"github.com/arduino/arduino-flasher-cli/internal/updater"
 	flasher "github.com/arduino/arduino-flasher-cli/rpc/cc/arduino/flasher/v1"
 )
@@ -73,14 +75,6 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 
 	client := registry.NewClient()
 
-	tmpPath := paths.New(req.GetTempPath())
-	defer func() {
-		// if the flash was successful, we can clean up the temporary files.
-		if outErr == nil {
-			_ = tmpPath.RemoveAll()
-		}
-	}()
-
 	releases, fetchErr := client.Fetch(ctx)
 	rel, err := releases.Resolve(req.GetOs(), board.ID, req.GetVersion())
 	if err != nil {
@@ -88,30 +82,46 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return fmt.Errorf("could not get release info: %w", errors.Join(err, fetchErr))
 	}
 
+	imageStore, err := store.Default()
+	if err != nil {
+		return err
+	}
+	// Extract in a private directory, never in the client-supplied parent.
+	tmpPath, err := store.TempDir("grpc-flash-", req.GetTempPath())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tmpPath.RemoveAll() }()
+
 	downloadCB.Start(rel.Url, rel.Version)
-	tmpZip, err := client.DownloadFile(ctx, tmpPath, rel, downloadCB.Update)
+	archive, found, err := imageStore.Get(ctx, rel, false, func(ctx context.Context, dir string) error {
+		_, err := client.DownloadFile(ctx, paths.New(dir), rel, downloadCB.Update)
+		return err
+	})
 	if err != nil {
 		// FIXME: Maybe this is redundant?
 		downloadCB.End(false, err.Error())
 		return err
 	}
-	downloadCB.End(true, "")
+	message := ""
+	if found {
+		message = "Using stored image"
+	}
+	downloadCB.End(true, message)
 
-	tmpZipFile, err := tmpZip.Open()
+	tmpZipFile, err := paths.New(archive).Open()
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
-	defer tmpZipFile.Close()
-
 	extractPath := tmpPath.Join("extracted")
-	defer func() {
-		_ = extractPath.RemoveAll()
-	}()
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Message: "Extracting image archive"})
-	if err := extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
+	err = extract.Archive(ctx, tmpZipFile, extractPath.String(), func(s string) string {
 		extractCB(&flasher.TaskProgress{Name: taskExtract, Message: s})
 		return s
-	}); err != nil {
+	})
+	// Discard needs the archive closed.
+	_ = tmpZipFile.Close()
+	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
 	extractCB(&flasher.TaskProgress{Name: taskExtract, Completed: true})
@@ -128,6 +138,7 @@ func (s *flasherServerImpl) Flash(req *flasher.FlashRequest, stream flasher.Flas
 		return err
 	}
 	flashCB(&flasher.TaskProgress{Name: taskFlash, Completed: true})
+	imageStore.Discard(archive)
 
 	return responseCallback(&flasher.FlashResponse{
 		Message: &flasher.FlashResponse_Result_{
